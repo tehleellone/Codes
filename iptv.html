@@ -1,0 +1,2882 @@
+<!-- 
+╔══════════════════════════════════════════════════════════════════╗
+║  IPTV CONTRACT RENEWAL DASHBOARD - UPDATED VERSION              ║
+║  Created: January 2025                                           ║
+║  Version: 1.1 - Updated SharePoint List Reference                ║
+╚══════════════════════════════════════════════════════════════════╝
+
+INSTALLATION INSTRUCTIONS:
+==========================
+1. Open SharePoint site
+2. Create/Edit page
+3. Add "Script Editor" Web Part
+4. Click "Edit Snippet"  
+5. Copy this ENTIRE file (Ctrl+A, Ctrl+C)
+6. Paste into Script Editor (Ctrl+V)
+7. Click "Insert"
+8. Save page
+9. Done! 🎉
+
+CHANGES IN THIS VERSION:
+========================
+✅ Updated List Name: "IPTV Renewals" → "IPTV"
+✅ Updated List GUID: 06018CB3-44E7-40AF-A5CF-B04440ABBFD1
+✅ Confirmed all field mappings match your SharePoint columns
+
+CURRENTLY USING: LIVE SHAREPOINT DATA
+TO USE DUMMY DATA: Comment out the SharePoint fetch section
+-->
+
+<script src="https://unpkg.com/lucide@latest"></script>
+<div id="iptv-root" class="iptv-root">
+    <div class="iptv-shell">
+        <!-- LANDING PAGE -->
+        <div id="iptv-landing-page" class="iptv-landing-page">
+            <div class="iptv-landing-container">
+                <div class="iptv-landing-header">
+                    <img src="https://seeklogo.com/images/D/du-logo-D86D33C400-seeklogo.com.png" alt="Logo" class="iptv-landing-logo">
+                    <h1 class="iptv-landing-title">IPTV Contract Dashboard</h1>
+                    <p class="iptv-landing-subtitle">Contract Renewal & Channel Tracking System</p>
+                </div>
+                <div class="iptv-landing-card">
+                    <div class="iptv-landing-welcome">
+                        <h2>Welcome,</h2>
+                        <div class="iptv-landing-user-info">
+                            <div class="iptv-landing-avatar" id="iptvLandingAvatar">
+                                <div class="iptv-avatar-placeholder" id="iptvAvatarPlaceholder"></div>
+                                <img id="iptvUserPhoto" class="iptv-user-photo" style="display:none;" alt="User">
+                            </div>
+                            <div class="iptv-landing-details">
+                                <h3 id="iptvLandingUserName">Loading...</h3>
+                                <p id="iptvLandingUserEmail">Verifying access...</p>
+                                <p id="iptvLandingUserRole" class="iptv-landing-role"></p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="iptv-landing-stats">
+                        <div class="iptv-stat-item">
+                            <div class="iptv-stat-icon">🔢</div>
+                            <div class="iptv-stat-info">
+                                <div class="iptv-stat-value" id="iptvLandingVisitCount">--</div>
+                                <div class="iptv-stat-label">Total Visits</div>
+                            </div>
+                        </div>
+                        <div class="iptv-stat-item">
+                            <div class="iptv-stat-icon">⏰</div>
+                            <div class="iptv-stat-info">
+                                <div class="iptv-stat-value" id="iptvLandingLastVisit">--</div>
+                                <div class="iptv-stat-label">Last Visit</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="iptv-landing-actions">
+                        <button type="button" id="iptvGoToDashboard" class="iptv-landing-btn iptv-btn-primary" disabled>
+                            <span>🔒 Verifying Access...</span>
+                        </button>
+                        <p class="iptv-landing-note" id="iptvAccessNote">Please wait...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- MAIN DASHBOARD -->
+        <div id="iptv-main-dashboard" style="display:none;">
+            <div class="iptv-header">
+                <div class="iptv-header-left">
+                    <div class="iptv-logo">
+                        <img src="https://seeklogo.com/images/D/du-logo-D86D33C400-seeklogo.com.png" alt="Logo" class="iptv-logo-img">
+                    </div>
+                    <div>
+                        <div class="iptv-title">IPTV Contract Dashboard</div>
+                        <div class="iptv-subtitle">Live view of contracts & renewals</div>
+                    </div>
+                </div>
+                <div class="iptv-header-right">
+                    <select class="iptv-color-scheme-selector" id="iptvColorSchemeSelector" onchange="iptvSwitchColorScheme()">
+                        <option value="magenta">Magenta Theme</option>
+                        <option value="cyan">Cyan Theme</option>
+                    </select>
+                    <div class="iptv-theme-toggle" onclick="iptvToggleTheme()">
+                        <i data-lucide="moon" id="iptvThemeIcon"></i>
+                    </div>
+                    <div class="iptv-badge"><span class="iptv-dot"></span>Live · SharePoint Data</div>
+                </div>
+            </div>
+            <div class="iptv-tabs">
+                <button type="button" class="iptv-tab iptv-tab-active" data-section="iptv-dashboard">Summary</button>
+                <button type="button" class="iptv-tab" data-section="iptv-renewal">Renewal Forecast</button>
+            </div>
+            <div class="iptv-body">
+                <div id="iptv-dashboard" class="iptv-section iptv-section-active">
+                    <div class="iptv-section-header" style="margin-bottom:20px;">
+                        <h2>Overall Summary</h2>
+                        <p style="margin-bottom:16px;">High-level view of contracts and revenue</p>
+                    </div>
+                    <div id="iptv-dashboard-cards" class="iptv-cards"></div>
+                </div>
+                <div id="iptv-renewal" class="iptv-section">
+                    <div class="iptv-section-header">
+                        <h2>Renewal Forecast</h2>
+                        <p>Filter by Year or Manager, then click a <strong>Month Card</strong> to drill down.</p>
+                    </div>
+                    <div class="iptv-filters-row" style="margin-top:16px;">
+                        <div class="iptv-filter">
+                            <label>Contract End Year</label>
+                            <select id="iptv-ren-year">
+                                <option value="">All Years</option>
+                            </select>
+                        </div>
+                        <div class="iptv-filter">
+                            <label>Account Director</label>
+                            <select id="iptv-ren-dir">
+                                <option value="">All Directors</option>
+                            </select>
+                        </div>
+                        <div class="iptv-filter">
+                            <label>Account Manager</label>
+                            <select id="iptv-ren-am">
+                                <option value="">All Managers</option>
+                            </select>
+                        </div>
+                        <div class="iptv-filter">
+                            <label style="opacity:0;">Reset</label>
+                            <button type="button" id="iptv-ren-reset" class="iptv-reset-btn">🔄 Reset Filters</button>
+                        </div>
+                    </div>
+                    <div id="iptv-renewal-summary" class="iptv-cards"></div>
+                    <h3 class="iptv-subheading">Monthly Expiry Breakdown <span style="font-weight:400;font-size:12px;opacity:0.7;">(Click a month)</span></h3>
+                    <div id="iptv-renewal-month-cards" class="iptv-cards"></div>
+                    <div class="iptv-table-card">
+                        <div class="iptv-table-header">
+                            <div>
+                                <h3 id="iptv-ren-table-title">All Contracts</h3>
+                                <p>Detailed view of selected range.</p>
+                            </div>
+                            <div style="display:flex;gap:10px;align-items:center;">
+                                <button type="button" id="iptv-export-excel" class="iptv-export-btn">📊 Extract to Excel</button>
+                                <input id="iptv-renewal-search" type="text" class="iptv-search" placeholder="Search...">
+                            </div>
+                        </div>
+                        <div class="iptv-table-wrapper">
+                            <table class="iptv-table">
+                                <thead>
+                                    <tr>
+
+                                        <th>Account Code</th>
+                                        <th>Customer Name</th>
+                                        <th>Account Manager</th>
+                                        <th>Account Director</th>
+                                        <th>Contract Type</th>
+                                        <th>Contract Start Date</th>
+                                        <th>Contract End Date</th>
+                                        <th>Contract Duration</th>
+                                        <th style="text-align:right;">OTC</th>
+                                        <th>Status</th>
+                                        <th>Partners Involved</th>
+                                        <th>Type of Request</th>
+                                        <th id="iptvDateHeader">Days Left</th>
+                                        <th id="iptvActionHeader">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="iptv-renewal-tbody">
+                                    <tr>
+                                        <td colspan="14" style="text-align:center;padding:16px;">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* IPTV DASHBOARD STYLES - Optimized */
+    :root {
+        --iptv-bg-primary: linear-gradient(135deg, #1a0a27 0%, #2a1a3a 50%, #1d0f19 100%);
+        --iptv-bg-card: rgba(15, 23, 42, 0.8);
+        --iptv-border-color: rgba(148, 63, 199, 0.4);
+        --iptv-text-primary: #ffffff;
+        --iptv-text-secondary: #e0e7ff;
+        --iptv-gradient-primary: linear-gradient(135deg, #a855f7, #ec4899);
+        --iptv-tab-active-bg: linear-gradient(135deg, #a855f7, #ec4899)
+    }
+
+    body.iptv-light-theme {
+        --iptv-bg-primary: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 50%, #fdf4ff 100%);
+        --iptv-bg-card: rgba(255, 255, 255, 0.95);
+        --iptv-bg-header: rgba(255, 255, 255, 0.98);
+        --iptv-border-color: rgba(147, 51, 234, 0.25);
+        --iptv-border-hover: rgba(147, 51, 234, 0.5);
+        --iptv-text-primary: #1e1b4b;
+        --iptv-text-secondary: #4c1d95;
+        --iptv-text-muted: #7c3aed;
+        --iptv-gradient-primary: linear-gradient(135deg, #a855f7, #ec4899);
+        --iptv-gradient-secondary: linear-gradient(135deg, #9333ea, #db2777);
+        --iptv-tab-bg: rgba(243, 232, 255, 0.8);
+        --iptv-tab-active-bg: linear-gradient(135deg, #a855f7, #ec4899);
+    }
+
+    body.iptv-cyan-theme {
+        --iptv-bg-primary: linear-gradient(135deg, #0a1a27 0%, #1a2a3a 50%, #0f1d19 100%);
+        --iptv-bg-card: rgba(10, 26, 39, 0.85);
+        --iptv-border-color: rgba(6, 182, 212, 0.3);
+        --iptv-gradient-primary: linear-gradient(135deg, #06b6d4, #0891b2);
+        --iptv-tab-active-bg: linear-gradient(135deg, #06b6d4, #0891b2)
+    }
+
+    /* IPTV Cyan Light Theme Fix */
+    body.iptv-cyan-theme.iptv-light-theme {
+        --iptv-bg-primary: linear-gradient(135deg, #ecfeff 0%, #cffafe 50%, #f0fdfa 100%);
+        --iptv-bg-card: rgba(255, 255, 255, 0.95);
+        --iptv-bg-header: rgba(255, 255, 255, 0.98);
+        --iptv-border-color: rgba(6, 182, 212, 0.25);
+        --iptv-border-hover: rgba(6, 182, 212, 0.5);
+        --iptv-text-primary: #134e4a;
+        --iptv-text-secondary: #155e75;
+        --iptv-text-muted: #0891b2;
+        --iptv-gradient-primary: linear-gradient(135deg, #06b6d4, #0891b2);
+        --iptv-gradient-secondary: linear-gradient(135deg, #0e7490, #155e75);
+        --iptv-tab-bg: rgba(207, 250, 254, 0.8);
+        --iptv-tab-active-bg: linear-gradient(135deg, #06b6d4, #0891b2);
+    }
+
+    /* IPTV Magenta Light Theme Fix */
+    body.iptv-light-theme .iptv-card-header {
+        color: #7c3aed;
+        font-weight: 600;
+    }
+
+    body.iptv-light-theme .iptv-table th {
+        background: linear-gradient(135deg, rgba(147, 51, 234, 0.85), rgba(126, 34, 206, 0.85));
+    }
+
+    body.iptv-cyan-theme .iptv-table th {
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.9), rgba(8, 145, 178, 0.9));
+    }
+
+    body.iptv-cyan-theme.iptv-light-theme .iptv-table th {
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.9), rgba(8, 145, 178, 0.9));
+    }
+
+    #iptv-root {
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        color: var(--iptv-text-primary)
+    }
+
+    .iptv-shell {
+        max-width: 1480px;
+        margin: 4px auto;
+        padding: 8px 12px 12px;
+        border-radius: 12px;
+        background: var(--iptv-bg-primary);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.7);
+        border: 1px solid var(--iptv-border-color)
+    }
+
+    .iptv-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 6px;
+        border-bottom: 1px solid rgba(148, 63, 199, 0.45);
+        margin-bottom: 8px
+    }
+
+    .iptv-header-left {
+        display: flex;
+        align-items: center;
+        gap: 12px
+    }
+
+    .iptv-logo {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center
+    }
+
+    .iptv-logo-img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain
+    }
+
+    .iptv-title {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--iptv-text-primary)
+    }
+
+    .iptv-subtitle {
+        font-size: 12px;
+        color: var(--iptv-text-secondary);
+        opacity: .9
+    }
+
+    .iptv-header-right {
+        display: flex;
+        align-items: center;
+        gap: 12px
+    }
+
+    .iptv-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.7);
+        font-size: 11px
+    }
+
+    .iptv-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #22c55e;
+        box-shadow: 0 0 8px #22c55e;
+        animation: blink 1.5s infinite
+    }
+
+    @keyframes blink {
+
+        0%,
+        100% {
+            opacity: 1
+        }
+
+        50% {
+            opacity: .3
+        }
+    }
+
+    .iptv-tabs {
+        margin-top: 10px;
+        display: flex;
+        gap: 8px;
+        background: rgba(15, 23, 42, 0.6);
+        border-radius: 999px;
+        padding: 4px
+    }
+
+    .iptv-tab {
+        flex: 1;
+        background: transparent;
+        border: none;
+        color: var(--iptv-text-primary);
+        font-size: 13px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        cursor: pointer;
+        transition: all .2s;
+        font-weight: 500
+    }
+
+    .iptv-tab:hover {
+        background: rgba(148, 63, 199, 0.25)
+    }
+
+    .iptv-tab-active {
+        background: var(--iptv-tab-active-bg);
+        color: #fff;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15)
+    }
+
+    .iptv-body {
+        margin-top: 8px
+    }
+
+    .iptv-section {
+        display: none
+    }
+
+    .iptv-section-active {
+        display: block
+    }
+
+    .iptv-section-header h2 {
+        margin: 0;
+        font-size: 18px;
+        color: var(--iptv-text-primary);
+        font-weight: 600
+    }
+
+    .iptv-section-header p {
+        margin: 2px 0 8px;
+        font-size: 12px;
+        color: var(--iptv-text-secondary);
+        font-weight: 400
+    }
+
+    .iptv-subheading {
+        margin: 12px 0 6px;
+        font-size: 14px;
+        color: var(--iptv-text-primary);
+        font-weight: 600
+    }
+
+    .iptv-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 8px
+    }
+
+    .iptv-card {
+        background: var(--iptv-bg-card);
+        border-radius: 12px;
+        padding: 12px 14px;
+        border: 1px solid var(--iptv-border-color);
+        box-shadow: 0 10px 18px rgba(15, 23, 42, 0.7)
+    }
+
+    .iptv-card-header {
+        font-size: 12px;
+        text-transform: uppercase;
+        color: #a5b4fc;
+        letter-spacing: .05em
+    }
+
+    body.iptv-light-theme .iptv-card-header {
+        color: #7c3aed;
+        font-weight: 600
+    }
+
+    .iptv-card-main {
+        margin-top: 4px;
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline
+    }
+
+    /* DASHBOARD background */
+    #iptv-dashboard {
+        position: relative;
+    }
+
+    #iptv-dashboard::before {
+        content: "";
+        position: absolute;
+        top: -20px;
+        left: -20px;
+        right: -20px;
+        bottom: -20px;
+        background-image: url('https://i.imgur.com/oBbo5Lm.png');
+        background-size: 110% 150%;
+        background-position: center center;
+        background-repeat: no-repeat;
+        opacity: .07;
+        pointer-events: none;
+        z-index: 0;
+        border-radius: 0;
+        overflow: hidden;
+        mask-image: radial-gradient(ellipse 100% 100% at 50% 50%, black 40%, transparent 100%);
+        -webkit-mask-image: radial-gradient(ellipse 100% 100% at 50% 50%, black 40%, transparent 100%);
+    }
+
+    body.iptv-light-theme #iptv-dashboard::before {
+        opacity: .15;
+        filter: brightness(1) contrast(1.1);
+    }
+
+    body.iptv-cyan-theme #iptv-dashboard::before {
+        opacity: .08;
+        filter: hue-rotate(180deg) brightness(.85);
+    }
+
+    body.iptv-cyan-theme.iptv-light-theme #iptv-dashboard::before {
+        opacity: .15;
+        filter: hue-rotate(180deg) brightness(1) contrast(1.1);
+    }
+
+    #iptv-dashboard>* {
+        position: relative;
+        z-index: 1;
+    }
+
+    .iptv-card-value {
+        font-size: 24px;
+        font-weight: 600
+    }
+
+    .iptv-card-sub {
+        font-size: 11px;
+        color: var(--iptv-text-secondary);
+        font-weight: 500
+    }
+
+    body.iptv-light-theme .iptv-card-sub {
+        color: #6b21a8;
+    }
+
+    body.iptv-cyan-theme.iptv-light-theme .iptv-card-sub {
+        color: #155e75;
+    }
+
+    .iptv-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        background: rgba(148, 63, 199, 0.2);
+        border: 1px solid rgba(148, 63, 199, 0.7)
+    }
+
+    body.iptv-light-theme .iptv-chip {
+        color: #6b21a8 !important;
+    }
+
+    body.iptv-cyan-theme.iptv-light-theme .iptv-chip {
+        color: #155e75 !important;
+    }
+
+    .iptv-card-vertical {
+        padding: 16px 18px
+    }
+
+    .iptv-card-interactive {
+        cursor: pointer;
+        transition: transform .2s, box-shadow .2s, border-color .2s;
+        position: relative
+    }
+
+    .iptv-card-interactive:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 14px 24px rgba(15, 23, 42, 0.6);
+        border-color: rgba(168, 85, 247, 0.6)
+    }
+
+    .iptv-card-active {
+        background: linear-gradient(145deg, rgba(59, 7, 100, 0.9), rgba(15, 23, 42, 0.95)) !important;
+        border: 1px solid #d946ef !important;
+        box-shadow: 0 0 15px rgba(217, 70, 239, 0.4)
+    }
+
+    /* Light theme active cards - READABLE */
+    body.iptv-light-theme .iptv-card-active {
+        background: linear-gradient(145deg, rgba(216, 180, 254, 0.6), rgba(233, 213, 255, 0.6)) !important;
+        border: 1px solid #a855f7 !important;
+        box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
+    }
+
+    body.iptv-light-theme .iptv-card-active .iptv-card-header,
+    body.iptv-light-theme .iptv-card-active .iptv-card-value,
+    body.iptv-light-theme .iptv-card-active .iptv-card-sub {
+        color: #4c1d95 !important;
+    }
+
+    /* Cyan light theme active cards */
+    body.iptv-cyan-theme.iptv-light-theme .iptv-card-active {
+        background: linear-gradient(145deg, rgba(165, 243, 252, 0.6), rgba(207, 250, 254, 0.6)) !important;
+        border: 1px solid #06b6d4 !important;
+        box-shadow: 0 0 12px rgba(6, 182, 212, 0.3);
+    }
+
+    body.iptv-cyan-theme.iptv-light-theme .iptv-card-active .iptv-card-header,
+    body.iptv-cyan-theme.iptv-light-theme .iptv-card-active .iptv-card-value,
+    body.iptv-cyan-theme.iptv-light-theme .iptv-card-active .iptv-card-sub {
+        color: #134e4a !important;
+    }
+
+    body.iptv-cyan-theme .iptv-card-active {
+        background: linear-gradient(145deg, rgba(6, 95, 112, 0.9), rgba(8, 47, 73, 0.95)) !important;
+        border: 1px solid #06b6d4 !important;
+        box-shadow: 0 0 15px rgba(6, 182, 212, 0.5);
+    }
+
+    body.iptv-cyan-theme .iptv-card-active::after {
+        background: #06b6d4;
+    }
+
+    .iptv-card-active::after {
+        content: "✔ Viewing";
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        font-size: 10px;
+        background: #d946ef;
+        color: #fff;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-weight: bold
+    }
+
+    .iptv-table-card {
+        margin-top: 8px;
+        background: rgba(15, 23, 42, 0.9);
+        border-radius: 12px;
+        border: 1px solid rgba(148, 63, 199, 0.5);
+        padding: 8px 10px 6px
+    }
+
+    body.iptv-light-theme .iptv-table-card {
+        background: rgba(255, 255, 255, 0.95);
+        border-color: rgba(147, 51, 234, 0.25)
+    }
+
+    .iptv-table-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center
+    }
+
+    .iptv-table-header h3 {
+        margin: 0;
+        font-size: 14px
+    }
+
+    .iptv-table-header p {
+        margin: 2px 0 0;
+        font-size: 11px;
+        color: #cbd5f5
+    }
+
+    .iptv-table-wrapper {
+        margin-top: 10px;
+        max-height: 360px;
+        overflow: auto
+    }
+
+    .iptv-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px
+    }
+
+    .iptv-table th,
+    .iptv-table td {
+        padding: 6px 8px;
+        border-bottom: 1px solid rgba(55, 65, 81, 0.9);
+        white-space: nowrap
+    }
+
+    .iptv-table th {
+        position: sticky;
+        top: 0;
+        text-align: left;
+        color: #fff;
+        font-weight: 600;
+        background: linear-gradient(135deg, rgba(168, 85, 247, 0.95), rgba(236, 72, 153, 0.95))
+    }
+
+    body.iptv-light-theme .iptv-table th {
+        background: linear-gradient(135deg, rgba(147, 51, 234, 0.9), rgba(126, 34, 206, 0.9));
+    }
+
+    body.iptv-cyan-theme .iptv-table th {
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.95), rgba(8, 145, 178, 0.95));
+    }
+
+    body.iptv-cyan-theme.iptv-light-theme .iptv-table th {
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.9), rgba(8, 145, 178, 0.9));
+    }
+
+    body.iptv-light-theme .iptv-table th {
+        background: linear-gradient(135deg, rgba(147, 51, 234, 0.85), rgba(126, 34, 206, 0.85));
+    }
+
+    body.iptv-cyan-theme .iptv-table th {
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.9), rgba(8, 145, 178, 0.9));
+    }
+
+    body.iptv-cyan-theme.iptv-light-theme .iptv-table th {
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.9), rgba(8, 145, 178, 0.9));
+    }
+
+    .iptv-table tbody tr:nth-child(even) {
+        background: rgba(15, 23, 42, 0.7)
+    }
+
+    /* Light theme table rows - READABLE */
+    body.iptv-light-theme .iptv-table tbody tr:nth-child(even) {
+        background: rgba(243, 232, 255, 0.5);
+    }
+
+    body.iptv-light-theme .iptv-table tbody tr:nth-child(odd) {
+        background: rgba(255, 255, 255, 0.8);
+    }
+
+    body.iptv-light-theme .iptv-table td {
+        color: #1e1b4b;
+        border-bottom: 1px solid rgba(147, 51, 234, 0.15);
+    }
+
+    /* Cyan light theme table rows */
+    body.iptv-cyan-theme.iptv-light-theme .iptv-table tbody tr:nth-child(even) {
+        background: rgba(207, 250, 254, 0.5);
+    }
+
+    body.iptv-cyan-theme.iptv-light-theme .iptv-table tbody tr:nth-child(odd) {
+        background: rgba(255, 255, 255, 0.8);
+    }
+
+    body.iptv-cyan-theme.iptv-light-theme .iptv-table td {
+        color: #134e4a;
+        border-bottom: 1px solid rgba(6, 182, 212, 0.15);
+    }
+
+    .iptv-filters-row {
+        margin: 10px 0 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px
+    }
+
+    .iptv-filter label {
+        display: block;
+        font-size: 11px;
+        margin-bottom: 2px
+    }
+
+    .iptv-filter select,
+    .iptv-search {
+        min-width: 180px;
+        padding: 5px 8px;
+        border-radius: 8px;
+        border: 1px solid var(--iptv-border-color);
+        background: var(--iptv-bg-card);
+        color: var(--iptv-text-primary);
+        font-size: 12px
+    }
+
+    .iptv-search {
+        min-width: 240px
+    }
+
+    .iptv-card-warning {
+        border-color: rgba(234, 179, 8, 0.8)
+    }
+
+    .iptv-card-danger {
+        border-color: rgba(248, 113, 113, 0.9)
+    }
+
+    .iptv-card-safe {
+        border-color: rgba(34, 197, 94, 0.8)
+    }
+
+    .iptv-chip-expired {
+        background: rgba(248, 113, 113, 0.2);
+        border-color: rgba(248, 113, 113, 0.9);
+        color: #fff
+    }
+
+    .iptv-chip-urgent {
+        background: rgba(234, 179, 8, 0.2);
+        border-color: rgba(234, 179, 8, 0.9);
+        color: #fff
+    }
+
+    .iptv-chip-planned {
+        background: rgba(34, 197, 94, 0.2);
+        border-color: rgba(34, 197, 94, 0.9);
+        color: #fff
+    }
+
+    .iptv-reset-btn,
+    .iptv-export-btn,
+    .iptv-email-btn {
+        padding: 5px 12px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all .25s;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px
+    }
+
+    .iptv-reset-btn {
+        border: 1px solid rgba(148, 63, 199, 0.7);
+        background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(236, 72, 153, 0.15));
+        color: #f9fafb;
+        min-width: 140px
+    }
+
+    .iptv-export-btn {
+        border: 1px solid rgba(34, 197, 94, 0.7);
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(16, 185, 129, 0.15));
+        color: #f9fafb;
+        min-width: 160px
+    }
+
+    .iptv-email-btn {
+        padding: 4px 10px;
+        border: 1px solid rgba(59, 130, 246, 0.7);
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.15));
+        color: #f9fafb;
+        font-size: 11px
+    }
+
+    /* Light theme button text - DARK & READABLE */
+    body.iptv-light-theme .iptv-reset-btn {
+        color: #6b21a8;
+        border-color: rgba(147, 51, 234, 0.5);
+        background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(236, 72, 153, 0.1));
+    }
+
+    body.iptv-light-theme .iptv-export-btn {
+        color: #15803d;
+        border-color: rgba(34, 197, 94, 0.5);
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(16, 185, 129, 0.1));
+    }
+
+    body.iptv-light-theme .iptv-email-btn {
+        color: #1e40af;
+        border-color: rgba(59, 130, 246, 0.5);
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.1));
+    }
+
+    /* Cyan light theme buttons */
+    body.iptv-cyan-theme.iptv-light-theme .iptv-reset-btn {
+        color: #155e75;
+        border-color: rgba(6, 182, 212, 0.5);
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(8, 145, 178, 0.1));
+    }
+
+    body.iptv-cyan-theme.iptv-light-theme .iptv-export-btn {
+        color: #15803d;
+        border-color: rgba(34, 197, 94, 0.5);
+    }
+
+    body.iptv-cyan-theme.iptv-light-theme .iptv-email-btn {
+        color: #155e75;
+        border-color: rgba(6, 182, 212, 0.5);
+        background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(8, 145, 178, 0.1));
+    }
+
+    .iptv-reset-btn:hover {
+        background: linear-gradient(135deg, #a855f7, #ec4899);
+        border-color: transparent;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(168, 85, 247, 0.4);
+        color: #fff
+    }
+
+    .iptv-export-btn:hover {
+        background: linear-gradient(135deg, #22c55e, #10b981);
+        border-color: transparent;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+        color: #fff
+    }
+
+    .iptv-email-btn:hover {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        border-color: transparent;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        color: #fff
+    }
+
+    .iptv-color-scheme-selector {
+        padding: .45rem .9rem;
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid var(--iptv-border-color);
+        border-radius: 20px;
+        color: var(--iptv-text-primary);
+        font-size: .8rem;
+        cursor: pointer;
+        transition: all .25s
+    }
+
+    .iptv-theme-toggle {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: rgba(15, 23, 42, 0.65);
+        border: 1px solid var(--iptv-border-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all .25s
+    }
+
+    .iptv-theme-toggle:hover {
+        transform: scale(1.06) rotate(10deg);
+        box-shadow: 0 0 16px rgba(146, 72, 185, 0.35)
+    }
+
+    .iptv-landing-page {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px
+    }
+
+    .iptv-landing-container {
+        max-width: 600px;
+        width: 100%
+    }
+
+    .iptv-landing-header {
+        text-align: center;
+        margin-bottom: 40px
+    }
+
+    .iptv-landing-logo {
+        width: 80px;
+        height: 80px;
+        object-fit: contain;
+        margin-bottom: 20px
+    }
+
+    .iptv-landing-title {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--iptv-text-primary);
+        margin: 0 0 10px 0
+    }
+
+    .iptv-landing-subtitle {
+        font-size: 14px;
+        color: var(--iptv-text-secondary);
+        margin: 0;
+        opacity: 0.8
+    }
+
+    .iptv-landing-card {
+        background: var(--iptv-bg-card);
+        border-radius: 16px;
+        padding: 40px;
+        border: 1px solid var(--iptv-border-color);
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.8)
+    }
+
+    .iptv-landing-welcome h2 {
+        font-size: 18px;
+        color: var(--iptv-text-secondary);
+        margin: 0 0 20px 0;
+        font-weight: 500
+    }
+
+    .iptv-landing-user-info {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 30px;
+        padding-bottom: 30px;
+        border-bottom: 1px solid var(--iptv-border-color)
+    }
+
+    .iptv-landing-avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        overflow: hidden;
+        position: relative;
+        background: linear-gradient(135deg, #a855f7, #ec4899);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0
+    }
+
+    .iptv-avatar-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 36px;
+        font-weight: 700;
+        color: #fff
+    }
+
+    .iptv-user-photo {
+        width: 100%;
+        height: 100%;
+        object-fit: cover
+    }
+
+    .iptv-landing-details h3 {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--iptv-text-primary);
+        margin: 0 0 5px 0
+    }
+
+    .iptv-landing-details p {
+        font-size: 13px;
+        color: var(--iptv-text-secondary);
+        margin: 2px 0
+    }
+
+    .iptv-landing-role {
+        display: inline-block;
+        padding: 4px 12px;
+        background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(236, 72, 153, 0.2));
+        border: 1px solid rgba(168, 85, 247, 0.6);
+        border-radius: 999px;
+        font-size: 11px !important;
+        font-weight: 600;
+        margin-top: 5px !important
+    }
+
+    .iptv-landing-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-bottom: 24px
+    }
+
+    .iptv-stat-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 15px;
+        background: rgba(148, 63, 199, 0.1);
+        border-radius: 12px;
+        border: 1px solid rgba(148, 63, 199, 0.3)
+    }
+
+    .iptv-stat-icon {
+        font-size: 24px
+    }
+
+    .iptv-stat-value {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--iptv-text-primary)
+    }
+
+    .iptv-stat-label {
+        font-size: 11px;
+        color: var(--iptv-text-secondary);
+        margin-top: 2px
+    }
+
+    .iptv-landing-actions {
+        text-align: center
+    }
+
+    .iptv-landing-btn {
+        width: 100%;
+        padding: 16px 24px;
+        font-size: 16px;
+        font-weight: 600;
+        border-radius: 12px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-family: "Segoe UI", Tahoma, sans-serif
+    }
+
+    .iptv-btn-primary {
+        background: linear-gradient(135deg, #a855f7, #ec4899);
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(168, 85, 247, 0.4)
+    }
+
+    .iptv-btn-primary:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(168, 85, 247, 0.6)
+    }
+
+    .iptv-btn-primary:disabled {
+        background: rgba(148, 163, 184, 0.3);
+        color: rgba(255, 255, 255, 0.5);
+        cursor: not-allowed;
+        box-shadow: none
+    }
+
+    .iptv-landing-note {
+        font-size: 12px;
+        color: var(--iptv-text-secondary);
+        margin-top: 15px
+    }
+
+    @media (max-width:768px) {
+        .iptv-shell {
+            margin: 4px;
+            padding: 10px
+        }
+
+        .iptv-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px
+        }
+
+        .iptv-landing-stats {
+            grid-template-columns: 1fr
+        }
+
+        .iptv-landing-card {
+            padding: 25px
+        }
+
+        .iptv-landing-user-info {
+            flex-direction: column;
+            text-align: center
+        }
+    }
+</style>
+
+
+
+<script type="text/javascript">
+    (function() {
+        // ═══════════════════════════════════════════════════════════════
+        // CONFIG - UPDATED FOR NEW SHAREPOINT LIST
+        // ═══════════════════════════════════════════════════════════════
+        var LIST_TITLE = "IPTV"; // ✅ CHANGED FROM "IPTV Renewals"
+        var ACCESS_CONTROL_LIST = "IPTV_Access_Control";
+
+        // FIELD MAPPINGS - Verified with your SharePoint columns
+        var FIELD_CONTRACT_ID = "Title"; // Contract ID
+        var FIELD_ACCOUNT_CODE = "Account_x0020_Code";
+        var FIELD_CUSTOMER = "Customer_x0020_Name";
+        var FIELD_AM = "Account_x0020_Manager";
+        var FIELD_DIR = "Account_x0020_Director";
+        var FIELD_PRODUCT = "Contract_x0020_Type";
+        var FIELD_START_DATE = "Contract_x0020_Start_x0020_Date";
+        var FIELD_END_DATE = "Contract_x0020_End_x0020_Date";
+        var FIELD_DURATION = "Contract_x0020_Duration";
+        var FIELD_OTC = "OTC";
+        var FIELD_STATUS = "Status";
+        var FIELD_PARTNERS = "Partners_x0020_Involved";
+        var FIELD_REQUEST_TYPE = "Type_x0020_of_x0020_Request";
+
+        var allItems = [];
+        var userContext = {
+            userName: "",
+            userEmail: "",
+            role: "none",
+            directorName: "",
+            isActive: false
+        };
+        var selectedRenewalMonth = null;
+        var selectedRenewalFilter = null;
+
+        function getSiteUrl() {
+            if (window._spPageContextInfo && _spPageContextInfo.webAbsoluteUrl) {
+                return _spPageContextInfo.webAbsoluteUrl.replace(/\/$/, "");
+            }
+            return location.origin;
+        }
+
+        function parseNumber(v) {
+            if (v === null || v === undefined || v === "") return 0;
+            var n = parseFloat(v);
+            return isNaN(n) ? 0 : n;
+        }
+
+        function formatCurrency(v) {
+            var n = parseNumber(v);
+            if (n >= 1000000) return "AED " + (n / 1000000).toFixed(2) + "M";
+            if (n >= 1000) return "AED " + (n / 1000).toFixed(1) + "K";
+            return "AED " + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+
+        function formatDate(iso) {
+            if (!iso) return "-";
+            var d = new Date(iso);
+            if (isNaN(d)) return "-";
+            return d.toLocaleDateString();
+        }
+
+        function daysTo(dateIso) {
+            if (!dateIso) return null;
+            var d = new Date(dateIso);
+            if (isNaN(d)) return null;
+            var diff = d.getTime() - (new Date()).getTime();
+            return Math.floor(diff / (1000 * 60 * 60 * 24));
+        }
+
+        function clearChildren(el) {
+            if (!el) return;
+            while (el.firstChild) el.removeChild(el.firstChild);
+        }
+
+        function createCard(options) {
+            var card = document.createElement("div");
+            card.className = "iptv-card" + (options.extraClass ? " " + options.extraClass : "");
+            var header = document.createElement("div");
+            header.className = "iptv-card-header";
+            header.textContent = options.title || "";
+            card.appendChild(header);
+            var main = document.createElement("div");
+            main.className = "iptv-card-main";
+            var left = document.createElement("div");
+            var valueEl = document.createElement("div");
+            valueEl.className = "iptv-card-value";
+            valueEl.textContent = options.value || "";
+            var sub = document.createElement("div");
+            sub.className = "iptv-card-sub";
+            sub.textContent = options.subtitle || "";
+            left.appendChild(valueEl);
+            left.appendChild(sub);
+            main.appendChild(left);
+            if (options.badgeText) {
+                var chip = document.createElement("div");
+                chip.className = "iptv-chip" + (options.badgeClass ? " " + options.badgeClass : "");
+                chip.textContent = options.badgeText;
+                main.appendChild(chip);
+            }
+            card.appendChild(main);
+            return card;
+        }
+
+        // DUMMY DATA GENERATOR (for testing)
+        function generateDummyData() {
+            var customers = ["Jumeirah Hotels", "Emirates Palace", "Rotana Hotels", "Address Hotels", "Armani Hotel", "Fairmont", "Kempinski", "Sheraton", "Marriott", "Hilton", "Hyatt", "Ritz Carlton", "Four Seasons", "Waldorf Astoria", "St Regis"];
+            var products = ["Set-Up Box", "TV Hospitality"];
+            var verticals = ["Enterprise", "Hospitality"];
+            var managers = ["Ahmed Ali", "Sara Mohammed", "Khalid Hassan", "Fatima Abdullah", "Omar Rashid"];
+            var directors = ["Mohamad Amer Sibai", "Humaid Al Ali"];
+            var statuses = ["Billed", "Won", "Opportunity"];
+            var dummyData = [];
+
+            for (var i = 1; i <= 15; i++) {
+                var startDate = new Date(2024, Math.floor(Math.random() * 12), 1);
+                var duration = [12, 24, 36][Math.floor(Math.random() * 3)];
+                var endDate = new Date(startDate);
+                endDate.setMonth(endDate.getMonth() + duration);
+
+                dummyData.push({
+                    id: i,
+                    accountCode: "ACC" + (1000 + i),
+                    product: products[Math.floor(Math.random() * products.length)],
+                    customer: customers[Math.floor(Math.random() * customers.length)],
+                    vertical: verticals[Math.floor(Math.random() * verticals.length)],
+                    am: managers[Math.floor(Math.random() * managers.length)],
+                    dir: directors[Math.floor(Math.random() * directors.length)],
+                    startDate: startDate.toISOString(),
+                    endDate: endDate.toISOString(),
+                    duration: duration,
+                    otc: Math.floor(Math.random() * 500000) + 100000,
+                    status: statuses[Math.floor(Math.random() * statuses.length)]
+                });
+            }
+            return dummyData;
+        }
+
+        function buildDashboardCards() {
+            var root = document.getElementById("iptv-dashboard-cards");
+            clearChildren(root);
+            if (!root) return;
+
+            var visibleItems = filterItemsByUserAccess(allItems);
+            var activeItems = visibleItems.filter(function(item) {
+                return item.status === "Billed" || item.status === "Won" || item.status === "Pending";
+            });
+            var totalContracts = activeItems.length;
+            var totalValue = 0;
+            var uniqueCustomers = {};
+            for (var i = 0; i < activeItems.length; i++) {
+                totalValue += activeItems[i].otc;
+                if (activeItems[i].customer) uniqueCustomers[activeItems[i].customer] = true;
+            }
+            var countOverdue = 0,
+                countNext30 = 0;
+            for (i = 0; i < activeItems.length; i++) {
+                if (!activeItems[i].endDate) continue;
+                var d = daysTo(activeItems[i].endDate);
+                if (d < 0) {
+                    countOverdue++;
+                } else if (d >= 0 && d <= 30) {
+                    countNext30++;
+                }
+            }
+
+            root.appendChild(createCard({
+                title: "Total Active Contracts",
+                value: String(totalContracts),
+                subtitle: "Customers: " + Object.keys(uniqueCustomers).length,
+                badgeText: "Active",
+                badgeClass: "iptv-chip-planned",
+                extraClass: "iptv-card-vertical"
+            }));
+
+            root.appendChild(createCard({
+                title: "Total Contract Value",
+                value: formatCurrency(totalValue),
+                subtitle: "(approx.)",
+                badgeText: "Revenue",
+                badgeClass: "iptv-chip-planned",
+                extraClass: "iptv-card-vertical"
+            }));
+
+            root.appendChild(createCard({
+                title: "Overdue Contracts",
+                value: String(countOverdue),
+                subtitle: "Expired & Need Renewal",
+                badgeClass: "iptv-chip-expired",
+                badgeText: "Critical",
+                extraClass: "iptv-card-vertical"
+            }));
+
+            root.appendChild(createCard({
+                title: "Expiring in 30 Days",
+                value: String(countNext30),
+                subtitle: "Urgent Action Required",
+                badgeClass: "iptv-chip-urgent",
+                badgeText: "High Priority",
+                extraClass: "iptv-card-vertical"
+            }));
+
+            // Product Summary
+            var sectionHeader = document.createElement("div");
+            sectionHeader.className = "iptv-section-header";
+            sectionHeader.style.gridColumn = "1 / -1";
+            sectionHeader.style.marginTop = "24px";
+            sectionHeader.innerHTML = "<h2>Contract Type</h2><p>Count and value by Managed TV (STB) and TV Hospitality (Bulk IPTV)</p>";
+            root.appendChild(sectionHeader);
+
+            var products = ["Managed TV (STB)", "TV Hospitality (Bulk IPTV)"];
+            var stats = {};
+            for (i = 0; i < products.length; i++) {
+                stats[products[i]] = {
+                    count: 0,
+                    value: 0
+                };
+            }
+
+            for (i = 0; i < activeItems.length; i++) {
+                var p = activeItems[i].product || "Unassigned";
+                // Create stat entry if it doesn't exist
+                if (!stats[p]) {
+                    stats[p] = {
+                        count: 0,
+                        value: 0
+                    };
+                }
+                stats[p].count++;
+                stats[p].value += activeItems[i].otc;
+            }
+
+            var productGrid = document.createElement("div");
+            productGrid.style.cssText = "display:grid;grid-template-columns:repeat(2,1fr);gap:10px;grid-column:1 / -1;";
+            for (i = 0; i < products.length; i++) {
+                var name = products[i];
+                var s = stats[name] || {
+                    count: 0,
+                    value: 0
+                };
+                productGrid.appendChild(createCard({
+                    title: name,
+                    value: String(s.count),
+                    subtitle: "Active Contracts",
+                    badgeText: "Value: " + formatCurrency(s.value),
+                    extraClass: "iptv-card-vertical"
+                }));
+            }
+            root.appendChild(productGrid);
+
+            // Status Summary
+            var statusHeader = document.createElement("div");
+            statusHeader.className = "iptv-section-header";
+            statusHeader.style.gridColumn = "1 / -1";
+            statusHeader.style.marginTop = "24px";
+            statusHeader.innerHTML = "<h2>Status Summary</h2><p>Overview of contract status distribution</p>";
+            root.appendChild(statusHeader);
+
+            var statusCounts = {
+                Billed: 0,
+                Won: 0,
+                Pending: 0,
+                Proposed: 0,
+                Ceased: 0,
+                Lost: 0
+            };
+            for (i = 0; i < visibleItems.length; i++) {
+                var st = visibleItems[i].status;
+                if (statusCounts.hasOwnProperty(st)) statusCounts[st]++;
+            }
+
+            var statusGrid = document.createElement("div");
+            statusGrid.style.cssText = "display:grid;grid-template-columns:repeat(5,1fr);gap:10px;grid-column:1 / -1;";
+
+            statusGrid.appendChild(createCard({
+                title: "Billed",
+                value: String(statusCounts.Billed),
+                subtitle: "Active Billing",
+                badgeText: "Revenue",
+                badgeClass: "iptv-chip-planned",
+                extraClass: "iptv-card-vertical"
+            }));
+
+            // Count renewed contracts
+            var renewedCount = 0;
+            for (i = 0; i < visibleItems.length; i++) {
+                if (visibleItems[i].status === "Renewed") renewedCount++;
+            }
+
+            statusGrid.appendChild(createCard({
+                title: "Won",
+                value: String(statusCounts.Won),
+                subtitle: "Contracts Won",
+                badgeText: "Success",
+                badgeClass: "iptv-chip-planned",
+                extraClass: "iptv-card-vertical"
+            }));
+
+            statusGrid.appendChild(createCard({
+                title: "Pending",
+                value: String(statusCounts.Pending),
+                subtitle: "Awaiting Decision",
+                badgeText: "In Progress",
+                badgeClass: "iptv-chip-urgent",
+                extraClass: "iptv-card-vertical"
+            }));
+
+            statusGrid.appendChild(createCard({
+                title: "Proposed",
+                value: String(statusCounts.Proposed),
+                subtitle: "Proposals Sent",
+                badgeText: "Pipeline",
+                badgeClass: "iptv-chip-urgent",
+                extraClass: "iptv-card-vertical"
+            }));
+
+            statusGrid.appendChild(createCard({
+                title: "Lost",
+                value: String(statusCounts.Lost),
+                subtitle: "Lost Contracts",
+                badgeText: "Closed",
+                badgeClass: "iptv-chip-expired",
+                extraClass: "iptv-card-vertical"
+            }));
+
+            statusGrid.appendChild(createCard({
+                title: "Ceased",
+                value: String(statusCounts.Ceased),
+                subtitle: "Terminated",
+                badgeText: "Closed",
+                badgeClass: "iptv-chip-expired",
+                extraClass: "iptv-card-vertical"
+            }));
+
+            root.appendChild(statusGrid);
+        }
+
+        function getVisitCount() {
+            try {
+                var visitCount = localStorage.getItem("iptvVisitCount_" + userContext.userEmail);
+                return visitCount ? parseInt(visitCount, 10) : 0;
+            } catch (e) {
+                return 0;
+            }
+        }
+
+        function incrementVisitCount() {
+            try {
+                var currentCount = getVisitCount();
+                var newCount = currentCount + 1;
+                localStorage.setItem("iptvVisitCount_" + userContext.userEmail, newCount.toString());
+                return newCount;
+            } catch (e) {
+                return 1;
+            }
+        }
+
+        function populateRenewalDropdowns() {
+            // Similar logic to Partners Dashboard - implementing based on role
+            var accessibleItems = filterItemsByUserAccess(allItems);
+            var yearSelect = document.getElementById("iptv-ren-year");
+            var dirSelect = document.getElementById("iptv-ren-dir");
+            var managerSelect = document.getElementById("iptv-ren-am");
+
+            if (!yearSelect || !dirSelect || !managerSelect) return;
+
+            var selectedYear = yearSelect.value || "";
+            var selectedDir = dirSelect.value || "";
+            var selectedMgr = managerSelect.value || "";
+
+            // Build director-manager mapping
+            var directorManagerMap = {};
+            var managerDirectorMap = {};
+            for (var i = 0; i < allItems.length; i++) {
+                var item = allItems[i];
+                var dir = item.dir || "Unassigned";
+                var mgr = item.am || "Unassigned";
+                if (!directorManagerMap[dir]) directorManagerMap[dir] = {};
+                directorManagerMap[dir][mgr] = true;
+                if (!managerDirectorMap[mgr]) managerDirectorMap[mgr] = dir;
+            }
+
+            // Years dropdown
+            var yearsMap = {};
+            for (i = 0; i < accessibleItems.length; i++) {
+                item = accessibleItems[i];
+                if (!item.startDate) continue;
+                var d = new Date(item.startDate);
+                if (isNaN(d)) continue;
+                var y = d.getFullYear();
+                if (y >= 2000) yearsMap[y] = true;
+            }
+            var years = [];
+            for (var year in yearsMap) {
+                if (yearsMap.hasOwnProperty(year)) years.push(parseInt(year, 10));
+            }
+            years.sort(function(a, b) {
+                return a - b;
+            });
+
+            yearSelect.innerHTML = '<option value="">All Years</option>';
+            for (i = 0; i < years.length; i++) {
+                yearSelect.innerHTML += '<option value="' + years[i] + '">' + years[i] + '</option>';
+            }
+            yearSelect.value = selectedYear;
+
+            // Directors and Managers based on role
+            var dirMap = {};
+            var mgrMap = {};
+
+            if (userContext.role === "Admin") {
+                if (selectedDir) {
+                    dirMap[selectedDir] = true;
+                    if (directorManagerMap[selectedDir]) {
+                        for (var m in directorManagerMap[selectedDir]) {
+                            if (directorManagerMap[selectedDir].hasOwnProperty(m)) mgrMap[m] = true;
+                        }
+                    }
+                } else if (selectedMgr) {
+                    mgrMap[selectedMgr] = true;
+                    var relatedDir = managerDirectorMap[selectedMgr];
+                    if (relatedDir) dirMap[relatedDir] = true;
+                } else {
+                    for (i = 0; i < accessibleItems.length; i++) {
+                        item = accessibleItems[i];
+                        dirMap[item.dir || "Unassigned"] = true;
+                        mgrMap[item.am || "Unassigned"] = true;
+                    }
+                }
+            } else if (userContext.role === "Director") {
+                dirMap[userContext.directorName] = true;
+                if (directorManagerMap[userContext.directorName]) {
+                    for (var m in directorManagerMap[userContext.directorName]) {
+                        if (directorManagerMap[userContext.directorName].hasOwnProperty(m)) mgrMap[m] = true;
+                    }
+                }
+            } else if (userContext.role === "Manager") {
+                mgrMap[userContext.userName] = true;
+                var theirDir = managerDirectorMap[userContext.userName];
+                if (theirDir) dirMap[theirDir] = true;
+            }
+
+            function mapToSortedArray(map) {
+                var arr = [];
+                for (var k in map) {
+                    if (map.hasOwnProperty(k)) arr.push(k);
+                }
+                arr.sort();
+                var idx = arr.indexOf("Unassigned");
+                if (idx > -1) {
+                    arr.splice(idx, 1);
+                    arr.unshift("Unassigned");
+                }
+                return arr;
+            }
+
+            var dirs = mapToSortedArray(dirMap);
+            var mgrs = mapToSortedArray(mgrMap);
+
+            dirSelect.innerHTML = '<option value="">All Directors</option>';
+            for (i = 0; i < dirs.length; i++) {
+                dirSelect.innerHTML += '<option value="' + dirs[i] + '">' + dirs[i] + '</option>';
+            }
+
+            if (userContext.role === "Director") {
+                dirSelect.value = userContext.directorName;
+                dirSelect.disabled = true;
+            } else if (userContext.role === "Manager") {
+                var theirDir = managerDirectorMap[userContext.userName];
+                if (theirDir) dirSelect.value = theirDir;
+                dirSelect.disabled = true;
+            } else {
+                dirSelect.value = selectedDir;
+                dirSelect.disabled = false;
+            }
+
+            managerSelect.innerHTML = '<option value="">All Managers</option>';
+            for (i = 0; i < mgrs.length; i++) {
+                managerSelect.innerHTML += '<option value="' + mgrs[i] + '">' + mgrs[i] + '</option>';
+            }
+
+            if (userContext.role === "Manager") {
+                managerSelect.value = userContext.userName;
+                managerSelect.disabled = true;
+            } else if (mgrs.indexOf(selectedMgr) > -1 || selectedMgr === "") {
+                managerSelect.value = selectedMgr;
+                managerSelect.disabled = false;
+            } else {
+                managerSelect.value = "";
+                managerSelect.disabled = false;
+            }
+        }
+
+        function renderRenewalDashboard() {
+            var fYear = document.getElementById("iptv-ren-year").value;
+            var fAM = document.getElementById("iptv-ren-am").value;
+            var fDir = document.getElementById("iptv-ren-dir").value;
+
+           if (!selectedRenewalFilter && !selectedRenewalMonth) {
+    selectedRenewalFilter = "totalcontracts"; // Changed from "all"
+}
+
+            var accessibleItems = filterItemsByUserAccess(allItems);
+            var rawList = [];
+
+            for (var i = 0; i < accessibleItems.length; i++) {
+                var it = accessibleItems[i];
+                // Show ALL contracts (remove filtering)
+                rawList.push(it);
+            }
+            populateRenewalDropdowns();
+
+            var filtered = [];
+            for (i = 0; i < rawList.length; i++) {
+                it = rawList[i];
+                var d = new Date(it.startDate);
+                var y = d.getFullYear().toString();
+                if (fYear && y !== fYear) continue;
+                if (fAM) {
+                    var itemAM = it.am || "Unassigned";
+                    if (itemAM !== fAM) continue;
+                }
+                if (fDir) {
+                    var itemDir = it.dir || "Unassigned";
+                    if (itemDir !== fDir) continue;
+                }
+                filtered.push(it);
+            }
+
+            // Summary cards
+            var rootSum = document.getElementById("iptv-renewal-summary");
+            clearChildren(rootSum);
+            var totalVal = 0,
+                countOverdue = 0,
+                countNext30 = 0;
+
+            // Count only active contracts for overdue and next30
+            for (i = 0; i < filtered.length; i++) {
+                it = filtered[i];
+                totalVal += it.otc;
+
+                // Only count overdue/next30 for active contracts
+                if (it.status === "Billed" || it.status === "Won" || it.status === "Pending") {
+                    var dd = daysTo(it.endDate);
+                    if (dd < 0) {
+                        countOverdue++;
+                    } else if (dd >= 0 && dd <= 30) {
+                        countNext30++;
+                    }
+                }
+            }
+
+            var uniqueCustomersFiltered = {};
+            for (var up = 0; up < filtered.length; up++) {
+                if (filtered[up].customer) {
+                    uniqueCustomersFiltered[filtered[up].customer] = true;
+                }
+            }
+
+            // Filter to only active contracts for the first card
+            var activeFiltered = filtered.filter(function(item) {
+                return item.status === "Billed" || item.status === "Won" || item.status === "Pending";
+            });
+
+            var activeTotalVal = 0;
+            for (var av = 0; av < activeFiltered.length; av++) {
+                activeTotalVal += activeFiltered[av].otc;
+            }
+            // NEW CARD - Total Contracts
+var cardTotal = createCard({
+    title: "Total Contracts",
+    value: String(filtered.length),
+    subtitle: "", // No subtitle
+    badgeText: "Value: " + formatCurrency(totalVal),
+    extraClass: "iptv-card-interactive"
+});
+if (selectedRenewalFilter === "totalcontracts") cardTotal.className += " iptv-card-active";
+cardTotal.onclick = function() {
+    selectedRenewalFilter = (selectedRenewalFilter === "totalcontracts") ? null : "totalcontracts";
+    selectedRenewalMonth = null;
+    renderRenewalDashboard();
+};
+rootSum.appendChild(cardTotal);
+
+            var card1 = createCard({
+                title: "Total Active Contracts",
+                value: String(activeFiltered.length),
+                subtitle: "Billed + Won + Pending",
+                badgeText: "Value: " + formatCurrency(activeTotalVal),
+                extraClass: "iptv-card-interactive"
+            });
+if (selectedRenewalFilter === "active") card1.className += " iptv-card-active";         card1.onclick = function() {
+    selectedRenewalFilter = (selectedRenewalFilter === "active") ? null : "active";
+    selectedRenewalMonth = null;
+    renderRenewalDashboard();
+};
+            rootSum.appendChild(card1);
+
+            var card2 = createCard({
+                title: "OVERDUE CONTRACTS",
+                value: String(countOverdue),
+                subtitle: "Expired contracts",
+                badgeClass: "iptv-chip-expired",
+                badgeText: "Action Required",
+                extraClass: "iptv-card-interactive"
+            });
+            if (selectedRenewalFilter === "overdue") card2.className += " iptv-card-active";
+            card2.onclick = function() {
+                selectedRenewalFilter = (selectedRenewalFilter === "overdue") ? null : "overdue";
+                selectedRenewalMonth = null;
+                renderRenewalDashboard();
+            };
+            rootSum.appendChild(card2);
+
+            var card3 = createCard({
+                title: "Expiring In 30 Days",
+                value: String(countNext30),
+                subtitle: "Urgent Renewals",
+                badgeClass: "iptv-chip-urgent",
+                badgeText: "High Priority",
+                extraClass: "iptv-card-interactive"
+            });
+            if (selectedRenewalFilter === "next30") card3.className += " iptv-card-active";
+            card3.onclick = function() {
+                selectedRenewalFilter = (selectedRenewalFilter === "next30") ? null : "next30";
+                selectedRenewalMonth = null;
+                renderRenewalDashboard();
+            };
+            rootSum.appendChild(card3);
+
+            // Renewed & Ceased cards (like Partners Dashboard)
+            var renewedCount = 0,
+                ceasedCount = 0;
+            var renewedValue = 0,
+                ceasedValue = 0;
+
+            for (var rc = 0; rc < allItems.length; rc++) {
+                var rcItem = allItems[rc];
+                var accessibleCheck = filterItemsByUserAccess([rcItem]);
+                if (accessibleCheck.length === 0) continue;
+
+                // Apply same filters
+                if (fYear && rcItem.endDate) {
+                    var rcDate = new Date(rcItem.endDate);
+                    var rcYear = rcDate.getFullYear().toString();
+                    if (rcYear !== fYear) continue;
+                }
+                if (fAM && (rcItem.am || "Unassigned") !== fAM) continue;
+                if (fDir && (rcItem.dir || "Unassigned") !== fDir) continue;
+
+                if (rcItem.status === "Renewed") {
+                    renewedCount++;
+                    renewedValue += rcItem.otc;
+                }
+                if (rcItem.status === "Ceased") {
+                    ceasedCount++;
+                    ceasedValue += rcItem.otc;
+                }
+            }
+
+            var lostCount = 0;
+            var pendingCount = 0;
+
+            for (var lp = 0; lp < allItems.length; lp++) {
+                var lpItem = allItems[lp];
+                var accessibleCheck = filterItemsByUserAccess([lpItem]);
+                if (accessibleCheck.length === 0) continue;
+
+                // Apply same filters
+                if (fYear && lpItem.endDate) {
+                    var lpDate = new Date(lpItem.endDate);
+                    var lpYear = lpDate.getFullYear().toString();
+                    if (lpYear !== fYear) continue;
+                }
+                if (fAM && (lpItem.am || "Unassigned") !== fAM) continue;
+                if (fDir && (lpItem.dir || "Unassigned") !== fDir) continue;
+
+                if (lpItem.status === "Lost") lostCount++;
+                if (lpItem.status === "Pending") pendingCount++;
+            }
+
+            var ceasedCard = createCard({
+                title: "Ceased Contracts",
+                value: String(ceasedCount),
+                subtitle: "No longer active",
+                badgeText: "Closed",
+                badgeClass: "iptv-chip-expired",
+                extraClass: "iptv-card-interactive"
+            });
+            if (selectedRenewalFilter === "ceased") ceasedCard.className += " iptv-card-active";
+            ceasedCard.onclick = function() {
+                selectedRenewalFilter = (selectedRenewalFilter === "ceased") ? null : "ceased";
+                selectedRenewalMonth = null;
+                renderRenewalDashboard();
+            };
+            rootSum.appendChild(ceasedCard);
+
+            // Won card - active contracts only
+            var wonCount = 0;
+            for (var wc = 0; wc < allItems.length; wc++) {
+                var wcItem = allItems[wc];
+                var accessibleCheck = filterItemsByUserAccess([wcItem]);
+                if (accessibleCheck.length === 0) continue;
+
+                // Apply same filters
+                if (fYear && wcItem.startDate) {
+                    var wcDate = new Date(wcItem.startDate);
+                    var wcYear = wcDate.getFullYear().toString();
+                    if (wcYear !== fYear) continue;
+                }
+                if (fAM && (wcItem.am || "Unassigned") !== fAM) continue;
+                if (fDir && (wcItem.dir || "Unassigned") !== fDir) continue;
+
+                if (wcItem.status === "Won") wonCount++;
+            }
+
+            var wonCard = createCard({
+                title: "Won Contracts",
+                value: String(wonCount),
+                subtitle: "Active - Won",
+                badgeText: "Success",
+                badgeClass: "iptv-chip-planned",
+                extraClass: "iptv-card-interactive"
+            });
+            if (selectedRenewalFilter === "won") wonCard.className += " iptv-card-active";
+            wonCard.onclick = function() {
+                selectedRenewalFilter = (selectedRenewalFilter === "won") ? null : "won";
+                selectedRenewalMonth = null;
+                renderRenewalDashboard();
+            };
+            rootSum.appendChild(wonCard);
+            var lostCard = createCard({
+                title: "Lost Contracts",
+                value: String(lostCount),
+                subtitle: "Deals not won",
+                badgeText: "Closed",
+                badgeClass: "iptv-chip-expired",
+                extraClass: "iptv-card-interactive"
+            });
+            if (selectedRenewalFilter === "lost") lostCard.className += " iptv-card-active";
+            lostCard.onclick = function() {
+                selectedRenewalFilter = (selectedRenewalFilter === "lost") ? null : "lost";
+                selectedRenewalMonth = null;
+                renderRenewalDashboard();
+            };
+            rootSum.appendChild(lostCard);
+
+            var pendingCard = createCard({
+                title: "Pending Contracts",
+                value: String(pendingCount),
+                subtitle: "Active - Pending",
+                badgeText: "In Progress",
+                badgeClass: "iptv-chip-urgent",
+                extraClass: "iptv-card-interactive"
+            });
+            if (selectedRenewalFilter === "pending") pendingCard.className += " iptv-card-active";
+            pendingCard.onclick = function() {
+                selectedRenewalFilter = (selectedRenewalFilter === "pending") ? null : "pending";
+                selectedRenewalMonth = null;
+                renderRenewalDashboard();
+            };
+            rootSum.appendChild(pendingCard);
+
+            // Month cards
+            var monthMap = {};
+            for (i = 0; i < filtered.length; i++) {
+                it = filtered[i];
+                var d2 = new Date(it.endDate);
+                var key = d2.getFullYear() + "-" + ("0" + (d2.getMonth() + 1)).slice(-2);
+                if (!monthMap[key]) {
+                    monthMap[key] = {
+                        count: 0,
+                        value: 0,
+                        date: d2,
+                        key: key
+                    };
+                }
+                monthMap[key].count++;
+                monthMap[key].value += it.otc;
+            }
+
+            var keys = [];
+            for (var k in monthMap) {
+                if (monthMap.hasOwnProperty(k)) keys.push(k);
+            }
+            keys.sort();
+
+            var rootMonth = document.getElementById("iptv-renewal-month-cards");
+            clearChildren(rootMonth);
+            // Filter month cards based on selected filter
+            var filteredKeys = keys;
+            if (selectedRenewalFilter === "overdue") {
+                filteredKeys = keys.filter(function(key) {
+                    var m = monthMap[key];
+                    var now = new Date();
+                    var monthStart = new Date(m.date.getFullYear(), m.date.getMonth(), 1);
+                    var currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                    var daysDiff = Math.floor((monthStart - currentMonthStart) / (1000 * 60 * 60 * 24));
+                    return daysDiff < 0;
+                });
+            } else if (selectedRenewalFilter === "next30") {
+                filteredKeys = keys.filter(function(key) {
+                    var m = monthMap[key];
+                    var now = new Date();
+                    var monthStart = new Date(m.date.getFullYear(), m.date.getMonth(), 1);
+                    var currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                    var daysDiff = Math.floor((monthStart - currentMonthStart) / (1000 * 60 * 60 * 24));
+                    return daysDiff >= 0 && daysDiff <= 90;
+                });
+            }
+            keys = filteredKeys;
+            for (i = 0; i < keys.length; i++) {
+                k = keys[i];
+                var m = monthMap[k];
+                var monthName = m.date.toLocaleString("default", {
+                    month: "long",
+                    year: "numeric"
+                });
+                var now = new Date();
+                var monthStart = new Date(m.date.getFullYear(), m.date.getMonth(), 1);
+                var currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                var daysDiff = Math.floor((monthStart - currentMonthStart) / (1000 * 60 * 60 * 24));
+
+                var colorClass = "";
+                var badgeClass = "";
+                if (daysDiff < 0) {
+                    colorClass = "iptv-card-danger";
+                    badgeClass = "iptv-chip-expired";
+                } else if (daysDiff <= 90) {
+                    colorClass = "iptv-card-warning";
+                    badgeClass = "iptv-chip-urgent";
+                } else {
+                    colorClass = "iptv-card-safe";
+                    badgeClass = "iptv-chip-planned";
+                }
+
+                var subtitleText = "Contracts expiring";
+                if (daysDiff < 0) subtitleText = "Contracts expired";
+                else if (daysDiff <= 90) subtitleText = "Urgent renewals";
+
+                (function(keyCopy) {
+                    var card = createCard({
+                        title: monthName,
+                        value: String(m.count),
+                        subtitle: subtitleText,
+                        badgeText: "Value: " + formatCurrency(m.value),
+                        badgeClass: badgeClass,
+                        extraClass: "iptv-card-interactive " + colorClass
+                    });
+                    if (selectedRenewalMonth === keyCopy) card.className += " iptv-card-active";
+                    card.onclick = function() {
+                        if (selectedRenewalMonth === keyCopy) {
+                            selectedRenewalMonth = null;
+                        } else {
+                            selectedRenewalMonth = keyCopy;
+                        }
+                        selectedRenewalFilter = null;
+                        renderRenewalDashboard();
+                    };
+                    rootMonth.appendChild(card);
+                })(k);
+            }
+
+            var searchText = "";
+            var searchBox = document.getElementById("iptv-renewal-search");
+            if (searchBox) searchText = searchBox.value;
+
+            renderRenewalTable(filtered, searchText);
+        }
+
+        function renderRenewalTable(dataset, searchText) {
+            var tbody = document.getElementById("iptv-renewal-tbody");
+            var titleEl = document.getElementById("iptv-ren-table-title");
+            clearChildren(tbody);
+            if (!tbody) return;
+
+            var finalData = [];
+            var i, it;
+
+            if (searchText) {
+                var term = (searchText || "").toLowerCase();
+                for (i = 0; i < dataset.length; i++) {
+                    it = dataset[i];
+                    var s = (it.accountCode + " " + it.customer + " " + it.product + " " + it.am + " " + it.dir).toLowerCase();
+                    if (s.indexOf(term) >= 0) finalData.push(it);
+                }
+            } else {
+                finalData = dataset.slice(0);
+            }
+
+            // Sort by urgency
+            finalData.sort(function(a, b) {
+                var daysA = daysTo(a.endDate);
+                var daysB = daysTo(b.endDate);
+                if (daysA === null) return 1;
+                if (daysB === null) return -1;
+                var getPriority = function(days) {
+                    if (days < 0) return 1;
+                    if (days <= 30) return 2;
+                    if (days <= 90) return 3;
+                    return 4;
+                };
+                var priorityA = getPriority(daysA);
+                var priorityB = getPriority(daysB);
+                if (priorityA !== priorityB) return priorityA - priorityB;
+                return daysA - daysB;
+            });
+if (selectedRenewalFilter === "totalcontracts") {
+    titleEl.innerHTML = "All Contracts";
+} else if (selectedRenewalFilter === "active") {
+    tmp = [];
+    for (i = 0; i < finalData.length; i++) {
+        it = finalData[i];
+        if (it.status === "Billed" || it.status === "Won" || it.status === "Pending") {
+            tmp.push(it);
+        }
+    }
+    finalData = tmp;
+    titleEl.innerHTML = "Active Contracts (Billed + Won + Pending)";
+} else if (selectedRenewalFilter === "overdue") {
+                tmp = [];
+                for (i = 0; i < finalData.length; i++) {
+                    it = finalData[i];
+                    // Match the card logic - only active contracts
+                    if ((it.status === "Billed" || it.status === "Won" || it.status === "Pending") && daysTo(it.endDate) < 0) {
+                        tmp.push(it);
+                    }
+                }
+                finalData = tmp;
+                titleEl.innerHTML = "Critical / Overdue Contracts";
+            } else if (selectedRenewalFilter === "next30") {
+                tmp = [];
+                for (i = 0; i < finalData.length; i++) {
+                    it = finalData[i];
+                    var d = daysTo(it.endDate);
+                    if (d >= 0 && d <= 30) tmp.push(it);
+                }
+                finalData = tmp;
+                titleEl.innerHTML = "Expiring in Next 30 Days";
+            } else if (selectedRenewalFilter === "renewed") {
+                var renewedData = [];
+                for (var rc = 0; rc < allItems.length; rc++) {
+                    var rcItem = allItems[rc];
+                    var accessCheck = filterItemsByUserAccess([rcItem]);
+                    if (accessCheck.length === 0) continue;
+                    if (rcItem.status === "Renewed") renewedData.push(rcItem);
+                }
+                finalData = renewedData;
+                titleEl.innerHTML = "Renewed Contracts";
+            } else if (selectedRenewalFilter === "ceased") {
+                var ceasedData = [];
+                for (var cc = 0; cc < allItems.length; cc++) {
+                    var ccItem = allItems[cc];
+                    var accessCheck = filterItemsByUserAccess([ccItem]);
+                    if (accessCheck.length === 0) continue;
+                    if (ccItem.status === "Ceased") ceasedData.push(ccItem);
+                }
+                finalData = ceasedData;
+                titleEl.innerHTML = "Ceased Contracts";
+            } else if (selectedRenewalFilter === "lost") {
+                var lostData = [];
+                for (var ll = 0; ll < allItems.length; ll++) {
+                    var llItem = allItems[ll];
+                    var accessCheck = filterItemsByUserAccess([llItem]);
+                    if (accessCheck.length === 0) continue;
+                    if (llItem.status === "Lost") lostData.push(llItem);
+                }
+                finalData = lostData;
+                titleEl.innerHTML = "Lost Contracts";
+            } else if (selectedRenewalFilter === "pending") {
+                var pendingData = [];
+                for (var pp = 0; pp < allItems.length; pp++) {
+                    var ppItem = allItems[pp];
+                    var accessCheck = filterItemsByUserAccess([ppItem]);
+                    if (accessCheck.length === 0) continue;
+                    if (ppItem.status === "Pending") pendingData.push(ppItem);
+                }
+                finalData = pendingData;
+                titleEl.innerHTML = "Pending Contracts";
+            } else if (selectedRenewalFilter === "won") {
+                var wonData = [];
+                for (var ww = 0; ww < allItems.length; ww++) {
+                    var wwItem = allItems[ww];
+                    var accessCheck = filterItemsByUserAccess([wwItem]);
+                    if (accessCheck.length === 0) continue;
+                    if (wwItem.status === "Won") wonData.push(wwItem);
+                }
+                finalData = wonData;
+                titleEl.innerHTML = "Won Contracts";
+            } else if (selectedRenewalFilter === "all") {
+                titleEl.innerHTML = "All Filtered Contracts";
+            } else {
+                titleEl.innerHTML = "All Contracts (Filtered by Top Controls)";
+            }
+
+            if (selectedRenewalMonth) {
+                tmp = [];
+                for (i = 0; i < finalData.length; i++) {
+                    it = finalData[i];
+                    var d2 = new Date(it.endDate);
+                    var key = d2.getFullYear() + "-" + ("0" + (d2.getMonth() + 1)).slice(-2);
+                    if (key === selectedRenewalMonth) tmp.push(it);
+                }
+                finalData = tmp;
+                var monthName = new Date(selectedRenewalMonth + "-01").toLocaleString("default", {
+                    month: "long",
+                    year: "numeric"
+                });
+                titleEl.innerHTML += " (" + monthName + ")";
+            }
+
+            if (!finalData.length) {
+                var trEmpty = document.createElement("tr");
+                trEmpty.innerHTML = '<td colspan="14" style="text-align:center;padding:20px;">No contracts found for this selection.</td>';
+                tbody.appendChild(trEmpty);
+                return;
+            }
+
+            function addCell(tr, text, alignRight) {
+                var td = document.createElement("td");
+                td.textContent = text || "-";
+                if (alignRight) td.style.textAlign = "right";
+                tr.appendChild(td);
+            }
+
+            for (i = 0; i < finalData.length; i++) {
+                it = finalData[i];
+                var tr = document.createElement("tr");
+
+                addCell(tr, it.accountCode);
+                addCell(tr, it.customer);
+                addCell(tr, it.am);
+                addCell(tr, it.dir);
+                addCell(tr, it.product);
+                addCell(tr, formatDate(it.startDate));
+                addCell(tr, formatDate(it.endDate));
+                addCell(tr, it.duration ? it.duration + " months" : "-");
+                addCell(tr, formatCurrency(it.otc), true);
+                addCell(tr, it.status);
+                addCell(tr, it.partners);
+                addCell(tr, it.requestType);
+
+                var daysLeft = daysTo(it.endDate);
+                var lastCell = document.createElement("td");
+                if (daysLeft === null) {
+                    lastCell.textContent = "-";
+                } else if (daysLeft < 0) {
+                    lastCell.style.color = "#f87171";
+                    lastCell.style.fontWeight = "bold";
+                    lastCell.textContent = "Expired (" + Math.abs(daysLeft) + " days ago)";
+                } else {
+                    if (daysLeft <= 30) {
+                        lastCell.style.color = "#fbbf24";
+                        lastCell.style.fontWeight = "bold";
+                    }
+                    lastCell.textContent = daysLeft + " days";
+                }
+                tr.appendChild(lastCell);
+
+                // Email button
+                var actionCell = document.createElement("td");
+                actionCell.style.textAlign = "center";
+                actionCell.style.padding = "6px";
+                if (userContext.role === "Admin" || userContext.role === "Director") {
+                    var emailBtn = document.createElement("button");
+                    emailBtn.className = "iptv-email-btn";
+                    emailBtn.type = "button";
+                    emailBtn.innerHTML = "📧 Send Reminder";
+
+                    (function(contract) {
+                        emailBtn.onclick = function() {
+                            sendContractReminder(contract);
+                        };
+                    })(it);
+
+                    actionCell.appendChild(emailBtn);
+                } else {
+                    actionCell.textContent = "-";
+                }
+                tr.appendChild(actionCell);
+
+                tbody.appendChild(tr);
+            }
+        }
+
+        function sendContractReminder(contract) {
+            var daysLeft = daysTo(contract.endDate);
+            var urgencyLevel = "";
+            var actionText = "";
+
+            if (daysLeft < 0) {
+                urgencyLevel = "⚠️ CRITICAL - EXPIRED";
+                actionText = "IMMEDIATE RENEWAL REQUIRED";
+            } else if (daysLeft <= 7) {
+                urgencyLevel = "🔴 URGENT - Expiring in " + daysLeft + " days";
+                actionText = "URGENT ACTION NEEDED";
+            } else if (daysLeft <= 30) {
+                urgencyLevel = "🟡 HIGH PRIORITY - Expiring in " + daysLeft + " days";
+                actionText = "Renewal process should begin";
+            } else {
+                urgencyLevel = "🟢 REMINDER - Expiring in " + daysLeft + " days";
+                actionText = "Plan renewal activities";
+            }
+
+            var fromEmail = userContext.userEmail;
+            var toEmail = "";
+            var ccEmail = "";
+
+            if (userContext.role === "Admin") {
+                var dirEmail = contract.dir || "";
+                var amEmail = contract.am || "";
+
+                if (!dirEmail && !amEmail) {
+                    alert("⚠️ Cannot send email: This contract has no Director or Account Manager assigned.");
+                    return;
+                }
+
+                toEmail = dirEmail || amEmail;
+                if (dirEmail && amEmail) {
+                    ccEmail = amEmail;
+                } else {
+                    ccEmail = fromEmail;
+                }
+            } else if (userContext.role === "Director") {
+                var amEmail = contract.am || "";
+
+                if (!amEmail) {
+                    alert("⚠️ Cannot send email: This contract has no Account Manager assigned.");
+                    return;
+                }
+
+                toEmail = amEmail;
+                ccEmail = fromEmail;
+            }
+
+            var subject = urgencyLevel + " | Contract Renewal: " + contract.accountCode + " - " + contract.customer;
+
+            // Build FORMATTED email body (matching Partners Dashboard)
+            var body = "";
+            body += "═══════════════════════════════════\n";
+            body += "   CONTRACT RENEWAL ALERT\n";
+            body += "═══════════════════════════════════\n\n";
+
+            if (userContext.role === "Admin") {
+                body += "Dear " + contract.dir + ",\n\n";
+            } else if (userContext.role === "Director") {
+                body += "Dear " + contract.am + ",\n\n";
+            }
+
+            body += "⚠️ " + urgencyLevel + "\n";
+            body += "➤ " + actionText + "\n\n";
+
+            if (daysLeft < 0) {
+                body += "❌ EXPIRED " + Math.abs(daysLeft) + " days ago\n\n";
+            } else {
+                body += "⏰ " + daysLeft + " days until expiry\n\n";
+            }
+
+            body += "CONTRACT DETAILS:\n";
+            body += "Account: " + contract.accountCode + "\n";
+            body += "Customer: " + contract.customer + "\n";
+            body += "Product: " + contract.product + "\n";
+            body += "Value: " + formatCurrency(contract.otc) + "\n";
+            body += "Expiry: " + formatDate(contract.endDate) + "\n";
+            body += "AM: " + contract.am + "\n";
+            body += "Director: " + contract.dir + "\n\n";
+
+            body += "Best Regards,";
+
+            body = encodeURIComponent(body);
+
+            var mailtoLink = "mailto:" + toEmail;
+            if (ccEmail) {
+                mailtoLink += "?cc=" + ccEmail;
+                mailtoLink += "&subject=" + encodeURIComponent(subject);
+                mailtoLink += "&body=" + body;
+            } else {
+                mailtoLink += "?subject=" + encodeURIComponent(subject);
+                mailtoLink += "&body=" + body;
+            }
+
+            window.location.href = mailtoLink;
+        }
+
+        function loadUserAccess(callback) {
+            var siteUrl = getSiteUrl();
+            var xhrUser = new XMLHttpRequest();
+            xhrUser.open("GET", siteUrl + "/_api/web/currentuser?$select=Title,Email", true);
+            xhrUser.setRequestHeader("Accept", "application/json;odata=verbose");
+            xhrUser.onreadystatechange = function() {
+                if (xhrUser.readyState !== 4) return;
+                if (xhrUser.status >= 200 && xhrUser.status < 300) {
+                    var currentUser = JSON.parse(xhrUser.responseText).d;
+                    var userEmail = currentUser.Email;
+                    var userName = currentUser.Title;
+                    fetchAccessControl(userEmail, userName, callback);
+                }
+            };
+            xhrUser.send();
+        }
+
+        function fetchAccessControl(userEmail, userName, callback) {
+            var siteUrl = getSiteUrl();
+            var safeListTitle = ACCESS_CONTROL_LIST.replace(/'/g, "''");
+            var url = siteUrl +
+                "/_api/web/lists/getbytitle('" + safeListTitle + "')/items" +
+                "?$select=Title,UserEmail,Role,DirectorName,IsActive" +
+                "&$filter=UserEmail eq '" + userEmail + "' and IsActive eq 1" +
+                "&$top=1";
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", url, true);
+            xhr.setRequestHeader("Accept", "application/json;odata=verbose");
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== 4) return;
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    var json = JSON.parse(xhr.responseText);
+                    var results = (json.d && json.d.results) ? json.d.results : [];
+                    if (results.length > 0) {
+                        var accessRecord = results[0];
+                        userContext.userName = userName;
+                        userContext.userEmail = userEmail;
+                        userContext.role = accessRecord.Role;
+                        userContext.directorName = accessRecord.DirectorName || "";
+                        userContext.isActive = true;
+                        callback(true);
+                    } else {
+                        userContext.userName = userName;
+                        userContext.userEmail = userEmail;
+                        userContext.role = "none";
+                        userContext.isActive = false;
+                        callback(false);
+                    }
+                } else {
+                    console.error("Error loading access control");
+                    callback(false);
+                }
+            };
+            xhr.send();
+        }
+
+        function filterItemsByUserAccess(items) {
+            if (!userContext.isActive || userContext.role === "none") return [];
+            if (userContext.role === "Admin") return items;
+            if (userContext.role === "Director") {
+                return items.filter(function(item) {
+                    var itemDirector = item.dir || "Unassigned";
+                    return itemDirector === userContext.directorName;
+                });
+            }
+            if (userContext.role === "Manager") {
+                return items.filter(function(item) {
+                    var itemManager = item.am || "Unassigned";
+                    return itemManager === userContext.userName;
+                });
+            }
+            return [];
+        }
+
+        function showAccessDenied() {
+            var root = document.getElementById("iptv-dashboard-cards");
+            clearChildren(root);
+            var deniedDiv = document.createElement("div");
+            deniedDiv.style.cssText = "padding:40px;text-align:center;grid-column:1/-1;";
+            deniedDiv.innerHTML =
+                '<h2 style="color:#f87171;margin-bottom:16px;">⛔ Access Denied</h2>' +
+                '<p style="font-size:14px;">You do not have permission to view this dashboard.</p>' +
+                '<p style="font-size:12px;margin-top:8px;">Contact administrator for access.</p>' +
+                '<p style="font-size:11px;margin-top:16px;opacity:0.6;">User: ' + userContext.userEmail + '</p>';
+            root.appendChild(deniedDiv);
+        }
+
+        function loadData() {
+            // ═══════════════════════════════════════════════════════════════
+            // SHAREPOINT DATA LOADING - UPDATED LIST GUID
+            // ═══════════════════════════════════════════════════════════════
+            var siteUrl = getSiteUrl();
+
+            // ✅ UPDATED List GUID from your SharePoint list
+            var listGuid = "06018CB3-44E7-40AF-A5CF-B04440ABBFD1";
+
+            var url = siteUrl +
+                "/_api/web/lists(guid'" + listGuid + "')/items" +
+                "?$select=Id,Title,Account_x0020_Code,Customer_x0020_Name," +
+                "Account_x0020_Manager/Title,Account_x0020_Director/Title," +
+                "Contract_x0020_Type,Contract_x0020_Start_x0020_Date," +
+                "Contract_x0020_End_x0020_Date,Contract_x0020_Duration,OTC,Status," +
+                "Partners_x0020_Involved,Type_x0020_of_x0020_Request" +
+                "&$expand=Account_x0020_Manager,Account_x0020_Director" +
+                "&$top=5000";
+
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", url, true);
+            xhr.setRequestHeader("Accept", "application/json;odata=verbose");
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== 4) return;
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        var json = JSON.parse(xhr.responseText);
+                        var rows = (json.d && json.d.results) ? json.d.results : [];
+                        allItems = [];
+                        for (var i = 0; i < rows.length; i++) {
+                            var r = rows[i];
+                            allItems.push({
+                                id: r.Id,
+                                contractId: r[FIELD_CONTRACT_ID] || "",
+                                accountCode: r[FIELD_ACCOUNT_CODE] || "",
+                                customer: r[FIELD_CUSTOMER] || "",
+                                am: (r[FIELD_AM] && r[FIELD_AM].Title) ? r[FIELD_AM].Title : "",
+                                dir: (r[FIELD_DIR] && r[FIELD_DIR].Title) ? r[FIELD_DIR].Title : "",
+                                product: r[FIELD_PRODUCT] || "",
+                                startDate: r[FIELD_START_DATE],
+                                endDate: r[FIELD_END_DATE],
+                                duration: parseNumber(r[FIELD_DURATION]),
+                                otc: parseNumber(r[FIELD_OTC]),
+                                status: r[FIELD_STATUS] || "",
+                                partners: r[FIELD_PARTNERS] || "",
+                                requestType: r[FIELD_REQUEST_TYPE] || ""
+                            });
+                        }
+                        if (userContext.isActive) {
+                            buildDashboardCards();
+                            renderRenewalDashboard();
+                        } else {
+                            showAccessDenied();
+                        }
+                    } catch (e) {
+                        console.error("Error parsing IPTV data", e);
+                    }
+                } else {
+                    console.error("Error loading IPTV Dashboard:", xhr.status, xhr.responseText);
+                }
+            };
+            xhr.send();
+        }
+
+        function initTabs() {
+            var tabs = document.querySelectorAll ? document.querySelectorAll(".iptv-tab") : [];
+            for (var i = 0; i < tabs.length; i++) {
+                (function(btn) {
+                    btn.addEventListener("click", function() {
+                        var sectionId = btn.getAttribute("data-section");
+                        for (var j = 0; j < tabs.length; j++) {
+                            tabs[j].className = tabs[j].className.replace(" iptv-tab-active", "");
+                        }
+                        if (btn.className.indexOf("iptv-tab-active") === -1) {
+                            btn.className += " iptv-tab-active";
+                        }
+                        var sections = document.querySelectorAll ? document.querySelectorAll(".iptv-section") : [];
+                        for (j = 0; j < sections.length; j++) {
+                            if (sections[j].id === sectionId) {
+                                if (sections[j].className.indexOf("iptv-section-active") === -1) {
+                                    sections[j].className += " iptv-section-active";
+                                }
+                            } else {
+                                sections[j].className = sections[j].className.replace(" iptv-section-active", "");
+                            }
+                        }
+                    });
+                })(tabs[i]);
+            }
+        }
+
+        function initEvents() {
+            var search = document.getElementById("iptv-renewal-search");
+            if (search) {
+                search.addEventListener("input", function() {
+                    renderRenewalDashboard();
+                });
+            }
+
+            var resetBtn = document.getElementById("iptv-ren-reset");
+            if (resetBtn) {
+                resetBtn.addEventListener("click", function() {
+                    document.getElementById("iptv-ren-year").value = "";
+                    document.getElementById("iptv-ren-dir").value = "";
+                    document.getElementById("iptv-ren-am").value = "";
+                    selectedRenewalMonth = null;
+                    selectedRenewalFilter = null;
+                    renderRenewalDashboard();
+                });
+            }
+
+            var exportBtn = document.getElementById("iptv-export-excel");
+            if (exportBtn) {
+                exportBtn.addEventListener("click", exportTableToExcel);
+            }
+        }
+
+        function initRenewalFeatures() {
+            var yearSel = document.getElementById("iptv-ren-year");
+            var amSel = document.getElementById("iptv-ren-am");
+            var dirSel = document.getElementById("iptv-ren-dir");
+            if (yearSel) yearSel.addEventListener("change", renderRenewalDashboard);
+            if (amSel) amSel.addEventListener("change", renderRenewalDashboard);
+            if (dirSel) {
+                dirSel.addEventListener("change", function() {
+                    populateRenewalDropdowns();
+                    renderRenewalDashboard();
+                });
+            }
+        }
+
+        function initTheme() {
+            try {
+                var savedColor = localStorage.getItem("iptvColorScheme");
+                var savedLight = localStorage.getItem("iptvLightMode");
+                if (savedColor === "cyan") {
+                    document.body.className += " iptv-cyan-theme";
+                    var sel = document.getElementById("iptvColorSchemeSelector");
+                    if (sel) sel.value = "cyan";
+                }
+                if (savedLight === "true") {
+                    if (document.body.className.indexOf("iptv-light-theme") === -1) {
+                        document.body.className += " iptv-light-theme";
+                    }
+                    var icon = document.getElementById("iptvThemeIcon");
+                    if (icon) icon.setAttribute("data-lucide", "sun");
+                }
+                if (typeof lucide !== "undefined" && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+            } catch (e) {}
+        }
+
+        function exportTableToExcel() {
+            var fYear = document.getElementById("iptv-ren-year").value || "All Years";
+            var fAM = document.getElementById("iptv-ren-am").value || "All Managers";
+            var fDir = document.getElementById("iptv-ren-dir").value || "All Directors";
+            var searchText = document.getElementById("iptv-renewal-search").value || "None";
+
+            var today = new Date();
+            var dateStr = today.toLocaleDateString('en-GB') + " " + today.toLocaleTimeString('en-GB', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            var filterStatus = "All Contracts";
+            if (selectedRenewalFilter === "overdue") filterStatus = "Overdue Contracts";
+            else if (selectedRenewalFilter === "next30") filterStatus = "Expiring in 30 Days";
+
+            var monthFilter = "All Months";
+            if (selectedRenewalMonth) {
+                var monthDate = new Date(selectedRenewalMonth + "-01");
+                monthFilter = monthDate.toLocaleString("default", {
+                    month: "long",
+                    year: "numeric"
+                });
+            }
+
+            var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+            html += '<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>';
+            html += '<x:Name>IPTV Contracts</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>';
+            html += '</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>';
+            html += '<table border="1" cellspacing="0" cellpadding="4">';
+
+            html += '<tr><td colspan="1" style="background-color:#9333ea;color:white;font-size:16px;font-weight:bold;text-align:center;padding:12px;">';
+            html += 'IPTV Contract Dashboard - Export</td></tr>';
+
+            html += '<tr><td colspan="14" style="background-color:#e9d5ff;font-size:12px;padding:8px;text-align:center;">';
+            html += '<b>Generated:</b> ' + dateStr + '</td></tr>';
+
+            html += '<tr><td colspan="14" style="height:10px;"></td></tr>';
+
+            html += '<tr><td colspan="14" style="background-color:#f3e8ff;font-weight:bold;padding:8px;">Applied Filters:</td></tr>';
+            html += '<tr><td colspan="2" style="background-color:#faf5ff;padding:6px;"><b>Year:</b></td><td colspan="13" style="background-color:#faf5ff;padding:6px;">' + fYear + '</td></tr>';
+            html += '<tr><td colspan="2" style="background-color:#faf5ff;padding:6px;"><b>Director:</b></td><td colspan="13" style="background-color:#faf5ff;padding:6px;">' + fDir + '</td></tr>';
+            html += '<tr><td colspan="2" style="background-color:#faf5ff;padding:6px;"><b>Manager:</b></td><td colspan="13" style="background-color:#faf5ff;padding:6px;">' + fAM + '</td></tr>';
+            html += '<tr><td colspan="2" style="background-color:#faf5ff;padding:6px;"><b>Status:</b></td><td colspan="13" style="background-color:#faf5ff;padding:6px;">' + filterStatus + '</td></tr>';
+            html += '<tr><td colspan="2" style="background-color:#faf5ff;padding:6px;"><b>Month:</b></td><td colspan="13" style="background-color:#faf5ff;padding:6px;">' + monthFilter + '</td></tr>';
+            html += '<tr><td colspan="2" style="background-color:#faf5ff;padding:6px;"><b>Search:</b></td><td colspan="13" style="background-color:#faf5ff;padding:6px;">' + searchText + '</td></tr>';
+
+            html += '<tr><td colspan="14" style="height:15px;"></td></tr>';
+
+            html += '<tr>';
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;text-align:center;">S.No</th>';
+
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;">Account Code</th>';
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;">Customer Name</th>';
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;">Account Manager</th>';
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;">Account Director</th>';
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;">Contract Type</th>';
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;">Contract Start Date</th>';
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;">Contract End Date</th>';
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;">Contract Duration</th>';
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;text-align:right;">OTC Value</th>';
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;">Status</th>';
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;">Partners Involved</th>';
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;">Type of Request</th>';
+            html += '<th style="background-color:#7c3aed;color:white;font-weight:bold;padding:10px;">Days Left</th>';
+            html += '</tr>';
+
+            var tbody = document.getElementById("iptv-renewal-tbody");
+            var rows = tbody.getElementsByTagName("tr");
+            var serialNo = 1;
+
+            for (var i = 0; i < rows.length; i++) {
+                var row = rows[i];
+                var cells = row.getElementsByTagName("td");
+                if (cells.length > 1) {
+                    var rowColor = (serialNo % 2 === 0) ? '#f3e8ff' : '#ffffff';
+                    html += '<tr>';
+                    html += '<td style="background-color:' + rowColor + ';padding:8px;text-align:center;">' + serialNo + '</td>';
+
+                    var maxCells = cells.length - 1;
+                    for (var j = 0; j < maxCells; j++) {
+                        var cellText = cells[j].textContent.trim();
+                        var alignment = (j === 8) ? 'text-align:right;' : ''; // ✅ Changed from 9 to 8 (no Contract ID column)
+
+                        // ✅ Convert OTC column from "AED 2.5M" back to actual number
+                        if (j === 8) {
+                            var actualValue = 0;
+                            if (cellText.indexOf('M') > -1) {
+                                actualValue = parseFloat(cellText.replace(/[^0-9.]/g, '')) * 1000000;
+                            } else if (cellText.indexOf('K') > -1) {
+                                actualValue = parseFloat(cellText.replace(/[^0-9.]/g, '')) * 1000;
+                            } else {
+                                actualValue = parseFloat(cellText.replace(/[^0-9.]/g, '')) || 0;
+                            }
+                            html += '<td style="background-color:' + rowColor + ';padding:8px;' + alignment + ';mso-number-format:\"0\";">' + actualValue + '</td>';
+                        } else {
+                            html += '<td style="background-color:' + rowColor + ';padding:8px;' + alignment + '">' + cellText + '</td>';
+                        }
+                    }
+                    html += '</tr>';
+                    serialNo++;
+                }
+            }
+
+            html += '<tr><td colspan="14" style="background-color:#e9d5ff;font-weight:bold;padding:10px;text-align:center;">';
+            html += 'Total Records: ' + (serialNo - 1) + '</td></tr>';
+            html += '</table></body></html>';
+
+            var blob = new Blob([html], {
+                type: "application/vnd.ms-excel"
+            });
+            var link = document.createElement("a");
+            var url = URL.createObjectURL(blob);
+            var filename = "IPTV_Dashboard_" + filterStatus.replace(/\s+/g, "_") + "_" + today.toISOString().split("T")[0] + ".xls";
+            link.setAttribute("href", url);
+            link.setAttribute("download", filename);
+            link.style.visibility = "hidden";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function getUserInitials(name) {
+            if (!name) return "?";
+            var parts = name.split(" ");
+            if (parts.length >= 2) {
+                return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+            }
+            return name[0].toUpperCase();
+        }
+
+        function loadUserPhoto(userEmail) {
+            if (!userEmail) return;
+            var siteUrl = getSiteUrl();
+            var photoUrl = siteUrl + "/_layouts/15/userphoto.aspx?size=L&username=" + userEmail;
+            var img = document.getElementById("iptvUserPhoto");
+            var placeholder = document.getElementById("iptvAvatarPlaceholder");
+            img.onerror = function() {
+                img.style.display = "none";
+                placeholder.style.display = "flex";
+            };
+            img.onload = function() {
+                img.style.display = "block";
+                placeholder.style.display = "none";
+            };
+            img.src = photoUrl;
+        }
+
+        function getLastVisit() {
+            try {
+                var lastVisit = localStorage.getItem("iptvLastVisit_" + userContext.userEmail);
+                if (lastVisit) {
+                    var date = new Date(lastVisit);
+                    var now = new Date();
+                    var diffMs = now - date;
+                    var diffMins = Math.floor(diffMs / 60000);
+                    var diffHours = Math.floor(diffMs / 3600000);
+                    var diffDays = Math.floor(diffMs / 86400000);
+                    if (diffMins < 60) return diffMins + " min ago";
+                    else if (diffHours < 24) return diffHours + " hr ago";
+                    else if (diffDays < 7) return diffDays + " days ago";
+                    else return date.toLocaleDateString();
+                }
+                return "First visit";
+            } catch (e) {
+                return "First visit";
+            }
+        }
+
+        function saveLastVisit() {
+            try {
+                localStorage.setItem("iptvLastVisit_" + userContext.userEmail, new Date().toISOString());
+            } catch (e) {}
+        }
+
+        function populateLandingPage() {
+            document.getElementById("iptvLandingUserName").textContent = userContext.userName || "User";
+            document.getElementById("iptvLandingUserEmail").textContent = userContext.userEmail || "";
+            var roleEl = document.getElementById("iptvLandingUserRole");
+            if (userContext.role === "Admin") {
+                roleEl.textContent = "👑 Administrator";
+                roleEl.style.background = "linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(251, 191, 36, 0.2))";
+                roleEl.style.borderColor = "rgba(234, 179, 8, 0.6)";
+            } else if (userContext.role === "Director") {
+                roleEl.textContent = "👔 Director";
+            } else if (userContext.role === "Manager") {
+                roleEl.textContent = "📋 Account Manager";
+                roleEl.style.background = "linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.2))";
+                roleEl.style.borderColor = "rgba(59, 130, 246, 0.6)";
+            } else {
+                roleEl.textContent = "🔒 No Access";
+                roleEl.style.background = "rgba(248, 113, 113, 0.2)";
+                roleEl.style.borderColor = "rgba(248, 113, 113, 0.6)";
+            }
+            document.getElementById("iptvAvatarPlaceholder").textContent = getUserInitials(userContext.userName);
+            loadUserPhoto(userContext.userEmail);
+            document.getElementById("iptvLandingLastVisit").textContent = getLastVisit();
+            document.getElementById("iptvLandingVisitCount").textContent = getVisitCount().toString();
+            if (userContext.isActive && userContext.role !== "none") {
+                var btn = document.getElementById("iptvGoToDashboard");
+                btn.disabled = false;
+                btn.innerHTML = '<span>📊 Go to Dashboard</span>';
+                document.getElementById("iptvAccessNote").textContent = "Click above to access your dashboard";
+            } else {
+                var btn = document.getElementById("iptvGoToDashboard");
+                btn.disabled = true;
+                btn.innerHTML = '<span>🔒 Access Denied</span>';
+                document.getElementById("iptvAccessNote").textContent = "You do not have permission. Please contact your administrator.";
+                document.getElementById("iptvAccessNote").style.color = "#f87171";
+            }
+        }
+
+        function showDashboard() {
+            document.getElementById("iptv-landing-page").style.display = "none";
+            document.getElementById("iptv-main-dashboard").style.display = "block";
+            incrementVisitCount();
+            saveLastVisit();
+        }
+
+        function initLandingPage() {
+            var btn = document.getElementById("iptvGoToDashboard");
+            if (btn) {
+                btn.addEventListener("click", function() {
+                    if (!btn.disabled) {
+                        showDashboard();
+                    }
+                });
+            }
+        }
+
+        function init() {
+            if (typeof lucide !== "undefined" && lucide.createIcons) {
+                lucide.createIcons();
+            }
+            initTheme();
+            initTabs();
+            initEvents();
+            initRenewalFeatures();
+            initLandingPage();
+            loadUserAccess(function(hasAccess) {
+                loadData();
+                setTimeout(function() {
+                    populateLandingPage();
+                }, 500);
+            });
+        }
+
+        if (window._spBodyOnLoadFunctionNames) {
+            window.iptv_init_dashboard = init;
+            _spBodyOnLoadFunctionNames.push("iptv_init_dashboard");
+        } else if (document.readyState === "complete") {
+            init();
+        } else {
+            window.addEventListener("load", init);
+        }
+
+        // Test mode
+        window.testIPTV = function(userType) {
+            if (userType === 'admin') {
+                userContext.userName = "Admin User";
+                userContext.userEmail = "admin@du.ae";
+                userContext.role = "Admin";
+                userContext.directorName = "";
+                userContext.isActive = true;
+            } else if (userType === 'director') {
+                userContext.userName = "Mazen Adem";
+                userContext.userEmail = "mazen.adem@du.ae";
+                userContext.role = "Director";
+                userContext.directorName = "Mazen Adem";
+                userContext.isActive = true;
+            } else if (userType === 'manager') {
+                userContext.userName = "Ghassan Fouany";
+                userContext.userEmail = "ghassan.fouany@du.ae";
+                userContext.role = "Manager";
+                userContext.directorName = "Mazen Adem";
+                userContext.isActive = true;
+            }
+            populateLandingPage();
+            if (userContext.isActive && userContext.role !== 'none') {
+                buildDashboardCards();
+                renderRenewalDashboard();
+            } else {
+                showAccessDenied();
+            }
+        };
+        console.log('📝 Use: testIPTV("admin"), testIPTV("director"), or testIPTV("manager")');
+
+    })();
+
+    function iptvToggleTheme() {
+        var body = document.body;
+        var cls = body.className;
+        if (cls.indexOf("iptv-light-theme") === -1) {
+            body.className += " iptv-light-theme";
+        } else {
+            body.className = cls.replace(" iptv-light-theme", "");
+        }
+        var icon = document.getElementById("iptvThemeIcon");
+        if (icon) {
+            icon.setAttribute("data-lucide",
+                body.className.indexOf("iptv-light-theme") !== -1 ? "sun" : "moon");
+        }
+        setTimeout(function() {
+            if (typeof lucide !== "undefined" && lucide.createIcons) {
+                lucide.createIcons();
+            }
+        }, 50);
+        try {
+            localStorage.setItem("iptvLightMode",
+                body.className.indexOf("iptv-light-theme") !== -1 ? "true" : "false");
+        } catch (e) {}
+    }
+
+    function iptvSwitchColorScheme() {
+        var sel = document.getElementById("iptvColorSchemeSelector");
+        if (!sel) return;
+        var val = sel.value;
+        var body = document.body;
+        if (val === "cyan") {
+            if (body.className.indexOf("iptv-cyan-theme") === -1) {
+                body.className += " iptv-cyan-theme";
+            }
+        } else {
+            body.className = body.className.replace(" iptv-cyan-theme", "");
+        }
+        try {
+            localStorage.setItem("iptvColorScheme", val);
+        } catch (e) {}
+    }
+</script>
