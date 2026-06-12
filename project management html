@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Management Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ag-grid/32.0.2/ag-grid-community.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/ag-grid-community@32.0.2/styles/ag-grid.css">
+<link rel="stylesheet" href="https://unpkg.com/ag-grid-community@32.0.2/styles/ag-theme-alpine.css">
+<style>
+/* ═══════════════════════════════════════════
+   CSS VARIABLES — THEMES
+═══════════════════════════════════════════ */
+:root {
+  --font-head: 'Syne', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+
+  /* Blue (default) light */
+  --bg-body: linear-gradient(145deg, #eef3ff, #e8f0fe, #f0f4ff);
+  --bg-card: #ffffff;
+  --bg-header: rgba(255,255,255,0.96);
+  --bg-sidebar: linear-gradient(180deg,#f0f4ff,#e6eeff);
+  --bg-content: #edf1ff;
+  --bg-input: rgba(37,99,235,0.06);
+  --bg-secondary: rgba(37,99,235,0.05);
+  --bg-hover: rgba(37,99,235,0.07);
+  --border: rgba(37,99,235,0.15);
+  --border-s: rgba(37,99,235,0.38);
+  --t1: #0c1a3d;
+  --t2: #283e72;
+  --t3: #7a8fb8;
+  --acc: #2563eb;
+  --acc2: #0ea5e9;
+  --glow: rgba(37,99,235,0.24);
+  --grad: linear-gradient(135deg,#1d4ed8,#0ea5e9);
+  --nab: rgba(37,99,235,0.09);
+  --nab2: rgba(37,99,235,0.3);
+  --cs: 0 1px 8px rgba(37,99,235,0.09);
+  --ch: 0 6px 24px rgba(37,99,235,0.17);
+  --green: #16a34a; --amber: #d97706; --red: #dc2626;
+  --chip: rgba(37,99,235,0.08);
+  --sidebar-w: 218px;
+}
+[data-theme="dark"] {
+  --bg-body: linear-gradient(145deg,#060d1f,#0c1530,#08102a);
+  --bg-card: #0b1228;
+  --bg-header: rgba(6,13,31,0.98);
+  --bg-sidebar: linear-gradient(180deg,#0e1636,#0a102a);
+  --bg-content: #070e22;
+  --bg-input: rgba(37,99,235,0.13);
+  --bg-secondary: rgba(37,99,235,0.08);
+  --bg-hover: rgba(37,99,235,0.12);
+  --border: rgba(37,99,235,0.18);
+  --border-s: rgba(37,99,235,0.45);
+  --t1: #dce8ff;
+  --t2: #9db2d8;
+  --t3: #4e6590;
+  --acc: #60a5fa;
+  --acc2: #38bdf8;
+  --glow: rgba(96,165,250,0.3);
+  --cs: 0 2px 16px rgba(0,0,0,0.55);
+  --ch: 0 8px 28px rgba(37,99,235,0.22);
+}
+[data-theme="emerald"] {
+  --bg-body: linear-gradient(145deg,#ecfdf5,#d1fae5,#f0fdf4);
+  --bg-card: #ffffff;
+  --bg-header: rgba(255,255,255,0.97);
+  --bg-sidebar: linear-gradient(180deg,#f0fdf6,#e8fdf0);
+  --bg-content: #f0fdf4;
+  --bg-input: rgba(5,150,105,0.06);
+  --bg-secondary: rgba(5,150,105,0.05);
+  --bg-hover: rgba(5,150,105,0.07);
+  --border: rgba(5,150,105,0.18);
+  --border-s: rgba(5,150,105,0.42);
+  --t1: #0a2d1a;
+  --t2: #1a5c35;
+  --t3: #5a8c70;
+  --acc: #059669;
+  --acc2: #10b981;
+  --glow: rgba(5,150,105,0.25);
+  --grad: linear-gradient(135deg,#047857,#10b981);
+  --nab: rgba(5,150,105,0.1);
+  --nab2: rgba(5,150,105,0.32);
+  --cs: 0 1px 8px rgba(5,150,105,0.1);
+  --ch: 0 6px 22px rgba(5,150,105,0.18);
+}
+[data-theme="emerald-dark"] {
+  --bg-body: linear-gradient(145deg,#071a10,#0d2e1a,#081510);
+  --bg-card: #0a1f12;
+  --bg-header: rgba(7,26,16,0.98);
+  --bg-sidebar: linear-gradient(180deg,#0d2518,#091a10);
+  --bg-content: #060f09;
+  --bg-input: rgba(5,150,105,0.12);
+  --bg-secondary: rgba(5,150,105,0.08);
+  --bg-hover: rgba(5,150,105,0.12);
+  --border: rgba(5,150,105,0.18);
+  --border-s: rgba(5,150,105,0.45);
+  --t1: #d1fae5;
+  --t2: #6ee7b7;
+  --t3: #2d6a4a;
+  --acc: #34d399;
+  --acc2: #10b981;
+  --glow: rgba(52,211,153,0.32);
+  --grad: linear-gradient(135deg,#047857,#10b981);
+  --nab: rgba(5,150,105,0.15);
+  --nab2: rgba(5,150,105,0.42);
+  --cs: 0 2px 16px rgba(0,0,0,0.55);
+  --ch: 0 8px 26px rgba(5,150,105,0.22);
+}
+[data-theme="slate"] {
+  --bg-body: linear-gradient(145deg,#f1f5f9,#e2e8f0,#f8fafc);
+  --bg-card: #ffffff;
+  --bg-header: rgba(255,255,255,0.97);
+  --bg-sidebar: linear-gradient(180deg,#f1f5f9,#e8edf5);
+  --bg-content: #f1f5f9;
+  --bg-input: rgba(71,85,105,0.06);
+  --bg-secondary: rgba(71,85,105,0.05);
+  --bg-hover: rgba(71,85,105,0.07);
+  --border: rgba(71,85,105,0.18);
+  --border-s: rgba(71,85,105,0.4);
+  --t1: #0f172a;
+  --t2: #334155;
+  --t3: #64748b;
+  --acc: #475569;
+  --acc2: #94a3b8;
+  --glow: rgba(71,85,105,0.22);
+  --grad: linear-gradient(135deg,#334155,#64748b);
+  --nab: rgba(71,85,105,0.09);
+  --nab2: rgba(71,85,105,0.28);
+  --cs: 0 1px 8px rgba(71,85,105,0.1);
+  --ch: 0 6px 22px rgba(71,85,105,0.16);
+}
+[data-theme="slate-dark"] {
+  --bg-body: linear-gradient(145deg,#0a0f1a,#111827,#0d1321);
+  --bg-card: #111827;
+  --bg-header: rgba(10,15,26,0.98);
+  --bg-sidebar: linear-gradient(180deg,#141d2e,#0f1826);
+  --bg-content: #0a0f1a;
+  --bg-input: rgba(100,116,139,0.12);
+  --bg-secondary: rgba(100,116,139,0.07);
+  --bg-hover: rgba(100,116,139,0.12);
+  --border: rgba(100,116,139,0.18);
+  --border-s: rgba(100,116,139,0.42);
+  --t1: #f1f5f9;
+  --t2: #94a3b8;
+  --t3: #475569;
+  --acc: #94a3b8;
+  --acc2: #cbd5e1;
+  --glow: rgba(148,163,184,0.25);
+  --grad: linear-gradient(135deg,#334155,#64748b);
+  --nab: rgba(100,116,139,0.14);
+  --nab2: rgba(100,116,139,0.38);
+  --cs: 0 2px 16px rgba(0,0,0,0.55);
+  --ch: 0 8px 26px rgba(0,0,0,0.4);
+}
+
+/* ═══════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════ */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+h1,h2,h3,h4,h5,h6{margin:0!important;padding:0!important;font-weight:inherit;}
+html{scroll-behavior:smooth;}
+body{font-family:var(--font-body);background:var(--bg-body);color:var(--t1);min-height:100vh;-webkit-font-smoothing:antialiased;transition:background .3s,color .3s;line-height:1.5;}
+select,input,textarea,button{font-family:inherit;}
+
+/* ═══════════════════════════════════════════
+   LOADING OVERLAY
+═══════════════════════════════════════════ */
+.loading-overlay{position:fixed;inset:0;z-index:9999;background:var(--bg-body);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;}
+.loading-logo{width:76px;height:76px;border-radius:20px;background:var(--grad);display:flex;align-items:center;justify-content:center;box-shadow:0 0 48px var(--glow);animation:ldPulse 1.8s ease-in-out infinite;}
+.loading-logo svg{width:38px;height:38px;stroke:#fff;fill:none;stroke-width:2;}
+.loading-title{font-family:var(--font-head);font-size:1.4rem;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.loading-sub{font-size:.83rem;color:var(--t3);margin-top:-.7rem;}
+.loading-bar-wrap{width:260px;height:4px;background:var(--border);border-radius:99px;overflow:hidden;}
+.loading-bar-fill{height:100%;border-radius:99px;background:var(--grad);animation:ldBar 2.2s ease-in-out infinite;}
+.loading-step{font-size:.76rem;color:var(--t3);min-height:1.2em;}
+@keyframes ldPulse{0%,100%{transform:scale(1);box-shadow:0 0 30px var(--glow);}50%{transform:scale(1.06);box-shadow:0 0 60px var(--glow);}}
+@keyframes ldBar{0%{width:0%;margin-left:0;}50%{width:72%;margin-left:0;}100%{width:0%;margin-left:100%;}}
+
+/* ═══════════════════════════════════════════
+   LANDING
+═══════════════════════════════════════════ */
+.landing-page{min-height:100vh;display:flex;background:var(--bg-body);}
+.landing-left,.landing-right{flex:1;display:flex;align-items:center;justify-content:center;padding:2.5rem;}
+.landing-container{width:100%;max-width:430px;}
+.landing-card{background:var(--bg-card);border:1px solid var(--border);border-radius:18px;padding:1.6rem;box-shadow:var(--cs);margin-bottom:1rem;}
+.landing-logo-icon{width:64px;height:64px;border-radius:17px;background:var(--grad);display:flex;align-items:center;justify-content:center;box-shadow:0 0 28px var(--glow);}
+.landing-logo-icon svg{width:34px;height:34px;stroke:#fff;fill:none;stroke-width:2;}
+.landing-title{font-family:var(--font-head);font-size:1.5rem;font-weight:800;color:var(--t1);margin-top:.75rem!important;}
+.landing-subtitle{font-size:.82rem;color:var(--t3);}
+.avatar-placeholder{width:52px;height:52px;border-radius:50%;background:var(--grad);display:flex;align-items:center;justify-content:center;font-family:var(--font-head);font-size:1.1rem;font-weight:800;color:#fff;}
+.landing-role-badge{display:inline-block;padding:.2rem .65rem;border-radius:6px;font-size:.7rem;font-weight:700;background:var(--chip);color:var(--acc);border:1px solid var(--border);margin-top:.3rem;}
+.stats-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin:1rem 0;}
+.landing-stat-card{background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:.7rem .85rem;}
+.stat-mini-label{font-size:.65rem;color:var(--t3);font-weight:700;text-transform:uppercase;}
+.stat-mini-val{font-size:1.1rem;font-weight:800;color:var(--acc);}
+.landing-btn{width:100%;padding:.78rem;border-radius:12px;font-size:.9rem;font-family:var(--font-head);font-weight:700;cursor:pointer;border:none;display:flex;align-items:center;justify-content:center;gap:.5rem;background:var(--grad);color:#fff;box-shadow:0 4px 16px var(--glow);transition:all .2s;position:relative;overflow:hidden;}
+.landing-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 22px var(--glow);}
+.landing-btn:disabled{opacity:.5;cursor:not-allowed;}
+.landing-btn svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2;}
+.landing-note{font-size:.74rem;color:var(--t3);margin-top:.6rem;display:flex;align-items:flex-start;gap:.35rem;}
+.landing-note svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;flex-shrink:0;margin-top:1px;}
+.landing-footer{text-align:center;font-size:.72rem;color:var(--t3);}
+.branding-title{font-family:var(--font-head);font-size:2.1rem;font-weight:800;color:var(--t1);line-height:1.1;}
+.branding-title span{background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.branding-sub{font-size:.86rem;color:var(--t3);margin-top:.55rem;}
+.feature-list{margin-top:1.5rem;display:flex;flex-direction:column;gap:.85rem;}
+.feature-item{display:flex;gap:.7rem;align-items:flex-start;}
+.feature-icon{width:36px;height:36px;border-radius:10px;background:var(--nab);border:1px solid var(--nab2);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.feature-icon svg{width:18px;height:18px;stroke:var(--acc);fill:none;stroke-width:2;}
+.feature-title{font-family:var(--font-head);font-weight:700;font-size:.88rem;color:var(--t1);}
+.feature-desc{font-size:.76rem;color:var(--t3);margin-top:.1rem;}
+.welcome-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .75rem;border-radius:20px;background:var(--nab);border:1px solid var(--nab2);font-size:.74rem;font-weight:700;color:var(--acc);margin-bottom:.75rem;}
+.pill-dot{width:6px;height:6px;border-radius:50%;background:var(--acc);animation:pDot 2s infinite;}
+@keyframes pDot{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,.4);}50%{box-shadow:0 0 0 5px rgba(37,99,235,0);}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+.anim-fade{animation:fadeIn .5s ease forwards;}
+.anim-up{animation:slideUp .65s ease forwards;}
+
+/* ═══════════════════════════════════════════
+   SHELL & HEADER
+═══════════════════════════════════════════ */
+.portal-shell{max-width:1900px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;}
+.header{background:var(--bg-header);border-bottom:1px solid var(--border);backdrop-filter:blur(18px);padding:0 1.4rem;height:58px;display:flex;align-items:center;justify-content:space-between;gap:1rem;position:sticky;top:0;z-index:200;flex-shrink:0;}
+.logo-section{display:flex;align-items:center;gap:.7rem;}
+.logo{width:38px;height:38px;border-radius:11px;background:var(--grad);display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px var(--glow);flex-shrink:0;}
+.logo svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2;}
+.header-title{font-family:var(--font-head);font-size:1.08rem;font-weight:800;white-space:nowrap;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.header-center{display:flex;align-items:center;gap:.75rem;flex:1;padding-left:.85rem;}
+.header-actions{display:flex;align-items:center;gap:.5rem;flex-shrink:0;}
+.live-pill{display:inline-flex;align-items:center;gap:.3rem;padding:.22rem .68rem;border-radius:20px;background:rgba(22,163,74,.12);border:1px solid rgba(22,163,74,.28);font-size:.72rem;font-weight:700;color:#16a34a;}
+.status-dot{width:6px;height:6px;border-radius:50%;background:#16a34a;animation:pDot 2s infinite;}
+.date-badge{font-size:.74rem;color:var(--t3);display:flex;align-items:center;gap:.3rem;white-space:nowrap;}
+.date-badge svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;}
+.user-badge{font-size:.74rem;color:var(--acc);font-weight:700;}
+.sel-badge{font-size:.74rem;color:var(--acc2);font-weight:700;display:none;}
+.theme-sel{padding:.3rem .65rem;background:var(--bg-input);border:1px solid var(--border);border-radius:18px;color:var(--t1);font-size:.74rem;cursor:pointer;transition:border-color .2s;}
+.theme-toggle{width:34px;height:34px;border-radius:50%;background:var(--bg-input);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t1);transition:all .2s;}
+.theme-toggle:hover{border-color:var(--border-s);}
+.theme-toggle svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;}
+
+/* ═══════════════════════════════════════════
+   MAIN CONTAINER / SIDEBAR
+═══════════════════════════════════════════ */
+.main-container{display:flex;flex:1;min-height:0;position:relative;}
+.sidebar{width:var(--sidebar-w);min-width:var(--sidebar-w);background:var(--bg-sidebar);border-right:1px solid var(--border);padding:1rem 0;overflow:visible;flex-shrink:0;transition:width .26s ease,min-width .26s ease;}
+.sidebar.collapsed{width:0;min-width:0;padding:0;border:none;overflow:hidden;}
+.sidebar.collapsed .nav-items{opacity:0;pointer-events:none;}
+.sidebar-toggle{position:absolute;right:-14px;top:18px;z-index:300;width:28px;height:28px;border-radius:50%;background:var(--bg-card);border:1px solid var(--border);box-shadow:var(--cs);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t1);}
+.sidebar-toggle:hover{border-color:var(--border-s);}
+.sidebar-toggle svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;}
+.nav-items{display:flex;flex-direction:column;gap:2px;padding:0 .7rem;transition:opacity .22s;}
+.nav-section-label{font-size:.64rem;text-transform:uppercase;letter-spacing:.1em;color:var(--t3);padding:.8rem .65rem .3rem;white-space:nowrap;font-weight:700;}
+.nav-item{display:flex;align-items:center;gap:.65rem;padding:.57rem .75rem;border-radius:10px;cursor:pointer;color:var(--t2);border:1px solid transparent;transition:all .16s;white-space:nowrap;overflow:hidden;font-size:.84rem;font-weight:500;}
+.nav-item .nav-icon{display:flex;align-items:center;width:18px;height:18px;flex-shrink:0;}
+.nav-item .nav-icon svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;}
+.nav-item:hover{background:var(--bg-hover);color:var(--t1);}
+.nav-item.active{background:var(--nab);border-color:var(--nab2);color:var(--t1);font-weight:700;}
+.content{flex:1;overflow-y:auto;min-width:0;background:var(--bg-content);padding:1.15rem 1.4rem;}
+.dash-section{animation:slideUp .22s ease;}
+
+/* ═══════════════════════════════════════════
+   SECTION TITLE
+═══════════════════════════════════════════ */
+.section-title{font-family:var(--font-head);font-size:1rem;font-weight:800;margin:.85rem 0!important;display:flex;align-items:center;gap:.45rem;color:var(--acc);}
+.section-title svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;}
+.section-badge{background:var(--nab);border:1px solid var(--nab2);color:var(--acc);padding:2px 10px;border-radius:20px;font-size:.73rem;font-weight:700;}
+
+/* ═══════════════════════════════════════════
+   KPI TILES
+═══════════════════════════════════════════ */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:.85rem;margin-bottom:1rem;}
+.kpi-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.05rem 1.15rem;box-shadow:var(--cs);position:relative;overflow:hidden;transition:transform .18s,box-shadow .18s;cursor:default;}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad);border-radius:14px 14px 0 0;}
+.kpi-card:hover{transform:translateY(-2px);box-shadow:var(--ch);}
+.kpi-card.clickable{cursor:pointer;}
+.kpi-card.tile-active{box-shadow:0 0 0 2px var(--acc),var(--ch)!important;transform:translateY(-2px);}
+.kpi-card.tile-active::after{content:'✓';position:absolute;top:6px;right:9px;font-size:.68rem;font-weight:900;color:var(--acc);}
+.kpi-card.tile-dimmed{opacity:.35;}
+.kpi-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--t3);font-weight:700;margin-bottom:.35rem;}
+.kpi-value{font-family:var(--font-head);font-size:1.95rem;font-weight:800;line-height:1;color:var(--acc);margin-bottom:.25rem;}
+.kpi-sub{font-size:.76rem;font-weight:600;color:var(--t2);}
+.kpi-extras{margin-top:.55rem;display:flex;flex-direction:column;gap:.22rem;}
+.kpi-row{display:flex;justify-content:space-between;font-size:.76rem;}
+.kpi-row span:first-child{color:var(--t3);font-weight:600;}
+.kpi-row span:last-child{font-weight:800;color:var(--t1);}
+
+/* HEALTH STRIP */
+.health-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.85rem;margin-bottom:1rem;}
+.health-tile{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.05rem 1.15rem;box-shadow:var(--cs);position:relative;overflow:hidden;}
+.health-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;}
+.health-tile.green::before{background:#16a34a;}
+.health-tile.amber::before{background:#d97706;}
+.health-tile.red::before{background:#dc2626;}
+.health-tile.grey::before{background:#64748b;}
+.health-count{font-family:var(--font-head);font-size:2.4rem;font-weight:900;line-height:1;}
+.health-tile.green .health-count{color:#16a34a;}
+.health-tile.amber .health-count{color:#d97706;}
+.health-tile.red .health-count{color:#dc2626;}
+.health-tile.grey .health-count{color:#64748b;}
+.health-label{font-size:.78rem;font-weight:700;color:var(--t2);margin-top:.2rem;}
+.health-meta{font-size:.7rem;color:var(--t3);margin-top:.45rem;display:flex;flex-direction:column;gap:.2rem;}
+.health-meta-row{display:flex;justify-content:space-between;}
+.health-meta-row span:last-child{font-weight:700;color:var(--t1);}
+
+/* ═══════════════════════════════════════════
+   FILTER BAR
+═══════════════════════════════════════════ */
+.filter-bar{background:var(--bg-card);border:1px solid var(--border);border-radius:13px;padding:.9rem 1.1rem;margin-bottom:1rem;box-shadow:var(--cs);}
+.filter-bar-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;}
+.filter-bar-label{font-size:.67rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;gap:.35rem;}
+.filter-bar-label svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;}
+.filter-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:.55rem .65rem;align-items:end;}
+.fb-group{display:flex;flex-direction:column;gap:.2rem;min-width:0;}
+.fb-label{font-size:.62rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;}
+.reset-btn{padding:.45rem .95rem;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:.35rem;background:var(--bg-input);color:var(--t1);border:1px solid var(--border);transition:all .2s;}
+.reset-btn:hover{border-color:var(--border-s);}
+.reset-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;}
+
+/* Multi-select dropdown */
+.ms-wrap{position:relative;}
+.ms-trigger{padding:.4rem .72rem;border-radius:8px;border:1.5px solid var(--border);background:var(--bg-input);color:var(--t1);font-size:.79rem;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:.45rem;transition:border-color .18s,box-shadow .18s;user-select:none;width:100%;}
+.ms-trigger:hover,.ms-trigger.open{border-color:var(--border-s);box-shadow:0 0 0 3px var(--glow);}
+.ms-trigger.has-sel{border-color:var(--acc);background:var(--nab);color:var(--acc);font-weight:700;}
+.ms-trigger svg{width:13px;height:13px;stroke:var(--t3);fill:none;stroke-width:2;transition:transform .2s;flex-shrink:0;}
+.ms-trigger.open svg{transform:rotate(180deg);}
+.ms-dropdown{position:fixed;background:var(--bg-card);border:1.5px solid var(--border-s);border-radius:9px;max-height:240px;overflow-y:auto;z-index:99999;box-shadow:0 10px 40px rgba(0,0,0,.28);display:none;min-width:180px;}
+.ms-dropdown.open{display:block;}
+.ms-option{padding:8px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;font-size:.81rem;transition:background .13s;}
+.ms-option:hover{background:var(--bg-hover);}
+.ms-option input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--acc);}
+.ms-option label{cursor:pointer;flex:1;color:var(--t1);}
+
+/* Active chips */
+.chip-row{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.65rem;min-height:0;}
+.chip{display:inline-flex;align-items:center;gap:.3rem;padding:.22rem .65rem;border-radius:20px;background:var(--nab);border:1px solid var(--nab2);font-size:.72rem;font-weight:700;color:var(--acc);}
+.chip button{background:none;border:none;cursor:pointer;color:var(--acc);font-size:.82rem;line-height:1;padding:0;margin-left:.15rem;}
+
+/* ═══════════════════════════════════════════
+   PM / DELIVERY MANAGER TILES
+═══════════════════════════════════════════ */
+.pm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:.9rem;}
+.pm-tile{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1rem 1.1rem;cursor:pointer;transition:all .2s;box-shadow:var(--cs);position:relative;overflow:hidden;}
+.pm-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad);}
+.pm-tile:hover{transform:translateY(-2px);box-shadow:var(--ch);border-color:var(--border-s);}
+.pm-tile.selected{border-color:var(--nab2);background:var(--nab);box-shadow:0 0 0 2px var(--acc),var(--ch);}
+.pm-tile.dimmed{opacity:.28;pointer-events:none;}
+.pm-name{font-family:var(--font-head);font-size:.92rem;font-weight:800;color:var(--t1);line-height:1.2;}
+.pm-role{font-size:.68rem;color:var(--t3);font-weight:600;margin-bottom:.5rem;}
+.pm-stats-row{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;margin-bottom:.55rem;}
+.pm-stat-box{background:var(--bg-secondary);border-radius:8px;padding:.5rem .65rem;border:1px solid var(--border);}
+.pm-stat-label{font-size:.62rem;text-transform:uppercase;color:var(--t3);font-weight:700;margin-bottom:.1rem;}
+.pm-stat-val{font-family:var(--font-head);font-size:1.05rem;font-weight:800;color:var(--acc);}
+.pm-health-bar-wrap{background:var(--grad);border-radius:9px;padding:.65rem .75rem;margin-bottom:.5rem;color:#fff;}
+.pm-health-label{font-size:.62rem;opacity:.8;font-weight:700;margin-bottom:.2rem;}
+.pm-health-counts{font-size:.88rem;font-weight:900;margin-bottom:.35rem;}
+.pm-health-strip{display:flex;gap:.2rem;height:6px;border-radius:20px;overflow:hidden;}
+.pm-health-seg{border-radius:20px;transition:flex .4s;}
+.pm-progress-section{display:flex;flex-direction:column;gap:.35rem;}
+.pm-prog-row{display:flex;justify-content:space-between;font-size:.68rem;color:var(--t3);}
+.pm-prog-row span:last-child{font-weight:800;color:var(--t2);}
+.pm-prog-bar{background:var(--bg-secondary);border-radius:20px;height:4px;overflow:hidden;margin-bottom:.12rem;}
+.pm-prog-fill{height:100%;border-radius:20px;background:var(--grad);transition:width .5s ease;}
+.pm-verticals{display:flex;flex-wrap:wrap;gap:.2rem;margin:.35rem 0;}
+.pm-vert-tag{font-size:.62rem;font-weight:700;color:var(--acc);background:var(--nab);border:1px solid var(--nab2);padding:1px 7px;border-radius:20px;}
+.pm-selected-badge{position:absolute;top:8px;right:10px;font-size:.62rem;font-weight:800;color:#fff;background:var(--acc);padding:2px 9px;border-radius:20px;}
+
+/* ═══════════════════════════════════════════
+   CHARTS
+═══════════════════════════════════════════ */
+.chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:13px;padding:1.05rem 1.1rem;box-shadow:var(--cs);}
+.chart-title{font-size:.8rem;font-weight:700;color:var(--t2);margin-bottom:.7rem;display:flex;align-items:center;justify-content:space-between;gap:.35rem;flex-wrap:wrap;}
+.chart-title-left{display:flex;align-items:center;gap:.35rem;}
+.chart-title-left svg{width:16px;height:16px;stroke:var(--acc);fill:none;stroke-width:2;flex-shrink:0;}
+.chart-btns{display:flex;gap:.3rem;flex-wrap:wrap;}
+.chart-btn{padding:.22rem .65rem;border-radius:6px;font-size:.7rem;font-weight:700;border:1px solid var(--border);cursor:pointer;transition:all .15s;background:var(--bg-secondary);color:var(--t3);}
+.chart-btn.active{background:var(--grad);color:#fff;border-color:transparent;}
+.chart-container{position:relative;}
+
+/* ═══════════════════════════════════════════
+   TABLE SECTION
+═══════════════════════════════════════════ */
+.table-section{background:var(--bg-card);border:1px solid var(--border);border-radius:13px;padding:1.05rem 1.15rem;margin-bottom:1rem;box-shadow:var(--cs);}
+.table-hdr{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.65rem;margin-bottom:.85rem;}
+.table-title{font-family:var(--font-head);font-size:.92rem;font-weight:800;color:var(--t1);display:flex;align-items:center;gap:.4rem;}
+.table-title svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;}
+.table-actions{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}
+.search-box{padding:.45rem .8rem;border-radius:9px;border:1.5px solid var(--border);background:var(--bg-input);color:var(--t1);font-size:.82rem;min-width:190px;transition:border-color .18s;}
+.search-box:focus{outline:none;border-color:var(--border-s);}
+.search-box::placeholder{color:var(--t3);}
+.export-btn{padding:.5rem 1.1rem;border-radius:9px;font-size:.82rem;font-family:var(--font-head);font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;border:none;background:var(--grad);color:#fff;box-shadow:0 2px 10px var(--glow);white-space:nowrap;transition:all .2s;}
+.export-btn:hover{box-shadow:0 4px 18px var(--glow);transform:translateY(-1px);}
+.export-btn svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:2;}
+
+/* Status badges */
+.badge{display:inline-block;padding:.2rem .58rem;border-radius:20px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+.badge-green{background:rgba(22,163,74,.12);color:#16a34a;border:1px solid rgba(22,163,74,.28);}
+.badge-amber{background:rgba(245,158,11,.12);color:#b45309;border:1px solid rgba(245,158,11,.28);}
+.badge-red{background:rgba(220,38,38,.12);color:#dc2626;border:1px solid rgba(220,38,38,.28);}
+.badge-blue{background:rgba(37,99,235,.12);color:#2563eb;border:1px solid rgba(37,99,235,.28);}
+.badge-grey{background:rgba(100,116,139,.12);color:#64748b;border:1px solid rgba(100,116,139,.28);}
+[data-theme="dark"] .badge-green,[data-theme="emerald-dark"] .badge-green{background:rgba(34,197,94,.12);color:#22c55e;border-color:rgba(34,197,94,.25);}
+[data-theme="dark"] .badge-amber,[data-theme="emerald-dark"] .badge-amber{background:rgba(251,191,36,.12);color:#fbbf24;border-color:rgba(251,191,36,.25);}
+
+/* AG Grid overrides */
+.ag-theme-alpine .ag-root-wrapper{background:var(--bg-card)!important;border-color:var(--border)!important;border-radius:10px!important;overflow:hidden!important;}
+.ag-theme-alpine .ag-header,.ag-theme-alpine .ag-header-row,.ag-theme-alpine .ag-header-viewport{background:var(--bg-secondary)!important;border-bottom:2px solid var(--border-s)!important;}
+.ag-theme-alpine .ag-header-cell{background:var(--bg-secondary)!important;color:var(--t1)!important;font-family:var(--font-head)!important;font-weight:700!important;font-size:.7rem!important;text-transform:uppercase!important;letter-spacing:.04em!important;}
+.ag-theme-alpine .ag-header-cell-text,.ag-theme-alpine .ag-header-cell-label{color:var(--t1)!important;}
+.ag-theme-alpine .ag-icon{color:var(--t3)!important;}
+.ag-theme-alpine .ag-body-viewport,.ag-theme-alpine .ag-center-cols-viewport{background:var(--bg-card)!important;}
+.ag-theme-alpine .ag-row{background:var(--bg-card)!important;color:var(--t1)!important;border-bottom-color:var(--border)!important;}
+.ag-theme-alpine .ag-row-odd{background:var(--bg-secondary)!important;}
+.ag-theme-alpine .ag-row-hover,.ag-theme-alpine .ag-row-hover.ag-row-even,.ag-theme-alpine .ag-row-hover.ag-row-odd{background:var(--bg-hover)!important;}
+.ag-theme-alpine .ag-cell{color:var(--t1)!important;}
+.ag-theme-alpine .ag-paging-panel{background:var(--bg-card)!important;color:var(--t1)!important;border-top-color:var(--border)!important;}
+.ag-theme-alpine .ag-menu,.ag-theme-alpine .ag-filter{background:var(--bg-card)!important;color:var(--t1)!important;border-color:var(--border)!important;}
+.ag-theme-alpine input.ag-input-field-input{background:var(--bg-input)!important;color:var(--t1)!important;border-color:var(--border)!important;}
+
+/* Toggleable charts section */
+.charts-toggle-row{text-align:center;margin-bottom:.9rem;}
+.toggle-charts-btn{padding:.55rem 1.2rem;border-radius:9px;font-size:.83rem;font-family:var(--font-head);font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;background:var(--grad);color:#fff;border:none;box-shadow:0 2px 10px var(--glow);transition:all .2s;}
+.toggle-charts-btn svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2;}
+
+/* Tooltip/summary strip */
+.summary-strip{display:flex;gap:.7rem;flex-wrap:wrap;margin-bottom:.85rem;}
+.summary-box{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:.65rem .9rem;flex:1;min-width:120px;box-shadow:var(--cs);}
+.summary-box-label{font-size:.64rem;text-transform:uppercase;font-weight:700;color:var(--t3);margin-bottom:.15rem;}
+.summary-box-val{font-family:var(--font-head);font-size:1.4rem;font-weight:900;}
+
+@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+@media(max-width:900px){.health-grid{grid-template-columns:1fr 1fr;}.pm-grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:640px){.landing-page{flex-direction:column;}.health-grid{grid-template-columns:1fr;}.pm-grid{grid-template-columns:1fr;}.filter-grid{grid-template-columns:1fr 1fr;}}
+</style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div id="loadingOverlay" class="loading-overlay" style="display:none;">
+  <div class="loading-logo"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></div>
+  <div class="loading-title">Project Management Portal</div>
+  <div class="loading-sub">Connecting to SharePoint...</div>
+  <div class="loading-bar-wrap"><div class="loading-bar-fill"></div></div>
+  <div class="loading-step" id="loadingStep">Initializing...</div>
+</div>
+
+<!-- LANDING PAGE -->
+<div id="landingPage" class="landing-page" style="display:none;">
+  <div class="landing-left anim-fade">
+    <div class="landing-branding" style="max-width:420px;">
+      <div style="margin-bottom:1rem;"><div class="landing-logo-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></div></div>
+      <h1 class="branding-title">Project<br><span>Management</span><br>Portal</h1>
+      <p class="branding-sub">Complete visibility over your project pipeline — from TCV to delivery health, manager performance, SPI tracking and revenue intelligence.</p>
+      <div class="feature-list">
+        <div class="feature-item"><div class="feature-icon"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg></div><div><div class="feature-title">Revenue Intelligence</div><div class="feature-desc">Track TCV, MRC, OTC and billed revenue in real-time across all managers and verticals</div></div></div>
+        <div class="feature-item"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><div class="feature-title">Manager Performance Tiles</div><div class="feature-desc">Drill into Project & Delivery Manager metrics with health, SPI, and completion rates</div></div></div>
+        <div class="feature-item"><div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><div><div class="feature-title">Pipeline & Delivery Tracking</div><div class="feature-desc">Open, in-flight, delivered — with SPI, project health, and RFS date monitoring</div></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="landing-right">
+    <div class="landing-container anim-up">
+      <div class="landing-card">
+        <div style="display:flex;justify-content:center;margin-bottom:.85rem;"><div class="landing-logo-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></div></div>
+        <h1 class="landing-title">Welcome Back</h1>
+        <p class="landing-subtitle" style="margin-bottom:.85rem;">Authenticating your session...</p>
+        <div class="welcome-pill"><span class="pill-dot"></span><span>Project Management Portal</span></div>
+        <div style="display:flex;align-items:center;gap:.85rem;margin-bottom:1rem;">
+          <div class="avatar-placeholder" id="lAvatar">?</div>
+          <div>
+            <div style="font-size:.96rem;font-weight:700;color:var(--t1);" id="lName">Loading...</div>
+            <div style="font-size:.76rem;color:var(--t3);" id="lEmail">Verifying access...</div>
+            <div class="landing-role-badge" id="lRole">—</div>
+          </div>
+        </div>
+        <div class="stats-grid-2">
+          <div class="landing-stat-card"><div class="stat-mini-label">Total Visits</div><div class="stat-mini-val" id="lVisits">—</div></div>
+          <div class="landing-stat-card"><div class="stat-mini-label">Last Visit</div><div class="stat-mini-val" id="lLastVisit" style="font-size:.85rem;">—</div></div>
+        </div>
+        <button type="button" id="launchBtn" class="landing-btn" disabled>
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          <span id="launchBtnTxt">Verifying Access...</span>
+        </button>
+        <p class="landing-note" id="accessNote"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>Please wait while we verify your permissions...</span></p>
+      </div>
+      <div class="landing-footer"><p>Project Management Portal · Powered by SharePoint</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN DASHBOARD -->
+<div class="portal-shell" id="dashboardShell" style="display:none;">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-section">
+      <div class="logo"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></div>
+      <span class="header-title">Project Management Portal</span>
+    </div>
+    <div class="header-center">
+      <div class="live-pill"><span class="status-dot"></span><span>Live</span></div>
+      <div class="date-badge"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><span id="hdDate">—</span></div>
+      <div class="user-badge" id="hdUser">—</div>
+      <div class="sel-badge" id="hdSel">—</div>
+    </div>
+    <div class="header-actions">
+      <select class="theme-sel" id="themeSel" onchange="changeTheme(this.value)">
+        <option value="blue">◆ Blue</option>
+        <option value="emerald">◆ Emerald</option>
+        <option value="slate">◆ Slate</option>
+      </select>
+      <div class="theme-toggle" onclick="toggleDark()" title="Toggle Dark"><svg id="themeIcon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></div>
+    </div>
+  </div>
+
+  <div class="main-container">
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar" style="position:relative;">
+      <div class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+        <svg id="sidebarIcon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/><polyline points="9 18 3 12 9 6"/></svg>
+      </div>
+      <div class="nav-items" id="navItems">
+        <div class="nav-section-label">Dashboard</div>
+        <div class="nav-item active" id="navOverview" onclick="showView('overview',this)">
+          <div class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>
+          <div class="nav-label">Overview</div>
+        </div>
+        <div class="nav-section-label">Views</div>
+        <div class="nav-item" id="navPipeline" onclick="showView('pipeline',this)">
+          <div class="nav-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+          <div class="nav-label">Pipeline</div>
+        </div>
+        <div class="nav-item" id="navDelivered" onclick="showView('delivered',this)">
+          <div class="nav-icon"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div class="nav-label">Delivered</div>
+        </div>
+        <div class="nav-item" id="navRecords" onclick="showView('records',this)">
+          <div class="nav-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+          <div class="nav-label">All Records</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- ══ OVERVIEW VIEW ══ -->
+      <div id="viewOverview" class="dash-section">
+
+        <!-- KPI Tiles -->
+        <div class="kpi-grid" id="kpiGrid"></div>
+
+        <!-- Health Tiles -->
+        <div class="health-grid" id="healthGrid"></div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+          <div class="filter-bar-hdr">
+            <span class="filter-bar-label"><svg viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>Filters</span>
+            <button type="button" class="reset-btn" onclick="resetAll()"><svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>Reset All</button>
+          </div>
+          <div class="filter-grid" id="filterGrid">
+            <!-- Injected dynamically -->
+          </div>
+        </div>
+
+        <!-- Active chips -->
+        <div class="chip-row" id="chipRow"></div>
+
+        <!-- PM Tiles -->
+        <div style="margin-bottom:.65rem;">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Project Manager Performance
+            <span class="section-badge" id="pmBadge">0</span>
+          </h2>
+          <div class="pm-grid" id="pmGrid"></div>
+        </div>
+
+        <!-- Charts toggle -->
+        <div class="charts-toggle-row">
+          <button type="button" class="toggle-charts-btn" onclick="toggleCharts()">
+            <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            <span id="chartsToggleTxt">Show Analytics Charts</span>
+          </button>
+        </div>
+
+        <!-- Charts -->
+        <div id="chartsContent" style="display:none;">
+          <!-- Row 1: Revenue Trend -->
+          <div style="margin-bottom:.85rem;">
+            <div class="chart-card">
+              <div class="chart-title">
+                <div class="chart-title-left"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>Revenue Trend</div>
+                <div class="chart-btns" id="trendPeriodBtns"></div>
+              </div>
+              <div id="trendMetricBtns" style="display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.6rem;"></div>
+              <div class="chart-container" style="height:280px;"><canvas id="chartTrend"></canvas></div>
+            </div>
+          </div>
+          <!-- Row 2: Status donut + Building/Service Type -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.85rem;margin-bottom:.85rem;">
+            <div class="chart-card"><div class="chart-title"><div class="chart-title-left"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>Project Status</div></div><div class="chart-container" style="height:290px;"><canvas id="chartStatus"></canvas></div></div>
+            <div class="chart-card"><div class="chart-title"><div class="chart-title-left"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>By Vertical</div><div class="chart-btns" id="vertMetricBtns"></div></div><div class="chart-container" style="height:290px;"><canvas id="chartVertical"></canvas></div></div>
+            <div class="chart-card"><div class="chart-title"><div class="chart-title-left"><svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>FNE Involvement</div></div><div class="chart-container" style="height:290px;"><canvas id="chartFNE"></canvas></div></div>
+          </div>
+          <!-- Row 3: Project Health Stacked + SPI -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:.85rem;">
+            <div class="chart-card">
+              <div class="chart-title">
+                <div class="chart-title-left"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Project Health by Manager</div>
+                <div class="chart-btns" id="healthViewBtns"></div>
+              </div>
+              <div class="chart-container" style="height:300px;"><canvas id="chartHealth"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-title">
+                <div class="chart-title-left"><svg viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>SPI by Manager</div>
+                <div class="chart-btns" id="spiViewBtns"></div>
+              </div>
+              <div class="chart-container" style="height:300px;"><canvas id="chartSPI"></canvas></div>
+            </div>
+          </div>
+          <!-- Row 4: PM Leaderboard (full width) -->
+          <div style="margin-bottom:.85rem;">
+            <div class="chart-card">
+              <div class="chart-title">
+                <div class="chart-title-left"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>Manager Leaderboard</div>
+                <div class="chart-btns" id="lbMetricBtns"></div>
+              </div>
+              <div class="chart-container" style="height:400px;"><canvas id="chartLeaderboard"></canvas></div>
+            </div>
+          </div>
+          <!-- Row 5: Revenue by AM + Top Customers -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:.85rem;">
+            <div class="chart-card"><div class="chart-title"><div class="chart-title-left"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Top 10 Projects by TCV</div></div><div class="chart-container" style="height:340px;"><canvas id="chartTopProj"></canvas></div></div>
+            <div class="chart-card">
+              <div class="chart-title">
+                <div class="chart-title-left"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>SLA Compliance</div>
+                <div class="chart-btns" id="slaBtns"></div>
+              </div>
+              <div class="chart-container" style="height:340px;"><canvas id="chartSLA"></canvas></div>
+            </div>
+          </div>
+          <!-- Row 6: Status by PM stacked + Project Size -->
+          <div style="display:grid;grid-template-columns:3fr 2fr;gap:.85rem;margin-bottom:.85rem;">
+            <div class="chart-card">
+              <div class="chart-title">
+                <div class="chart-title-left"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>Status by Project Manager</div>
+                <div class="chart-btns" id="statusMgrBtns"></div>
+              </div>
+              <div class="chart-container" style="height:340px;"><canvas id="chartStatusByPM"></canvas></div>
+            </div>
+            <div class="chart-card"><div class="chart-title"><div class="chart-title-left"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>Project Size Mix</div></div><div class="chart-container" style="height:340px;"><canvas id="chartProjSize"></canvas></div></div>
+          </div>
+          <!-- Row 7: Monthly RFS completions + Revenue Duration -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;margin-bottom:.85rem;">
+            <div class="chart-card"><div class="chart-title"><div class="chart-title-left"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Actual RFS Completions by Month</div></div><div class="chart-container" style="height:280px;"><canvas id="chartRFS"></canvas></div></div>
+            <div class="chart-card"><div class="chart-title"><div class="chart-title-left"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Revenue Summary (Billed YTD vs Expected YTG)</div></div><div class="chart-container" style="height:280px;"><canvas id="chartRevenue"></canvas></div></div>
+          </div>
+        </div><!-- end chartsContent -->
+
+        <!-- Table -->
+        <div class="table-section">
+          <div class="table-hdr">
+            <h3 class="table-title"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span id="gridCountLabel">All Records</span></h3>
+            <div class="table-actions">
+              <button type="button" class="export-btn" onclick="doExport()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export Excel</button>
+              <input type="text" class="search-box" id="gridSearch" placeholder="Search all columns..." oninput="gridFilter(this.value)">
+            </div>
+          </div>
+          <div id="mainGrid" class="ag-theme-alpine" style="height:600px;width:100%;"></div>
+        </div>
+
+      </div><!-- end viewOverview -->
+
+      <!-- ══ PIPELINE VIEW ══ -->
+      <div id="viewPipeline" class="dash-section" style="display:none;">
+        <h2 class="section-title"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Active Pipeline</h2>
+        <div id="pipelineSummary" class="summary-strip"></div>
+        <div class="table-section">
+          <div class="table-hdr">
+            <h3 class="table-title"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span id="pipelineCount">In-Progress Projects</span></h3>
+            <div class="table-actions"><button type="button" class="export-btn" onclick="exportPipeline()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export</button><input type="text" class="search-box" id="pipelineSearch" placeholder="Search..." oninput="if(pipelineGridApi) pipelineGridApi.setGridOption('quickFilterText',this.value)"></div>
+          </div>
+          <div id="pipelineGrid" class="ag-theme-alpine" style="height:580px;width:100%;"></div>
+        </div>
+      </div>
+
+      <!-- ══ DELIVERED VIEW ══ -->
+      <div id="viewDelivered" class="dash-section" style="display:none;">
+        <h2 class="section-title"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Delivered Projects</h2>
+        <div id="deliveredSummary" class="summary-strip"></div>
+        <div class="table-section">
+          <div class="table-hdr">
+            <h3 class="table-title"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span id="deliveredCount">Completed Projects</span></h3>
+            <div class="table-actions"><button type="button" class="export-btn" onclick="exportDelivered()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export</button><input type="text" class="search-box" id="deliveredSearch" placeholder="Search..." oninput="if(deliveredGridApi) deliveredGridApi.setGridOption('quickFilterText',this.value)"></div>
+          </div>
+          <div id="deliveredGrid" class="ag-theme-alpine" style="height:580px;width:100%;"></div>
+        </div>
+      </div>
+
+      <!-- ══ ALL RECORDS VIEW ══ -->
+      <div id="viewRecords" class="dash-section" style="display:none;">
+        <h2 class="section-title"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>All Project Records</h2>
+        <div class="table-section">
+          <div class="table-hdr">
+            <h3 class="table-title"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span id="allRecordsCount">All Records</span></h3>
+            <div class="table-actions"><button type="button" class="export-btn" onclick="exportAll()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export All</button><input type="text" class="search-box" id="allSearch" placeholder="Search..." oninput="if(allGridApi) allGridApi.setGridOption('quickFilterText',this.value)"></div>
+          </div>
+          <div id="allGrid" class="ag-theme-alpine" style="height:680px;width:100%;"></div>
+        </div>
+      </div>
+
+    </div><!-- end content -->
+  </div><!-- end main-container -->
+</div><!-- end portal-shell -->
+
+<!-- Dev Console -->
+<div id="devConsole" style="display:none;position:fixed;bottom:14px;right:14px;z-index:9999;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:.65rem .9rem;display:none;align-items:center;gap:.5rem;box-shadow:var(--cs);font-size:.75rem;">
+  <span style="font-size:.66rem;color:var(--t3);font-weight:700;text-transform:uppercase;">Dev Login</span>
+  <input type="text" id="devEmail" placeholder="email@example.com" style="padding:.3rem .6rem;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--t1);font-size:.74rem;width:185px;" onkeydown="if(event.key==='Enter')devLogin()">
+  <select id="devRole" style="padding:.3rem .6rem;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--t1);font-size:.74rem;">
+    <option value="Admin">Admin</option><option value="Project Manager">Project Manager</option><option value="Viewer">Viewer</option>
+  </select>
+  <button type="button" onclick="devLogin()" style="padding:.3rem .75rem;border-radius:6px;background:var(--grad);color:#fff;border:none;font-size:.74rem;font-weight:700;cursor:pointer;">Login</button>
+</div>
+
+<script src="/sites/GKA/SiteAssets/pm_dashboardd.js"></script>
+</body>
+</html>
