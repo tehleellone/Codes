@@ -1,0 +1,1177 @@
+// ═══════════════════════════════════════════════════════════════
+//  pm_dashboard.js  —  Project Management Portal  (v1)
+//  Depends on: AG Grid, Chart.js loaded in HTML
+// ═══════════════════════════════════════════════════════════════
+
+const SP_SITE   = 'http://sharedspaces:8086/sites/GKA';
+const SP_LIST   = 'Project Management';
+const SP_ACCESS = 'PM_ACCESS';   // Access control list: columns UserEmailID, Role
+
+// ── SP Field internal names ──────────────────────────────────────
+const F = {
+  BID:          'Title',
+  CUST_NAME:    'Customer_x0020_Name',
+  PROJ_NAME:    'Project_x0020_Name',
+  STATUS:       'Delivery_x0020_Status',
+  START:        'Project_x0020_Handover_x0020_Dat',
+  CLOSURE_BL:   'Closure_x0020_Baseline',
+  EXP_DELIVERY: 'Expected_x0020_to_x0020_be_x0020',
+  FORECAST:     'Actual_x0020_Project_x0020_Closu',
+  CANCELLED:    'Cancelled_x0020_Date',
+  BILLING_START:'Billing_x0020_Start_x0020_Date',
+  SCOPE:        'Project_x0020_Scope',
+  MULTI_SVC:    'Multiple_x0020_Services_x002f_Lo',
+  FNE_INVOLVE:  'FNE_x0020_Involvement',
+  FNE_SCOPE:    'FNE_x0020_Scope',
+  FES:          'FES_x0020_Number',
+  FNE_GO_AHEAD: 'Go_x0020_Ahead_x0020_Date',
+  EXP_RFS:      'Expected_x0020_RFS_x0020_Date',
+  ACTUAL_RFS:   'Actual_x0020_RFS_x0020_Date',
+  RFS_DELAY:    'RFS_x0020_Delay_x0020_Reason',
+  ACC_MGR:      'Account_x0020_Manager',
+  SALES_DIR:    'Sales_x0020_Director',
+  VERTICAL:     'Sales_x0020_Segment',
+  UPDATES:      'Project_x0020_Updates',
+  WO:           'WO_x0023__x0020_Reference',
+  PROJ_MGR:     'ProjectManager',
+  CONTRACT_DUR: 'ContractDuration',
+  OTC:          'OTC0',
+  MRC:          'MRC0',
+  CONTRACT_ID:  'ContractID',
+  ACC_NUM:      'AccountNumber',
+  PROD_TYPE:    'ProductType',
+  TCV:          'TCV',
+  BILLED_REV:   'Billed_x0020_Revenue_x0020__x002',
+  EXP_REV:      'Expected_x0020_Revenue_x0020__x0',
+  DESCRIPTION:  'ProjectDiscription',
+  SPI:          'SPI',
+  PROJ_HEALTH:  'Project_x0020_Health',
+  PROJ_SIZE:    'Project_x0020_Size',
+  PROJ_TYPE:    'Project_x0020_Type',
+  PLANNED_DUR:  'Planned_x0020_Duration',
+  ACTUAL_DUR:   'PM_x0020_Man_x0020_days_x002f_Ac',
+  SOL_CONSULT:  'SolutionConsultant0',
+  SVC_DELAY:    'ServiceDelayReason',
+};
+
+// ── State ────────────────────────────────────────────────────────
+window.USER   = { email:'', name:'', role:'', IsAdmin:false };
+let ALL_ITEMS = [], FILTERED = [], CHARTS = {};
+let mainGridApi = null, pipelineGridApi = null, deliveredGridApi = null, allGridApi = null;
+let selPM = null, selStatusTile = null;
+let chartsVisible = false;
+let trendPeriod = 'M', trendMetric = 'tcv';
+let vertMetric = 'tcv';
+let lbMetric = 'tcv';
+let healthView = 'mgr';
+let spiView = 'mgr';
+let slaView = 'mgr';
+let statusMgrMetric = 'count';
+
+// Multi-select filter state
+const MS = {
+  status:    new Set(),
+  vertical:  new Set(),
+  accMgr:    new Set(),
+  salesDir:  new Set(),
+  projType:  new Set(),
+  projSize:  new Set(),
+  fneInvolve:new Set(),
+  prodType:  new Set(),
+  health:    new Set(),
+  year:      new Set(),
+  quarter:   new Set(),
+};
+
+// Filter config: key → {field, label, dropId}
+const MS_CFG = {
+  status:     { field:'status',     label:'Project Status'   },
+  vertical:   { field:'vertical',   label:'Vertical'         },
+  accMgr:     { field:'accMgr',     label:'Account Manager'  },
+  salesDir:   { field:'salesDir',   label:'Sales Director'   },
+  projType:   { field:'projType',   label:'Project Type'     },
+  projSize:   { field:'projSize',   label:'Project Size'     },
+  fneInvolve: { field:'fneInvolve', label:'FNE Involvement'  },
+  health:     { field:'health',     label:'Project Health'   },
+  year:       { field:'year',       label:'Year'             },
+  quarter:    { field:'quarter',    label:'Quarter'          },
+};
+
+// ── Utilities ────────────────────────────────────────────────────
+const n = v => { const x = parseFloat(v); return isNaN(x) ? 0 : x; };
+function fmt(v) { const x = n(v); if(x>=1e9) return (x/1e9).toFixed(2)+'B'; if(x>=1e6) return (x/1e6).toFixed(2)+'M'; if(x>=1e3) return (x/1e3).toFixed(1)+'K'; return x.toFixed(0); }
+const fmtD = iso => { if(!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}); };
+const el = id => document.getElementById(id);
+function set(id,val) { const e=el(id); if(e) e.textContent=val; }
+function getInitials(name) { if(!name) return '?'; const p=name.trim().split(' '); return p.length>=2?(p[0][0]+p[p.length-1][0]).toUpperCase():name[0].toUpperCase(); }
+function getVisitCount() { try { return parseInt(localStorage.getItem('pm_vc_'+USER.email)||'0'); } catch(e){ return 0; } }
+function incVisit() { try { const c=getVisitCount()+1; localStorage.setItem('pm_vc_'+USER.email,c); return c; } catch(e){ return 1; } }
+function getLastVisit() { try { const lv=localStorage.getItem('pm_lv_'+USER.email); if(!lv) return 'First visit'; const diff=Date.now()-new Date(lv).getTime(); const m=Math.floor(diff/6e4),h=Math.floor(diff/36e5),d=Math.floor(diff/864e5); if(m<60) return m+'m ago'; if(h<24) return h+'h ago'; if(d<7) return d+'d ago'; return new Date(lv).toLocaleDateString('en-GB'); } catch(e){ return '—'; } }
+function saveLastVisit() { try { localStorage.setItem('pm_lv_'+USER.email,new Date().toISOString()); } catch(e){} }
+function setLoadingStep(msg) { const e=el('loadingStep'); if(e) e.textContent=msg; }
+function getWeekOfYear(date) { const d=new Date(date); d.setHours(0,0,0,0); d.setDate(d.getDate()+3-(d.getDay()+6)%7); const w1=new Date(d.getFullYear(),0,4); return 1+Math.round(((d-w1)/864e5-3+(w1.getDay()+6)%7)/7); }
+
+// STATUS helpers
+const STATUS_COMPLETED  = v => v && (v.toLowerCase().includes('complet') || v.toLowerCase().includes('close') || v.toLowerCase().includes('rfs'));
+const STATUS_INPROGRESS = v => v && (v.toLowerCase().includes('progress') || v.toLowerCase().includes('active') || v.toLowerCase().includes('in-progress'));
+const STATUS_ONHOLD     = v => v && (v.toLowerCase().includes('hold') || v.toLowerCase().includes('pause'));
+const STATUS_CANCELLED  = v => v && v.toLowerCase().includes('cancel');
+
+function getStatusClass(s) {
+  if(!s || s==='—') return 'badge-grey';
+  if(STATUS_COMPLETED(s)) return 'badge-green';
+  if(STATUS_INPROGRESS(s)) return 'badge-blue';
+  if(STATUS_ONHOLD(s)) return 'badge-amber';
+  if(STATUS_CANCELLED(s)) return 'badge-red';
+  return 'badge-grey';
+}
+function getHealthClass(h) {
+  if(!h||h==='—') return 'badge-grey';
+  if(h==='Green') return 'badge-green';
+  if(h==='Amber') return 'badge-amber';
+  if(h==='Red') return 'badge-red';
+  return 'badge-grey';
+}
+
+// ── SP Fetch helpers ─────────────────────────────────────────────
+function spGet(url, cb) {
+  const xhr = new XMLHttpRequest();
+  xhr.open('GET', url, true);
+  xhr.setRequestHeader('Accept','application/json;odata=verbose');
+  xhr.onreadystatechange = function() {
+    if(xhr.readyState !== 4) return;
+    if(xhr.status >= 200 && xhr.status < 300) {
+      try { cb(null, JSON.parse(xhr.responseText)); } catch(e){ cb(e,null); }
+    } else { cb(new Error('HTTP '+xhr.status), null); }
+  };
+  xhr.onerror = () => cb(new Error('Network error'), null);
+  xhr.send();
+}
+
+// ── ACCESS CONTROL ───────────────────────────────────────────────
+function initAccess() {
+  spGet(SP_SITE+'/_api/web/currentuser?$select=Title,Email', function(err, data) {
+    if(err) { showDenied('Cannot reach SharePoint at '+SP_SITE); return; }
+    USER.email = data.d.Email;
+    USER.name  = data.d.Title;
+    // Try access list; if list doesn't exist yet, fall back to granting access for development
+    spGet(SP_SITE+"/_api/web/lists/getbytitle('"+SP_ACCESS+"')/items?$select=UserEmailID,Role&$filter=UserEmailID eq '"+USER.email+"'", function(err2, data2) {
+      if(err2 || !data2 || !data2.d || !data2.d.results.length) {
+        // Fallback: grant viewer access to any authenticated user
+        USER.role = 'Viewer';
+        USER.IsAdmin = false;
+        populateLanding();
+        return;
+      }
+      USER.role = data2.d.results[0].Role || 'Viewer';
+      USER.IsAdmin = ['Admin','Director','Head'].includes(USER.role);
+      populateLanding();
+    });
+  });
+}
+
+function showDenied(msg) {
+  set('lName','Access Denied'); set('lEmail',msg); set('lRole','No Access');
+  el('accessNote').innerHTML = '<svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:#dc2626;fill:none;stroke-width:2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg><span style="color:#dc2626;">'+msg+'</span>';
+}
+
+function populateLanding() {
+  el('lAvatar').textContent = getInitials(USER.name);
+  set('lName', USER.name); set('lEmail', USER.email); set('lRole', USER.role);
+  set('lVisits', getVisitCount()); set('lLastVisit', getLastVisit());
+  const btn = el('launchBtn');
+  btn.disabled = false;
+  el('launchBtnTxt').textContent = 'Launch Dashboard';
+  btn.onclick = launchDashboard;
+  el('accessNote').innerHTML = '<svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:#16a34a;fill:none;stroke-width:2"><polyline points="20 6 9 17 4 12"/></svg><span style="color:#16a34a;font-weight:700;">Access granted — click to proceed</span>';
+}
+
+// ── LAUNCH ───────────────────────────────────────────────────────
+function launchDashboard() {
+  incVisit(); saveLastVisit();
+  el('landingPage').style.cssText = 'display:none!important';
+  el('loadingOverlay').style.display = 'flex';
+  setLoadingStep('Connecting to SharePoint...');
+  set('hdUser', USER.name+' · '+USER.role);
+  el('hdDate').textContent = new Date().toLocaleDateString('en-US',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+  try {
+    const bt = localStorage.getItem('pm_base_theme')||'blue';
+    const dm = localStorage.getItem('pm_dark')==='true';
+    const sel = el('themeSel'); if(sel) sel.value = bt;
+    applyTheme(bt, dm);
+  } catch(e){}
+  buildFilterBar();
+  loadData(function() {
+    el('loadingOverlay').style.display = 'none';
+    el('dashboardShell').style.display = 'flex';
+    el('dashboardShell').style.flexDirection = 'column';
+  });
+}
+
+// ── LOAD DATA ────────────────────────────────────────────────────
+function loadData(onComplete) {
+  setLoadingStep('Fetching project records...');
+  const select = [
+    'Id',
+    F.BID, F.CUST_NAME, F.PROJ_NAME, F.STATUS, F.START, F.CLOSURE_BL,
+    F.EXP_DELIVERY, F.FORECAST, F.CANCELLED, F.BILLING_START,
+    F.MULTI_SVC, F.FNE_INVOLVE, F.FNE_SCOPE, F.FES,
+    F.FNE_GO_AHEAD, F.EXP_RFS, F.ACTUAL_RFS, F.RFS_DELAY,
+    F.ACC_MGR, F.SALES_DIR, F.VERTICAL, F.UPDATES, F.WO,
+    F.CONTRACT_DUR, F.OTC, F.MRC, F.CONTRACT_ID, F.ACC_NUM,
+    F.PROD_TYPE, F.TCV, F.BILLED_REV, F.EXP_REV, F.DESCRIPTION,
+    F.SPI, F.PROJ_HEALTH, F.PROJ_SIZE, F.PROJ_TYPE,
+    F.PLANNED_DUR, F.ACTUAL_DUR, F.SOL_CONSULT, F.SVC_DELAY,
+    F.PROJ_MGR+'/Title', F.PROJ_MGR+'/EMail',
+  ].join(',');
+
+  let all = [];
+  function fetchPage(url) {
+    spGet(url, function(err, data) {
+      if(err) {
+        console.error('[PM] Data load error:', err);
+        ALL_ITEMS = [];
+        buildFilterDropdowns();
+        applyAll();
+        if(onComplete) onComplete();
+        return;
+      }
+      all = all.concat(data.d.results);
+      setLoadingStep('Loaded '+all.length+' records...');
+      if(data.d.__next) { fetchPage(data.d.__next); return; }
+      console.log('[PM] Loaded:', all.length, 'records');
+      ALL_ITEMS = all.map(mapItem);
+      buildFilterDropdowns();
+      applyAll();
+      if(onComplete) onComplete();
+    });
+  }
+
+  const url = SP_SITE+"/_api/web/lists/getbytitle('"+encodeURIComponent(SP_LIST)+"')/items" +
+    "?$select="+encodeURIComponent(select)+
+    "&$expand="+encodeURIComponent(F.PROJ_MGR)+
+    "&$top=5000&$orderby=Id asc";
+  fetchPage(url);
+}
+
+// ── MAP SP ITEM ──────────────────────────────────────────────────
+function mapItem(it) {
+  const pm = it[F.PROJ_MGR];
+  const sd = it[F.START] || null;
+  const yr = sd ? new Date(sd).getFullYear() : null;
+  const mo = sd ? new Date(sd).getMonth()+1 : null;
+  const qt = mo ? Math.ceil(mo/3) : null;
+  const health = it[F.PROJ_HEALTH] || '—';
+  return {
+    id:           it.Id,
+    bid:          it[F.BID] || '—',
+    custName:     it[F.CUST_NAME] || '—',
+    projName:     it[F.PROJ_NAME] || '—',
+    status:       it[F.STATUS] || '—',
+    startDate:    sd,
+    closureBL:    it[F.CLOSURE_BL] || null,
+    expDelivery:  it[F.EXP_DELIVERY] || null,
+    forecast:     it[F.FORECAST] || null,
+    cancelDate:   it[F.CANCELLED] || null,
+    billingStart: it[F.BILLING_START] || null,
+    multiSvc:     it[F.MULTI_SVC] || '—',
+    fneInvolve:   it[F.FNE_INVOLVE] || '—',
+    fneScope:     it[F.FNE_SCOPE] || '—',
+    fes:          it[F.FES] || '—',
+    expRFS:       it[F.EXP_RFS] || null,
+    actualRFS:    it[F.ACTUAL_RFS] || null,
+    rfsDelay:     it[F.RFS_DELAY] || '—',
+    accMgr:       it[F.ACC_MGR] || '—',
+    salesDir:     it[F.SALES_DIR] || '—',
+    vertical:     it[F.VERTICAL] || '—',
+    updates:      it[F.UPDATES] || '—',
+    wo:           it[F.WO] || '—',
+    pmName:       pm ? (pm.Title || '—') : '—',
+    pmEmail:      pm ? (pm.EMail || '') : '',
+    contractDur:  n(it[F.CONTRACT_DUR]),
+    otc:          n(it[F.OTC]),
+    mrc:          n(it[F.MRC]),
+    contractId:   it[F.CONTRACT_ID] || '—',
+    accNum:       it[F.ACC_NUM] || '—',
+    prodType:     it[F.PROD_TYPE] || '—',
+    tcv:          n(it[F.TCV]),
+    billedRev:    n(it[F.BILLED_REV]),
+    expRev:       n(it[F.EXP_REV]),
+    description:  it[F.DESCRIPTION] || '—',
+    spi:          n(it[F.SPI]),
+    health:       health,
+    projSize:     it[F.PROJ_SIZE] || '—',
+    projType:     it[F.PROJ_TYPE] || '—',
+    plannedDur:   n(it[F.PLANNED_DUR]),
+    actualDur:    n(it[F.ACTUAL_DUR]),
+    solConsult:   it[F.SOL_CONSULT] || '—',
+    svcDelay:     it[F.SVC_DELAY] || '—',
+    year:         yr,
+    month:        mo,
+    quarter:      qt ? 'Q'+qt : null,
+  };
+}
+
+// ── FILTER BAR ───────────────────────────────────────────────────
+function buildFilterBar() {
+  const grid = el('filterGrid'); if(!grid) return;
+  grid.innerHTML = '';
+  Object.entries(MS_CFG).forEach(([key, cfg]) => {
+    const g = document.createElement('div'); g.className = 'fb-group';
+    g.innerHTML = `
+      <div class="fb-label">${cfg.label}</div>
+      <div class="ms-wrap" id="ms-${key}">
+        <div class="ms-trigger" id="mst-${key}" onclick="toggleMs('${key}')">
+          <span id="mstxt-${key}">All</span>
+          <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="ms-dropdown" id="msd-${key}"></div>
+      </div>`;
+    grid.appendChild(g);
+  });
+}
+
+function buildFilterDropdowns() {
+  Object.entries(MS_CFG).forEach(([key, cfg]) => {
+    const vals = [...new Set(ALL_ITEMS.map(i=>i[cfg.field]).filter(v=>v&&v!=='—'&&v!==null))].sort((a,b)=>{
+      if(key==='year') return n(a)-n(b);
+      return String(a).localeCompare(String(b));
+    });
+    const drop = el('msd-'+key); if(!drop) return;
+    drop.innerHTML = '';
+    vals.forEach(v => {
+      const opt = document.createElement('div'); opt.className = 'ms-option';
+      const cid = 'cb_'+key+'_'+String(v).replace(/\W/g,'_');
+      opt.innerHTML = `<input type="checkbox" id="${cid}" value="${v}" onchange="onMsChange('${key}',this)"><label for="${cid}">${v}</label>`;
+      drop.appendChild(opt);
+    });
+  });
+}
+
+function onMsChange(key, cb) {
+  if(cb.checked) MS[key].add(cb.value);
+  else MS[key].delete(cb.value);
+  updateMsLabel(key);
+  applyAll();
+}
+
+function updateMsLabel(key) {
+  const sel = MS[key];
+  const trig = el('mst-'+key);
+  const txt = el('mstxt-'+key);
+  if(!sel.size){ txt.textContent='All'; trig.classList.remove('has-sel'); }
+  else if(sel.size===1){ txt.textContent=[...sel][0]; trig.classList.add('has-sel'); }
+  else{ txt.textContent=sel.size+' selected'; trig.classList.add('has-sel'); }
+}
+
+function toggleMs(key) {
+  const drop = el('msd-'+key), trig = el('mst-'+key);
+  const isOpen = drop.classList.contains('open');
+  document.querySelectorAll('.ms-dropdown.open').forEach(d=>d.classList.remove('open'));
+  document.querySelectorAll('.ms-trigger.open').forEach(t=>t.classList.remove('open'));
+  if(!isOpen) {
+    const rect = trig.getBoundingClientRect();
+    drop.style.top = (rect.bottom+4)+'px';
+    drop.style.left = rect.left+'px';
+    drop.style.width = Math.max(rect.width,190)+'px';
+    drop.classList.add('open'); trig.classList.add('open');
+  }
+}
+
+document.addEventListener('click', function(e) {
+  if(!e.target.closest('.ms-wrap')) {
+    document.querySelectorAll('.ms-dropdown.open').forEach(d=>d.classList.remove('open'));
+    document.querySelectorAll('.ms-trigger.open').forEach(t=>t.classList.remove('open'));
+  }
+});
+
+// ── APPLY ALL ────────────────────────────────────────────────────
+function applyAll() {
+  FILTERED = ALL_ITEMS.filter(item => {
+    for(const [key, cfg] of Object.entries(MS_CFG)) {
+      const sel = MS[key];
+      if(!sel.size) continue;
+      if(!sel.has(item[cfg.field]) && !sel.has(String(item[cfg.field]))) return false;
+    }
+    if(selStatusTile) {
+      if(selStatusTile==='Completed' && !STATUS_COMPLETED(item.status)) return false;
+      if(selStatusTile==='InProgress' && !STATUS_INPROGRESS(item.status)) return false;
+      if(selStatusTile==='OnHold' && !STATUS_ONHOLD(item.status)) return false;
+      if(selStatusTile==='Cancelled' && !STATUS_CANCELLED(item.status)) return false;
+    }
+    return true;
+  });
+  renderKPIs();
+  renderHealthTiles();
+  renderPMTiles();
+  renderCharts();
+  renderMainGrid();
+  renderChips();
+  updateSelBadge();
+}
+
+function getViewItems() {
+  if(selPM) return FILTERED.filter(i => i.pmName === selPM);
+  return FILTERED;
+}
+
+// ── KPI TILES ────────────────────────────────────────────────────
+function renderKPIs() {
+  const container = el('kpiGrid'); if(!container) return;
+  container.innerHTML = '';
+  const base = getViewItems();
+  const total    = base.length;
+  const comp     = base.filter(i=>STATUS_COMPLETED(i.status));
+  const inprog   = base.filter(i=>STATUS_INPROGRESS(i.status));
+  const onhold   = base.filter(i=>STATUS_ONHOLD(i.status));
+  const cancel   = base.filter(i=>STATUS_CANCELLED(i.status));
+  const totalTCV = base.reduce((s,i)=>s+i.tcv,0);
+  const totalMRC = base.reduce((s,i)=>s+i.mrc,0);
+  const totalOTC = base.reduce((s,i)=>s+i.otc,0);
+  const billedRev= base.reduce((s,i)=>s+i.billedRev,0);
+  const expRev   = base.reduce((s,i)=>s+i.expRev,0);
+  const avgSPI   = total ? base.reduce((s,i)=>s+i.spi,0)/total : 0;
+  const pct = x => total ? ((x/total)*100).toFixed(1)+'%' : '0%';
+
+  const tiles = [
+    { label:'Total Projects', value:total, sub:'All records', color:'var(--acc)', extras:[{l:'Completed',v:comp.length},{l:'In Progress',v:inprog.length}], click:null },
+    { label:'Completed', value:pct(comp.length), sub:comp.length+' projects', color:'#16a34a', extras:[{l:'TCV',v:fmt(comp.reduce((s,i)=>s+i.tcv,0))},{l:'MRC',v:fmt(comp.reduce((s,i)=>s+i.mrc,0))}], click:'Completed' },
+    { label:'In Progress', value:pct(inprog.length), sub:inprog.length+' active', color:'var(--acc)', extras:[{l:'TCV',v:fmt(inprog.reduce((s,i)=>s+i.tcv,0))}], click:'InProgress' },
+    { label:'On Hold', value:pct(onhold.length), sub:onhold.length+' on hold', color:'#d97706', extras:[{l:'TCV',v:fmt(onhold.reduce((s,i)=>s+i.tcv,0))}], click:'OnHold' },
+    { label:'Cancelled', value:pct(cancel.length), sub:cancel.length+' cancelled', color:'#dc2626', extras:[{l:'TCV',v:fmt(cancel.reduce((s,i)=>s+i.tcv,0))}], click:'Cancelled' },
+    { label:'Total TCV', value:fmt(totalTCV), sub:'Contract value', color:'var(--acc)', extras:[{l:'MRC',v:fmt(totalMRC)},{l:'OTC',v:fmt(totalOTC)}], click:null },
+    { label:'Billed Rev (YTD)', value:fmt(billedRev), sub:'Revenue collected', color:'#16a34a', extras:[{l:'Expected YTG',v:fmt(expRev)}], click:null },
+    { label:'Avg SPI', value:avgSPI.toFixed(2), sub:'Schedule performance', color:avgSPI>=1?'#16a34a':avgSPI>=0.8?'#d97706':'#dc2626', extras:[{l:'Green health',v:base.filter(i=>i.health==='Green').length}], click:null },
+  ];
+
+  tiles.forEach(td => {
+    const isActive = selStatusTile && selStatusTile===td.click;
+    const isDimmed = selStatusTile && td.click && !isActive;
+    const card = document.createElement('div');
+    card.className = 'kpi-card'+(td.click?' clickable':'')+(isActive?' tile-active':'')+(isDimmed?' tile-dimmed':'');
+    card.innerHTML = `<div class="kpi-label">${td.label}</div><div class="kpi-value" style="color:${td.color}">${td.value}</div><div class="kpi-sub">${td.sub}</div>${td.extras.length?'<div class="kpi-extras">'+td.extras.map(e=>`<div class="kpi-row"><span>${e.l}</span><span>${e.v}</span></div>`).join('')+'</div>':''}`;
+    if(td.click) card.onclick = () => { selStatusTile = selStatusTile===td.click?null:td.click; applyAll(); };
+    container.appendChild(card);
+  });
+}
+
+// ── HEALTH TILES ─────────────────────────────────────────────────
+function renderHealthTiles() {
+  const container = el('healthGrid'); if(!container) return;
+  container.innerHTML = '';
+  const base = getViewItems();
+  [
+    { key:'Green', cls:'green', label:'Green — On Track', icon:'✓' },
+    { key:'Amber', cls:'amber', label:'Amber — At Risk',  icon:'⚠' },
+    { key:'Red',   cls:'red',   label:'Red — Critical',   icon:'✕' },
+    { key:'—',     cls:'grey',  label:'Health Not Set',   icon:'—' },
+  ].forEach(h => {
+    const grp = h.key==='—'
+      ? base.filter(i=>!i.health||i.health==='—')
+      : base.filter(i=>i.health===h.key);
+    const tcv = grp.reduce((s,i)=>s+i.tcv,0);
+    const avgSPI = grp.length ? grp.reduce((s,i)=>s+i.spi,0)/grp.length : 0;
+    const comp = grp.filter(i=>STATUS_COMPLETED(i.status)).length;
+    const tile = document.createElement('div');
+    tile.className = 'health-tile '+h.cls;
+    tile.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.3rem;"><div class="health-count">${grp.length}</div><span style="font-size:1.3rem;opacity:.55;">${h.icon}</span></div><div class="health-label">${h.label}</div><div class="health-meta"><div class="health-meta-row"><span>TCV</span><span>${fmt(tcv)}</span></div><div class="health-meta-row"><span>Avg SPI</span><span>${avgSPI.toFixed(2)}</span></div><div class="health-meta-row"><span>Completed</span><span>${comp}</span></div></div>`;
+    container.appendChild(tile);
+  });
+}
+
+// ── PM TILES ─────────────────────────────────────────────────────
+function renderPMTiles() {
+  const base = FILTERED;
+  const pms = [...new Set(base.map(i=>i.pmName).filter(v=>v&&v!=='—'))].sort();
+  set('pmBadge', pms.length);
+  const grid = el('pmGrid'); if(!grid) return;
+  grid.innerHTML = '';
+
+  pms.forEach(pm => {
+    const items = base.filter(i=>i.pmName===pm);
+    const total = items.length;
+    const comp  = items.filter(i=>STATUS_COMPLETED(i.status)).length;
+    const inprog= items.filter(i=>STATUS_INPROGRESS(i.status)).length;
+    const onhold= items.filter(i=>STATUS_ONHOLD(i.status)).length;
+    const cancel= items.filter(i=>STATUS_CANCELLED(i.status)).length;
+    const tcv   = items.reduce((s,i)=>s+i.tcv,0);
+    const mrc   = items.reduce((s,i)=>s+i.mrc,0);
+    const otc   = items.reduce((s,i)=>s+i.otc,0);
+    const billed= items.reduce((s,i)=>s+i.billedRev,0);
+    const expR  = items.reduce((s,i)=>s+i.expRev,0);
+    const green = items.filter(i=>i.health==='Green').length;
+    const amber = items.filter(i=>i.health==='Amber').length;
+    const red   = items.filter(i=>i.health==='Red').length;
+    const avgSPI= total ? items.reduce((s,i)=>s+i.spi,0)/total : 0;
+    const compPct = total ? (comp/total*100).toFixed(1) : 0;
+    const tcvPool = base.reduce((s,i)=>s+i.tcv,0);
+    const tcvPct  = tcvPool ? (tcv/tcvPool*100).toFixed(1) : 0;
+    const cntPct  = base.length ? (total/base.length*100).toFixed(1) : 0;
+    const verticals = [...new Set(items.map(i=>i.vertical).filter(v=>v&&v!=='—'))];
+    const isSelected = selPM === pm;
+    const isDimmed = selPM && !isSelected;
+
+    const tile = document.createElement('div');
+    tile.className = 'pm-tile'+(isSelected?' selected':'')+(isDimmed?' dimmed':'');
+
+    const healthTotal = green+amber+red || 1;
+    tile.innerHTML = `
+      ${isSelected?'<div class="pm-selected-badge">✓ Selected — Click to clear</div>':''}
+      <div class="pm-name" style="margin-top:${isSelected?'1.6rem':'0'}">${pm}</div>
+      <div class="pm-role">Project Manager</div>
+      <div class="pm-verticals">
+        ${verticals.slice(0,3).map(v=>'<span class="pm-vert-tag">'+v+'</span>').join('')}
+        ${verticals.length>3?'<span style="font-size:.62rem;color:var(--t3);">+'+( verticals.length-3)+' more</span>':''}
+      </div>
+      <div class="pm-stats-row">
+        <div class="pm-stat-box"><div class="pm-stat-label">Projects</div><div class="pm-stat-val">${total}</div></div>
+        <div class="pm-stat-box"><div class="pm-stat-label">TCV</div><div class="pm-stat-val">${fmt(tcv)}</div></div>
+        <div class="pm-stat-box"><div class="pm-stat-label">Billed Rev</div><div class="pm-stat-val">${fmt(billed)}</div></div>
+        <div class="pm-stat-box"><div class="pm-stat-label">Exp YTG</div><div class="pm-stat-val">${fmt(expR)}</div></div>
+      </div>
+      <div class="pm-health-bar-wrap">
+        <div class="pm-health-label">Completed / Active / On Hold / Cancelled</div>
+        <div class="pm-health-counts">${comp} / ${inprog} / ${onhold} / ${cancel}</div>
+        <div style="display:flex;justify-content:space-between;font-size:.7rem;margin-bottom:.35rem;opacity:.85;">
+          <span>MRC: ${fmt(mrc)}</span>
+          <span>OTC: ${fmt(otc)}</span>
+          <span>SPI: <span style="font-weight:900;color:${avgSPI>=1?'#4ade80':avgSPI>=0.8?'#fbbf24':'#f87171'}">${avgSPI.toFixed(2)}</span></span>
+        </div>
+        <div style="font-size:.63rem;opacity:.75;margin-bottom:.2rem;">Project Health</div>
+        <div class="pm-health-strip">
+          <div class="pm-health-seg" style="flex:${green||0.1};background:#4ade80;" title="Green: ${green}"></div>
+          <div class="pm-health-seg" style="flex:${amber||0.1};background:#fbbf24;" title="Amber: ${amber}"></div>
+          <div class="pm-health-seg" style="flex:${red||0.1};background:#f87171;" title="Red: ${red}"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.62rem;margin-top:.15rem;opacity:.85;">
+          <span>🟢 ${green}</span><span>🟡 ${amber}</span><span>🔴 ${red}</span>
+        </div>
+      </div>
+      <div class="pm-progress-section">
+        <div class="pm-prog-row"><span>Completion Rate</span><span>${compPct}%</span></div>
+        <div class="pm-prog-bar"><div class="pm-prog-fill" style="width:${compPct}%"></div></div>
+        <div class="pm-prog-row"><span>TCV Contribution</span><span>${tcvPct}%</span></div>
+        <div class="pm-prog-bar"><div class="pm-prog-fill" style="width:${tcvPct}%"></div></div>
+        <div class="pm-prog-row"><span>Project Count Share</span><span>${cntPct}%</span></div>
+        <div class="pm-prog-bar"><div class="pm-prog-fill" style="width:${cntPct}%"></div></div>
+      </div>`;
+
+    tile.onclick = () => {
+      selPM = selPM===pm ? null : pm;
+      renderPMTiles(); renderKPIs(); renderHealthTiles(); renderCharts(); renderMainGrid(); updateSelBadge(); renderChips();
+    };
+    grid.appendChild(tile);
+  });
+}
+
+// ── CHARTS TOGGLE ────────────────────────────────────────────────
+function toggleCharts() {
+  chartsVisible = !chartsVisible;
+  el('chartsContent').style.display = chartsVisible ? 'block' : 'none';
+  el('chartsToggleTxt').textContent = chartsVisible ? 'Hide Analytics Charts' : 'Show Analytics Charts';
+  if(chartsVisible) setTimeout(()=>renderCharts(), 80);
+}
+
+// ── CHART HELPERS ────────────────────────────────────────────────
+function getCC() {
+  const t = document.body.getAttribute('data-theme')||'';
+  const isDark = t.includes('dark');
+  const isEm = t.includes('emerald');
+  const isSl = t.includes('slate');
+  return {
+    text: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)',
+    grid: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+    p1:   isEm ? '#059669' : isSl ? '#475569' : '#2563eb',
+    p2:   isEm ? '#10b981' : isSl ? '#94a3b8' : '#0ea5e9',
+    p1a:  isEm ? 'rgba(5,150,105,' : isSl ? 'rgba(71,85,105,' : 'rgba(37,99,235,',
+    p2a:  isEm ? 'rgba(16,185,129,' : isSl ? 'rgba(148,163,184,' : 'rgba(14,165,233,',
+  };
+}
+
+function dChart(k) { if(CHARTS[k]){ CHARTS[k].destroy(); CHARTS[k]=null; } }
+
+function mkBtns(containerId, opts, current, onClick) {
+  const wrap = el(containerId); if(!wrap) return;
+  wrap.innerHTML = opts.map(o =>
+    `<button type="button" class="chart-btn${current===o.k?' active':''}" onclick="${onClick}('${o.k}')">${o.l}</button>`
+  ).join('');
+}
+
+function getWeekBucket(d) { return d.getFullYear()+'-W'+String(getWeekOfYear(d)).padStart(2,'0'); }
+function getMonthBucket(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
+function getQBucket(d) { return d.getFullYear()+'-Q'+Math.ceil((d.getMonth()+1)/3); }
+function getYearBucket(d) { return String(d.getFullYear()); }
+
+function bucketByPeriod(d, period) {
+  if(period==='W') return getWeekBucket(d);
+  if(period==='M') return getMonthBucket(d);
+  if(period==='Q') return getQBucket(d);
+  return getYearBucket(d);
+}
+
+function buildTimeBuckets(period, count) {
+  const now = new Date();
+  const labels = [], buckets = [];
+  for(let i=count-1;i>=0;i--) {
+    let label, bucket;
+    if(period==='W') {
+      const d=new Date(now); d.setDate(d.getDate()-i*7);
+      bucket=getWeekBucket(d); label='W'+getWeekOfYear(d);
+    } else if(period==='M') {
+      const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+      bucket=getMonthBucket(d); label=d.toLocaleDateString('en-US',{month:'short',year:'2-digit'});
+    } else if(period==='Q') {
+      const tq=now.getFullYear()*4+Math.ceil((now.getMonth()+1)/3)-1-i;
+      const yr=Math.floor(tq/4); const q=(tq%4)+1;
+      bucket=yr+'-Q'+q; label='Q'+q+' '+String(yr).slice(2);
+    } else {
+      bucket=String(now.getFullYear()-i); label=bucket;
+    }
+    labels.push(label); buckets.push(bucket);
+  }
+  return {labels,buckets};
+}
+
+// ── RENDER ALL CHARTS ────────────────────────────────────────────
+function renderCharts() {
+  if(!chartsVisible) return;
+  const items = getViewItems();
+  const c = getCC();
+  renderTrendChart(items,c);
+  renderStatusChart(items,c);
+  renderVerticalChart(items,c);
+  renderFNEChart(items,c);
+  renderHealthChart(items,c);
+  renderSPIChart(items,c);
+  renderLeaderboardChart(items,c);
+  renderTopProjChart(items,c);
+  renderSLAChart(items,c);
+  renderStatusByPMChart(items,c);
+  renderProjSizeChart(items,c);
+  renderRFSChart(items,c);
+  renderRevenueChart(items,c);
+}
+
+// Revenue Trend
+function renderTrendChart(items,c) {
+  dChart('trend');
+  mkBtns('trendPeriodBtns',[{k:'W',l:'Week'},{k:'M',l:'Month'},{k:'Q',l:'Quarter'},{k:'Y',l:'Year'}],trendPeriod,'setTrendPeriod');
+  mkBtns('trendMetricBtns',[{k:'tcv',l:'TCV'},{k:'mrc',l:'MRC'},{k:'otc',l:'OTC'},{k:'billedRev',l:'Billed Rev'}],trendMetric,'setTrendMetric');
+  const cnt = trendPeriod==='W'?12:trendPeriod==='M'?12:trendPeriod==='Q'?8:6;
+  const {labels,buckets} = buildTimeBuckets(trendPeriod, cnt);
+  const getVal = (it) => trendMetric==='tcv'?it.tcv:trendMetric==='mrc'?it.mrc:trendMetric==='otc'?it.otc:it.billedRev;
+  const getRef = it => it.startDate || it.billingStart || it.actualRFS;
+  const datasets = [
+    { label:'Completed', status:STATUS_COMPLETED, color:'#10b981' },
+    { label:'In Progress', status:STATUS_INPROGRESS, color:c.p1 },
+    { label:'On Hold', status:STATUS_ONHOLD, color:'#f59e0b' },
+  ].map(ds => {
+    const data = buckets.map(bkt => {
+      const mb = items.filter(i=>{ const rd=getRef(i); if(!rd) return false; return bucketByPeriod(new Date(rd),trendPeriod)===bkt && ds.status(i.status); });
+      return +(mb.reduce((s,i)=>s+getVal(i),0)/1e6).toFixed(2);
+    });
+    return { label:ds.label, data, borderColor:ds.color, backgroundColor:ds.color.replace(')',',0.15)').replace('rgb','rgba'), fill:true, tension:.38, pointRadius:4, pointHoverRadius:7, pointBackgroundColor:ds.color, pointBorderColor:'#fff', pointBorderWidth:2, borderWidth:2.5 };
+  });
+  const canvas = el('chartTrend'); if(!canvas) return;
+  CHARTS.trend = new Chart(canvas,{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{position:'top',labels:{color:c.text,font:{size:12,weight:'600'},usePointStyle:true,pointStyleWidth:10,padding:20}},tooltip:{backgroundColor:'rgba(10,10,28,.88)',padding:14,cornerRadius:12,titleFont:{size:13,weight:'700'},bodyFont:{size:12},callbacks:{label:ctx=>'  '+ctx.dataset.label+': '+ctx.parsed.y.toFixed(2)+'M'}}},scales:{x:{ticks:{color:c.text,font:{size:11,weight:'600'}},grid:{color:c.grid},border:{dash:[4,4]}},y:{ticks:{color:c.text,callback:v=>v+'M'},grid:{color:c.grid},beginAtZero:true}}}});
+}
+function setTrendPeriod(p){ trendPeriod=p; renderCharts(); }
+function setTrendMetric(m){ trendMetric=m; renderCharts(); }
+window.setTrendPeriod=setTrendPeriod; window.setTrendMetric=setTrendMetric;
+
+// Status donut
+function renderStatusChart(items,c) {
+  dChart('status');
+  const statuses = [...new Set(items.map(i=>i.status).filter(s=>s&&s!=='—'))];
+  const counts = statuses.map(s=>items.filter(i=>i.status===s).length);
+  const palette = ['#10b981','#2563eb','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#64748b'];
+  const total = counts.reduce((a,b)=>a+b,0);
+  const centerPlugin = {id:'sCtr',beforeDraw(chart){
+    const{ctx,chartArea:{width,height,left,top}}=chart;
+    ctx.save(); ctx.font='bold 20px Syne,sans-serif'; ctx.fillStyle=c.text==='rgba(255,255,255,0.55)'?'rgba(255,255,255,0.9)':'rgba(10,20,50,0.9)';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(total,left+width/2,top+height/2-10);
+    ctx.font='600 10px DM Sans,sans-serif'; ctx.fillStyle=c.text;
+    ctx.fillText('Projects',left+width/2,top+height/2+10); ctx.restore();
+  }};
+  const canvas = el('chartStatus'); if(!canvas) return;
+  CHARTS.status = new Chart(canvas,{type:'doughnut',plugins:[centerPlugin],data:{labels:statuses,datasets:[{data:counts,backgroundColor:palette.slice(0,statuses.length),borderWidth:4,borderColor:'var(--bg-card)',hoverOffset:10}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'right',labels:{color:c.text,font:{size:11,weight:'600'},usePointStyle:true,padding:10,boxWidth:10}},tooltip:{backgroundColor:'rgba(10,10,28,.85)',padding:12,cornerRadius:10,callbacks:{label:ctx=>{const t=counts.reduce((a,b)=>a+b,0);return ctx.label+': '+ctx.parsed+' ('+(ctx.parsed/t*100).toFixed(1)+'%)';}}}}}}); 
+}
+
+// Vertical bar
+function renderVerticalChart(items,c) {
+  dChart('vert');
+  mkBtns('vertMetricBtns',[{k:'tcv',l:'TCV'},{k:'count',l:'Count'},{k:'mrc',l:'MRC'}],vertMetric,'setVertMetric');
+  const vm = {}; items.forEach(i=>{ const v=i.vertical||'Other'; if(!vm[v]) vm[v]={tcv:0,mrc:0,count:0}; vm[v].tcv+=i.tcv; vm[v].mrc+=i.mrc; vm[v].count++; });
+  const sorted = Object.entries(vm).sort((a,b)=>b[1][vertMetric]-a[1][vertMetric]).slice(0,10);
+  const isV = vertMetric!=='count';
+  const palette = ['rgba(37,99,235,.85)','rgba(14,165,233,.85)','rgba(6,182,212,.85)','rgba(16,185,129,.85)','rgba(251,146,60,.85)','rgba(168,85,247,.85)','rgba(236,72,153,.85)','rgba(239,68,68,.85)','rgba(234,179,8,.85)','rgba(20,184,166,.85)'];
+  const canvas = el('chartVertical'); if(!canvas) return;
+  CHARTS.vert = new Chart(canvas,{type:'bar',data:{labels:sorted.map(([k])=>k),datasets:[{data:sorted.map(([,v])=>isV?+(v[vertMetric]/1e6).toFixed(2):v.count),backgroundColor:palette.slice(0,sorted.length),borderRadius:8,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(10,10,28,.85)',padding:12,cornerRadius:10,callbacks:{label:ctx=>isV?ctx.parsed.y.toFixed(2)+'M':ctx.parsed.y+' projects'}}},scales:{x:{ticks:{color:c.text,font:{size:10,weight:'600'}},grid:{display:false}},y:{ticks:{color:c.text,callback:v=>isV?v+'M':v},grid:{color:c.grid},beginAtZero:true}}}});
+}
+function setVertMetric(m){ vertMetric=m; renderCharts(); }
+window.setVertMetric=setVertMetric;
+
+// FNE Involvement
+function renderFNEChart(items,c) {
+  dChart('fne');
+  const groups = {}; items.forEach(i=>{ const k=i.fneInvolve||'—'; if(!groups[k]) groups[k]={count:0,tcv:0}; groups[k].count++; groups[k].tcv+=i.tcv; });
+  const keys = Object.keys(groups).sort();
+  const palette = ['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6'];
+  const centerP = {id:'fneCtr',beforeDraw(chart){
+    const{ctx,chartArea:{width,height,left,top}}=chart;
+    ctx.save(); ctx.font='bold 18px Syne,sans-serif'; ctx.fillStyle=c.text==='rgba(255,255,255,0.55)'?'rgba(255,255,255,0.9)':'rgba(10,20,50,0.9)';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(items.length,left+width/2,top+height/2-10);
+    ctx.font='600 10px DM Sans,sans-serif'; ctx.fillStyle=c.text;
+    ctx.fillText('Total',left+width/2,top+height/2+10); ctx.restore();
+  }};
+  const canvas = el('chartFNE'); if(!canvas) return;
+  CHARTS.fne = new Chart(canvas,{type:'doughnut',plugins:[centerP],data:{labels:keys,datasets:[{data:keys.map(k=>groups[k].count),backgroundColor:palette.slice(0,keys.length),borderWidth:4,borderColor:'var(--bg-card)',hoverOffset:10}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'right',labels:{color:c.text,font:{size:11,weight:'600'},usePointStyle:true,padding:10}},tooltip:{backgroundColor:'rgba(10,10,28,.85)',padding:12,cornerRadius:10,callbacks:{label:ctx=>{const k=keys[ctx.dataIndex];return[ctx.label+': '+ctx.parsed+' projects','TCV: '+fmt(groups[k].tcv)];}}}}}});
+}
+
+// Health stacked horizontal
+function renderHealthChart(items,c) {
+  dChart('health');
+  mkBtns('healthViewBtns',[{k:'mgr',l:'By PM'},{k:'vert',l:'By Vertical'}],healthView,'setHealthView');
+  const labels = healthView==='mgr'
+    ? [...new Set(items.map(i=>i.pmName).filter(v=>v&&v!=='—'))].sort()
+    : [...new Set(items.map(i=>i.vertical).filter(v=>v&&v!=='—'))].sort();
+  const getG = l => healthView==='mgr' ? items.filter(i=>i.pmName===l) : items.filter(i=>i.vertical===l);
+  const greens=labels.map(l=>getG(l).filter(i=>i.health==='Green').length);
+  const ambers=labels.map(l=>getG(l).filter(i=>i.health==='Amber').length);
+  const reds=labels.map(l=>getG(l).filter(i=>i.health==='Red').length);
+  const totals=labels.map((_,i)=>greens[i]+ambers[i]+reds[i]||1);
+  const toP=arr=>arr.map((v,i)=>+(v/totals[i]*100).toFixed(1));
+  const h=Math.max(300,labels.length*42);
+  el('chartHealth').parentElement.style.height=h+'px';
+  const canvas = el('chartHealth'); if(!canvas) return;
+  CHARTS.health = new Chart(canvas,{type:'bar',data:{labels,datasets:[
+    {label:'Green',data:toP(greens),backgroundColor:'#10b981',borderSkipped:false,barThickness:24,stack:'h'},
+    {label:'Amber',data:toP(ambers),backgroundColor:'#f59e0b',borderSkipped:false,barThickness:24,stack:'h'},
+    {label:'Red',data:toP(reds),backgroundColor:'#ef4444',borderSkipped:false,barThickness:24,stack:'h'},
+  ]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:c.text,font:{size:11,weight:'600'},usePointStyle:true,pointStyleWidth:10,padding:14}},tooltip:{backgroundColor:'rgba(10,10,28,.85)',padding:12,cornerRadius:10,callbacks:{label:ctx=>{const i=ctx.dataIndex;const raw=ctx.dataset.label==='Green'?greens[i]:ctx.dataset.label==='Amber'?ambers[i]:reds[i];return ' '+ctx.dataset.label+': '+raw+' ('+ctx.parsed.x.toFixed(1)+'%)';},afterBody:ctx=>{const i=ctx[0].dataIndex;return['','  G:'+greens[i]+' A:'+ambers[i]+' R:'+reds[i]+' ('+totals[i]+' total)'];}}}},scales:{x:{stacked:true,ticks:{color:c.text,callback:v=>v+'%',font:{size:11}},grid:{color:c.grid},border:{dash:[4,4]},min:0,max:100},y:{stacked:true,ticks:{color:c.text,font:{size:11,weight:'600'}},grid:{display:false}}}}});
+}
+function setHealthView(v){ healthView=v; renderCharts(); }
+window.setHealthView=setHealthView;
+
+// SPI
+function renderSPIChart(items,c) {
+  dChart('spi');
+  mkBtns('spiViewBtns',[{k:'mgr',l:'By PM'},{k:'vert',l:'By Vertical'}],spiView,'setSpiView');
+  const labels = spiView==='mgr'
+    ? [...new Set(items.map(i=>i.pmName).filter(v=>v&&v!=='—'))].sort()
+    : [...new Set(items.map(i=>i.vertical).filter(v=>v&&v!=='—'))].sort();
+  const getG = l => spiView==='mgr' ? items.filter(i=>i.pmName===l) : items.filter(i=>i.vertical===l);
+  const avgSPIs = labels.map(l=>{ const g=getG(l); return g.length?+(g.reduce((s,i)=>s+i.spi,0)/g.length).toFixed(2):null; });
+  const colors = avgSPIs.map(v=>v===null?c.p1:v>=1?'#10b981':v>=0.8?'#f59e0b':'#ef4444');
+  const h = Math.max(300,labels.length*40);
+  el('chartSPI').parentElement.style.height=h+'px';
+  const canvas = el('chartSPI'); if(!canvas) return;
+  CHARTS.spi = new Chart(canvas,{type:'bar',data:{labels,datasets:[
+    {label:'Avg SPI',data:avgSPIs,backgroundColor:colors,borderRadius:6,borderSkipped:false,barThickness:22},
+    {label:'Target (1.0)',data:labels.map(()=>1),type:'line',borderColor:'rgba(120,120,140,.5)',borderDash:[6,4],borderWidth:2,pointRadius:0,fill:false}
+  ]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:c.text,font:{size:11,weight:'600'},usePointStyle:true,pointStyleWidth:10,padding:14}},tooltip:{backgroundColor:'rgba(10,10,28,.85)',padding:12,cornerRadius:10,callbacks:{label:ctx=>{if(ctx.dataset.label==='Target (1.0)') return 'Target: 1.0'; const v=ctx.parsed.x; return['  Avg SPI: '+v.toFixed(2),'  '+(v>=1?'✓ On/Ahead':v>=0.8?'⚠ Slightly behind':'✗ Behind')];},afterLabel:ctx=>{ if(ctx.datasetIndex!==0) return; const l=labels[ctx.dataIndex]; const g=getG(l); return '  '+g.filter(i=>i.spi>=1).length+'/'+g.length+' on track'; }}}},scales:{x:{ticks:{color:c.text,font:{size:11}},grid:{color:c.grid},border:{dash:[4,4]},min:0,max:1.6},y:{ticks:{color:c.text,font:{size:11,weight:'600'}},grid:{display:false}}}}});
+}
+function setSpiView(v){ spiView=v; renderCharts(); }
+window.setSpiView=setSpiView;
+
+// Leaderboard
+function renderLeaderboardChart(items,c) {
+  dChart('lb');
+  mkBtns('lbMetricBtns',[{k:'tcv',l:'TCV'},{k:'mrc',l:'MRC'},{k:'otc',l:'OTC'},{k:'count',l:'Count'},{k:'billedRev',l:'Billed Rev'}],lbMetric,'setLbMetric');
+  const map = {};
+  items.forEach(i=>{ const k=i.pmName||'?'; if(!k||k==='—') return; if(!map[k]) map[k]={total:0,comp:0,tcv:0,mrc:0,otc:0,billedRev:0}; map[k].total++; if(STATUS_COMPLETED(i.status)) map[k].comp++; map[k].tcv+=i.tcv; map[k].mrc+=i.mrc; map[k].otc+=i.otc; map[k].billedRev+=i.billedRev; });
+  const getVal=v=>lbMetric==='count'?v.total:+(v[lbMetric]/1e6).toFixed(2);
+  const sorted=Object.entries(map).sort((a,b)=>getVal(b[1])-getVal(a[1])).slice(0,12);
+  if(!sorted.length) return;
+  const barColors=sorted.map(([,v])=>{ const wr=v.total?v.comp/v.total:0; return wr>=.7?'#10b981':wr>=.4?c.p1:'#ef4444'; });
+  const h=Math.max(360,sorted.length*46);
+  el('chartLeaderboard').parentElement.style.height=h+'px';
+  const canvas=el('chartLeaderboard'); if(!canvas) return;
+  CHARTS.lb = new Chart(canvas,{type:'bar',data:{labels:sorted.map(([k])=>k),datasets:[{label:lbMetric.toUpperCase(),data:sorted.map(([,v])=>getVal(v)),backgroundColor:barColors,borderRadius:8,borderSkipped:false,barThickness:26}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:60}},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(10,10,28,.85)',padding:14,cornerRadius:10,titleFont:{size:13,weight:'700'},bodyFont:{size:12},callbacks:{label:ctx=>lbMetric==='count'?'  Projects: '+ctx.parsed.x:'  '+lbMetric.toUpperCase()+': '+ctx.parsed.x.toFixed(2)+'M',afterLabel:ctx=>{ const d=sorted[ctx.dataIndex][1]; return['  Total: '+d.total,'  Completed: '+d.comp,'  Completion: '+(d.total?((d.comp/d.total)*100).toFixed(1):0)+'%']; }}}},scales:{x:{ticks:{color:c.text,callback:v=>lbMetric==='count'?v:v+'M'},grid:{color:c.grid},border:{dash:[4,4]},beginAtZero:true},y:{ticks:{color:c.text,font:{size:12,weight:'700'},padding:12},grid:{display:false}}}}});
+}
+function setLbMetric(m){ lbMetric=m; renderCharts(); }
+window.setLbMetric=setLbMetric;
+
+// Top Projects TCV
+function renderTopProjChart(items,c) {
+  dChart('topProj');
+  const sorted = [...items].sort((a,b)=>b.tcv-a.tcv).slice(0,10);
+  const palette = ['#2563eb','#3b82f6','#60a5fa','#0ea5e9','#06b6d4','#10b981','#f59e0b','#8b5cf6','#ec4899','#ef4444'];
+  const canvas=el('chartTopProj'); if(!canvas) return;
+  CHARTS.topProj = new Chart(canvas,{type:'bar',data:{labels:sorted.map(i=>i.custName.length>18?i.custName.slice(0,16)+'…':i.custName),datasets:[{data:sorted.map(i=>+(i.tcv/1e6).toFixed(2)),backgroundColor:palette.slice(0,sorted.length),borderRadius:7,borderSkipped:false,barThickness:20}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(10,10,28,.85)',padding:12,cornerRadius:10,callbacks:{label:ctx=>{const it=sorted[ctx.dataIndex];return[' TCV: '+ctx.parsed.x.toFixed(2)+'M',' PM: '+it.pmName,' Status: '+it.status];}}},datalabels:{display:false}},scales:{x:{ticks:{color:c.text,callback:v=>v+'M'},grid:{color:c.grid},border:{dash:[4,4]}},y:{ticks:{color:c.text,font:{size:11,weight:'600'}},grid:{display:false}}}}});
+}
+
+// SLA Compliance
+function renderSLAChart(items,c) {
+  dChart('sla');
+  mkBtns('slaBtns',[{k:'mgr',l:'By PM'},{k:'vert',l:'By Vertical'}],slaView,'setSlaView');
+  const labels = slaView==='mgr'
+    ? [...new Set(items.map(i=>i.pmName).filter(v=>v&&v!=='—'))].sort()
+    : [...new Set(items.map(i=>i.vertical).filter(v=>v&&v!=='—'))].sort();
+  const getG = l => slaView==='mgr' ? items.filter(i=>i.pmName===l) : items.filter(i=>i.vertical===l);
+  const onTime = labels.map(l=>{ const g=getG(l); const ok=g.filter(i=>i.spi>=1).length; return g.length?+(ok/g.length*100).toFixed(1):0; });
+  const totals = labels.map(l=>{ const g=getG(l); return {total:g.length, ok:g.filter(i=>i.spi>=1).length}; });
+  const colors = onTime.map(v=>v>=80?'#10b981':v>=60?'#f59e0b':'#ef4444');
+  const canvas=el('chartSLA'); if(!canvas) return;
+  CHARTS.sla = new Chart(canvas,{type:'bar',data:{labels,datasets:[
+    {label:'On-Time %',data:onTime,backgroundColor:colors,borderRadius:7,borderSkipped:false},
+    {label:'Target (80%)',data:labels.map(()=>80),type:'line',borderColor:'rgba(120,120,140,.5)',borderDash:[6,4],borderWidth:2,pointRadius:0,fill:false}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:c.text,font:{size:11,weight:'600'},usePointStyle:true,pointStyleWidth:10,padding:14}},tooltip:{backgroundColor:'rgba(10,10,28,.85)',padding:12,cornerRadius:10,callbacks:{label:ctx=>{ if(ctx.dataset.label==='Target (80%)') return 'Target: 80%'; const d=totals[ctx.dataIndex]; return['  On-Time: '+ctx.parsed.y.toFixed(1)+'%','  '+d.ok+'/'+d.total+' on track']; }}}},scales:{x:{ticks:{color:c.text,font:{size:11,weight:'600'}},grid:{display:false}},y:{ticks:{color:c.text,callback:v=>v+'%'},grid:{color:c.grid},beginAtZero:true,max:110}}}});
+}
+function setSlaView(v){ slaView=v; renderCharts(); }
+window.setSlaView=setSlaView;
+
+// Status by PM stacked
+function renderStatusByPMChart(items,c) {
+  dChart('statusByPM');
+  mkBtns('statusMgrBtns',[{k:'count',l:'Count'},{k:'tcv',l:'TCV'}],statusMgrMetric,'setStatusMgrMetric');
+  const pms=[...new Set(items.map(i=>i.pmName).filter(v=>v&&v!=='—'))].sort();
+  if(!pms.length) return;
+  const isTCV=statusMgrMetric==='tcv';
+  const getVal=arr=>isTCV?+(arr.reduce((s,i)=>s+i.tcv,0)/1e6).toFixed(2):arr.length;
+  const comp=pms.map(p=>getVal(items.filter(i=>i.pmName===p&&STATUS_COMPLETED(i.status))));
+  const inprog=pms.map(p=>getVal(items.filter(i=>i.pmName===p&&STATUS_INPROGRESS(i.status))));
+  const onhold=pms.map(p=>getVal(items.filter(i=>i.pmName===p&&STATUS_ONHOLD(i.status))));
+  const cancel=pms.map(p=>getVal(items.filter(i=>i.pmName===p&&STATUS_CANCELLED(i.status))));
+  const h=Math.max(300,pms.length*38);
+  el('chartStatusByPM').parentElement.style.height=h+'px';
+  const canvas=el('chartStatusByPM'); if(!canvas) return;
+  CHARTS.statusByPM = new Chart(canvas,{type:'bar',data:{labels:pms,datasets:[
+    {label:'Completed',data:comp,backgroundColor:'#10b981',borderRadius:4,borderSkipped:false,barPercentage:.65,categoryPercentage:.7},
+    {label:'In Progress',data:inprog,backgroundColor:c.p1,borderRadius:4,borderSkipped:false,barPercentage:.65,categoryPercentage:.7},
+    {label:'On Hold',data:onhold,backgroundColor:'#f59e0b',borderRadius:4,borderSkipped:false,barPercentage:.65,categoryPercentage:.7},
+    {label:'Cancelled',data:cancel,backgroundColor:'#ef4444',borderRadius:4,borderSkipped:false,barPercentage:.65,categoryPercentage:.7},
+  ]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:c.text,font:{size:11,weight:'600'},usePointStyle:true,pointStyleWidth:10,padding:14}},tooltip:{backgroundColor:'rgba(10,10,28,.85)',padding:12,cornerRadius:10,callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.parsed.x.toFixed(isTCV?2:0)+(isTCV?'M':'')}}},scales:{x:{ticks:{color:c.text,callback:v=>isTCV?v+'M':v},grid:{color:c.grid},border:{dash:[4,4]},beginAtZero:true},y:{ticks:{color:c.text,font:{size:11,weight:'600'}},grid:{display:false}}}}});
+}
+function setStatusMgrMetric(m){ statusMgrMetric=m; renderCharts(); }
+window.setStatusMgrMetric=setStatusMgrMetric;
+
+// Project Size
+function renderProjSizeChart(items,c) {
+  dChart('projSize');
+  const sizes={};items.forEach(i=>{ const k=i.projSize||'—'; if(!sizes[k]) sizes[k]={count:0,tcv:0}; sizes[k].count++; sizes[k].tcv+=i.tcv; });
+  const keys=Object.keys(sizes).sort();
+  const total=Object.values(sizes).reduce((s,v)=>s+v.count,0);
+  const palette=['#2563eb','#0ea5e9','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4'];
+  const centerP={id:'szCtr',beforeDraw(chart){
+    const{ctx,chartArea:{width,height,left,top}}=chart;
+    ctx.save(); ctx.font='bold 18px Syne,sans-serif'; ctx.fillStyle=c.text==='rgba(255,255,255,0.55)'?'rgba(255,255,255,0.9)':'rgba(10,20,50,0.9)';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(total,left+width/2,top+height/2-10);
+    ctx.font='600 10px DM Sans,sans-serif'; ctx.fillStyle=c.text;
+    ctx.fillText('Total',left+width/2,top+height/2+10); ctx.restore();
+  }};
+  const canvas=el('chartProjSize'); if(!canvas) return;
+  CHARTS.projSize = new Chart(canvas,{type:'doughnut',plugins:[centerP],data:{labels:keys.map(k=>k+' ('+sizes[k].count+')'),datasets:[{data:keys.map(k=>sizes[k].count),backgroundColor:palette.slice(0,keys.length),borderWidth:4,borderColor:'var(--bg-card)',hoverOffset:10}]},options:{responsive:true,maintainAspectRatio:false,cutout:'56%',plugins:{legend:{position:'right',labels:{color:c.text,font:{size:11,weight:'600'},usePointStyle:true,padding:10}},tooltip:{backgroundColor:'rgba(10,10,28,.85)',padding:12,cornerRadius:10,callbacks:{label:ctx=>{ const k=keys[ctx.dataIndex]; return[ctx.label,'TCV: '+fmt(sizes[k].tcv)];}}}}}});
+}
+
+// RFS Completions
+function renderRFSChart(items,c) {
+  dChart('rfs');
+  const withRFS=items.filter(i=>i.actualRFS);
+  const monthly={};
+  withRFS.forEach(i=>{ const d=new Date(i.actualRFS); const bkt=getMonthBucket(d); monthly[bkt]=(monthly[bkt]||0)+1; });
+  const sorted=Object.keys(monthly).sort().slice(-15);
+  const canvas=el('chartRFS'); if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  const grad=ctx.createLinearGradient(0,0,0,240); grad.addColorStop(0,c.p1a+'0.35)'); grad.addColorStop(1,c.p1a+'0.02)');
+  CHARTS.rfs = new Chart(canvas,{type:'bar',data:{labels:sorted.map(bkt=>{ const [y,m]=bkt.split('-'); return new Date(+y,+m-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }),datasets:[{label:'Actual RFS',data:sorted.map(bkt=>monthly[bkt]||0),backgroundColor:sorted.map(bkt=>{ const d=new Date(bkt.split('-')[0],+bkt.split('-')[1]-1,1); return d<=new Date()?c.p1+'cc':c.p2+'88'; }),borderRadius:7,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(10,10,28,.85)',padding:12,cornerRadius:10,callbacks:{label:ctx=>ctx.parsed.y+' projects completed'}}},scales:{x:{ticks:{color:c.text,font:{size:10,weight:'600'}},grid:{display:false}},y:{ticks:{color:c.text,stepSize:1,precision:0,callback:v=>Number.isInteger(v)?v:''},grid:{color:c.grid},beginAtZero:true}}}});
+}
+
+// Revenue Summary
+function renderRevenueChart(items,c) {
+  dChart('revenue');
+  const pms=[...new Set(items.map(i=>i.pmName).filter(v=>v&&v!=='—'))].sort();
+  const billed=pms.map(p=>+(items.filter(i=>i.pmName===p).reduce((s,i)=>s+i.billedRev,0)/1e6).toFixed(2));
+  const expected=pms.map(p=>+(items.filter(i=>i.pmName===p).reduce((s,i)=>s+i.expRev,0)/1e6).toFixed(2));
+  const canvas=el('chartRevenue'); if(!canvas) return;
+  CHARTS.revenue = new Chart(canvas,{type:'bar',data:{labels:pms,datasets:[
+    {label:'Billed Revenue (YTD)',data:billed,backgroundColor:c.p1+'cc',borderRadius:6,borderSkipped:false,barPercentage:.45,categoryPercentage:.75},
+    {label:'Expected Revenue (YTG)',data:expected,backgroundColor:c.p2+'88',borderRadius:6,borderSkipped:false,barPercentage:.45,categoryPercentage:.75},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:c.text,font:{size:11,weight:'600'},usePointStyle:true,pointStyleWidth:10,padding:14}},tooltip:{backgroundColor:'rgba(10,10,28,.85)',padding:12,cornerRadius:10,callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.parsed.y.toFixed(2)+'M'}}},scales:{x:{ticks:{color:c.text,font:{size:10,weight:'600'},maxRotation:30},grid:{display:false}},y:{ticks:{color:c.text,callback:v=>v+'M'},grid:{color:c.grid},beginAtZero:true}}}});
+}
+
+// ── CHIP ROW ─────────────────────────────────────────────────────
+function renderChips() {
+  const row = el('chipRow'); if(!row) return;
+  row.innerHTML = '';
+  if(selPM) {
+    const chip=document.createElement('div'); chip.className='chip';
+    chip.innerHTML='PM: <strong>'+selPM+'</strong><button onclick="clearSelPM()">×</button>';
+    row.appendChild(chip);
+  }
+  if(selStatusTile) {
+    const chip=document.createElement('div'); chip.className='chip';
+    chip.innerHTML='Status: <strong>'+selStatusTile+'</strong><button onclick="clearStatusTile()">×</button>';
+    row.appendChild(chip);
+  }
+  for(const [key,sel] of Object.entries(MS)) {
+    sel.forEach(v => {
+      const chip=document.createElement('div'); chip.className='chip';
+      chip.innerHTML=MS_CFG[key].label+': <strong>'+v+'</strong><button onclick="removeChip(\''+key+'\',\''+v+'\')">×</button>';
+      row.appendChild(chip);
+    });
+  }
+}
+function clearSelPM(){ selPM=null; renderPMTiles(); renderKPIs(); renderHealthTiles(); renderCharts(); renderMainGrid(); updateSelBadge(); renderChips(); }
+function clearStatusTile(){ selStatusTile=null; applyAll(); }
+function removeChip(key, val){
+  MS[key].delete(val);
+  const cb=document.querySelector(`#msd-${key} input[value="${val}"]`);
+  if(cb) cb.checked=false;
+  updateMsLabel(key);
+  applyAll();
+}
+window.clearSelPM=clearSelPM; window.clearStatusTile=clearStatusTile; window.removeChip=removeChip;
+
+function resetAll() {
+  selPM=null; selStatusTile=null;
+  Object.keys(MS).forEach(k=>{ MS[k].clear(); const d=el('msd-'+k); if(d) d.querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=false); updateMsLabel(k); });
+  applyAll();
+}
+
+function updateSelBadge() {
+  const b=el('hdSel'); if(!b) return;
+  const parts=[];
+  if(selPM) parts.push('PM: '+selPM);
+  if(selStatusTile) parts.push('Status: '+selStatusTile);
+  if(parts.length){ b.textContent=parts.join(' › '); b.style.display='flex'; }
+  else{ b.style.display='none'; }
+}
+
+// ── AG GRID — COLUMN DEFS ────────────────────────────────────────
+function getColDefs() {
+  const healthBadge = p => { const v=p.value||'—'; return `<span class="badge ${getHealthClass(v)}">${v}</span>`; };
+  const statusBadge = p => { const v=p.value||'—'; return `<span class="badge ${getStatusClass(v)}">${v}</span>`; };
+  const spiRend = p => { const v=n(p.value); const col=v>=1?'#16a34a':v>=0.8?'#d97706':'#dc2626'; return `<span style="font-weight:700;color:${col}">${v.toFixed(2)}</span>`; };
+  return [
+    {field:'pmName',     headerName:'Project Manager', width:160, pinned:'left'},
+    {field:'custName',   headerName:'Customer',        width:180, pinned:'left'},
+    {field:'projName',   headerName:'Project Name',    width:200},
+    {field:'bid',        headerName:'Bid #',           width:100},
+    {field:'status',     headerName:'Status',          width:140, cellRenderer:statusBadge},
+    {field:'health',     headerName:'Health',          width:100, cellRenderer:healthBadge},
+    {field:'spi',        headerName:'SPI',             width:90,  cellRenderer:spiRend, type:'numericColumn'},
+    {field:'vertical',   headerName:'Vertical',        width:100},
+    {field:'accMgr',     headerName:'Account Manager', width:160},
+    {field:'salesDir',   headerName:'Sales Director',  width:150},
+    {field:'mrc',        headerName:'MRC',             width:115, valueFormatter:p=>fmt(p.value), type:'numericColumn'},
+    {field:'otc',        headerName:'OTC',             width:115, valueFormatter:p=>fmt(p.value), type:'numericColumn'},
+    {field:'tcv',        headerName:'TCV',             width:125, valueFormatter:p=>fmt(p.value), type:'numericColumn', cellStyle:{fontWeight:'700'}},
+    {field:'billedRev',  headerName:'Billed Rev (YTD)',width:135, valueFormatter:p=>fmt(p.value), type:'numericColumn', cellStyle:{color:'#16a34a',fontWeight:'700'}},
+    {field:'expRev',     headerName:'Exp Rev (YTG)',   width:130, valueFormatter:p=>fmt(p.value), type:'numericColumn'},
+    {field:'contractDur',headerName:'Duration (mo)',   width:120, type:'numericColumn'},
+    {field:'fneInvolve', headerName:'FNE Involved',    width:120},
+    {field:'fneScope',   headerName:'FNE Scope',       width:120},
+    {field:'startDate',  headerName:'Handover Date',   width:130, valueFormatter:p=>fmtD(p.value)},
+    {field:'closureBL',  headerName:'Closure Baseline',width:145, valueFormatter:p=>fmtD(p.value)},
+    {field:'expDelivery',headerName:'Exp. Delivery',   width:130, valueFormatter:p=>fmtD(p.value)},
+    {field:'expRFS',     headerName:'Exp. RFS',        width:120, valueFormatter:p=>fmtD(p.value)},
+    {field:'actualRFS',  headerName:'Actual RFS',      width:120, valueFormatter:p=>fmtD(p.value)},
+    {field:'billingStart',headerName:'Billing Start',  width:130, valueFormatter:p=>fmtD(p.value)},
+    {field:'plannedDur', headerName:'Planned Dur.',    width:120, type:'numericColumn'},
+    {field:'actualDur',  headerName:'Actual Dur.',     width:115, type:'numericColumn'},
+    {field:'projType',   headerName:'Project Type',    width:120},
+    {field:'projSize',   headerName:'Project Size',    width:120},
+    {field:'prodType',   headerName:'Service Type',    width:200},
+    {field:'wo',         headerName:'WO #',            width:120},
+    {field:'contractId', headerName:'Contract ID',     width:130},
+    {field:'accNum',     headerName:'Account #',       width:120},
+    {field:'solConsult', headerName:'Solution Consult.',width:160},
+    {field:'rfsDelay',   headerName:'RFS Delay Reason',width:160},
+    {field:'svcDelay',   headerName:'Service Delay',   width:130},
+    {field:'fes',        headerName:'FES #',           width:110},
+    {field:'updates',    headerName:'Updates',         width:220},
+    {field:'description',headerName:'Description',     width:250},
+    {field:'year',       headerName:'Year',            width:90,  type:'numericColumn'},
+    {field:'quarter',    headerName:'Quarter',         width:95},
+  ];
+}
+
+const defaultColDef = { sortable:true, filter:true, resizable:true, suppressSizeToFit:false, cellStyle:{display:'flex',alignItems:'center'} };
+const gridOpts = (data, height) => ({
+  columnDefs: getColDefs(),
+  rowData: data,
+  defaultColDef,
+  pagination: true,
+  paginationPageSize: 50,
+  paginationPageSizeSelector: [25,50,100,250],
+  rowHeight: 44,
+  headerHeight: 48,
+  animateRows: true,
+  enableCellTextSelection: true,
+  onGridReady: p => { setTimeout(()=>{ try{p.api.sizeColumnsToFit();}catch(e){} },120); },
+});
+
+function renderMainGrid() {
+  if(typeof agGrid === 'undefined') return;
+  const data = getViewItems();
+  set('gridCountLabel', data.length+' projects');
+  if(mainGridApi){ try{mainGridApi.destroy();}catch(e){} mainGridApi=null; }
+  el('mainGrid').innerHTML='';
+  mainGridApi = agGrid.createGrid(el('mainGrid'), { ...gridOpts(data,600) });
+}
+function gridFilter(v){ if(mainGridApi) mainGridApi.setGridOption('quickFilterText',v); }
+window.gridFilter=gridFilter;
+
+// ── VIEW SWITCHER ────────────────────────────────────────────────
+function showView(view, navEl) {
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(navEl) navEl.classList.add('active');
+  ['viewOverview','viewPipeline','viewDelivered','viewRecords'].forEach(id=>{ const e=el(id); if(e) e.style.display='none'; });
+  el('view'+view.charAt(0).toUpperCase()+view.slice(1)).style.display = 'block';
+  if(view==='pipeline') renderPipelineView();
+  if(view==='delivered') renderDeliveredView();
+  if(view==='records') renderAllView();
+}
+
+function renderPipelineView() {
+  const data = FILTERED.filter(i=>!STATUS_COMPLETED(i.status)&&!STATUS_CANCELLED(i.status));
+  set('pipelineCount', data.length+' active projects');
+  // Summary
+  const strip = el('pipelineSummary'); if(strip) {
+    const tcv=data.reduce((s,i)=>s+i.tcv,0), mrc=data.reduce((s,i)=>s+i.mrc,0);
+    const avgSPI=data.length?data.reduce((s,i)=>s+i.spi,0)/data.length:0;
+    const overdue=data.filter(i=>i.expDelivery&&new Date(i.expDelivery)<new Date()).length;
+    strip.innerHTML=[
+      {l:'Active Projects',v:data.length,c:'var(--acc)'},
+      {l:'Total TCV',v:fmt(tcv),c:'var(--acc)'},
+      {l:'Total MRC',v:fmt(mrc),c:'#16a34a'},
+      {l:'Avg SPI',v:avgSPI.toFixed(2),c:avgSPI>=1?'#16a34a':avgSPI>=0.8?'#d97706':'#dc2626'},
+      {l:'Overdue Delivery',v:overdue,c:overdue>0?'#dc2626':'#16a34a'},
+    ].map(s=>`<div class="summary-box"><div class="summary-box-label">${s.l}</div><div class="summary-box-val" style="color:${s.c}">${s.v}</div></div>`).join('');
+  }
+  if(pipelineGridApi){ try{pipelineGridApi.destroy();}catch(e){} pipelineGridApi=null; }
+  el('pipelineGrid').innerHTML='';
+  pipelineGridApi = agGrid.createGrid(el('pipelineGrid'), { ...gridOpts(data,580) });
+}
+
+function renderDeliveredView() {
+  const data = FILTERED.filter(i=>STATUS_COMPLETED(i.status));
+  set('deliveredCount', data.length+' completed projects');
+  const strip = el('deliveredSummary'); if(strip) {
+    const tcv=data.reduce((s,i)=>s+i.tcv,0), billed=data.reduce((s,i)=>s+i.billedRev,0);
+    const avgSPI=data.length?data.reduce((s,i)=>s+i.spi,0)/data.length:0;
+    const withRFS=data.filter(i=>i.actualRFS).length;
+    strip.innerHTML=[
+      {l:'Delivered Projects',v:data.length,c:'#16a34a'},
+      {l:'Total TCV Delivered',v:fmt(tcv),c:'var(--acc)'},
+      {l:'Billed Revenue',v:fmt(billed),c:'#16a34a'},
+      {l:'Avg SPI',v:avgSPI.toFixed(2),c:avgSPI>=1?'#16a34a':'#d97706'},
+      {l:'With Actual RFS',v:withRFS,c:'var(--acc)'},
+    ].map(s=>`<div class="summary-box"><div class="summary-box-label">${s.l}</div><div class="summary-box-val" style="color:${s.c}">${s.v}</div></div>`).join('');
+  }
+  if(deliveredGridApi){ try{deliveredGridApi.destroy();}catch(e){} deliveredGridApi=null; }
+  el('deliveredGrid').innerHTML='';
+  deliveredGridApi = agGrid.createGrid(el('deliveredGrid'), { ...gridOpts(data,580) });
+}
+
+function renderAllView() {
+  set('allRecordsCount', ALL_ITEMS.length+' total records');
+  if(allGridApi){ try{allGridApi.destroy();}catch(e){} allGridApi=null; }
+  el('allGrid').innerHTML='';
+  allGridApi = agGrid.createGrid(el('allGrid'), { ...gridOpts(ALL_ITEMS,680) });
+}
+
+// ── EXPORT ───────────────────────────────────────────────────────
+function buildExcelHtml(data) {
+  const cols=['bid','custName','projName','status','health','pmName','vertical','accMgr','salesDir','mrc','otc','tcv','billedRev','expRev','contractDur','spi','projType','projSize','startDate','closureBL','expDelivery','expRFS','actualRFS','billingStart','fneInvolve','fneScope','wo','contractId','accNum','rfsDelay','year','quarter'];
+  const hdrs=['Bid #','Customer','Project','Status','Health','PM','Vertical','AM','Sales Dir','MRC','OTC','TCV','Billed Rev','Exp Rev','Duration','SPI','Proj Type','Proj Size','Handover','Closure BL','Exp Delivery','Exp RFS','Actual RFS','Billing Start','FNE','FNE Scope','WO','Contract ID','Acc #','RFS Delay','Year','Quarter'];
+  const numF=new Set(['mrc','otc','tcv','billedRev','expRev']);
+  const dateF=new Set(['startDate','closureBL','expDelivery','expRFS','actualRFS','billingStart']);
+  let html='<html><head><meta charset="utf-8"></head><body><table border="1" cellpadding="4" cellspacing="0">';
+  html+='<tr>'+hdrs.map(h=>`<th style="background:#2563eb;color:#fff;font-weight:bold;padding:10px;">${h}</th>`).join('')+'</tr>';
+  data.forEach((row,i)=>{ const bg=i%2===0?'#f0f4ff':'#fff'; html+='<tr>'+cols.map(c=>{ let v=row[c]; if(v===undefined||v===null||v==='—') v='—'; if(numF.has(c)) v=fmt(n(v)); if(dateF.has(c)) v=fmtD(v); return `<td style="background:${bg};padding:8px;">${v}</td>`; }).join('')+'</tr>'; });
+  html+='</table></body></html>';
+  return html;
+}
+function downloadExcel(html, fname) {
+  const blob=new Blob([html],{type:'application/vnd.ms-excel'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
+}
+function doExport(){ downloadExcel(buildExcelHtml(getViewItems()),'PM_Projects_'+new Date().toISOString().split('T')[0]+'.xls'); }
+function exportPipeline(){ downloadExcel(buildExcelHtml(FILTERED.filter(i=>!STATUS_COMPLETED(i.status)&&!STATUS_CANCELLED(i.status))),'PM_Pipeline_'+new Date().toISOString().split('T')[0]+'.xls'); }
+function exportDelivered(){ downloadExcel(buildExcelHtml(FILTERED.filter(i=>STATUS_COMPLETED(i.status))),'PM_Delivered_'+new Date().toISOString().split('T')[0]+'.xls'); }
+function exportAll(){ downloadExcel(buildExcelHtml(ALL_ITEMS),'PM_AllRecords_'+new Date().toISOString().split('T')[0]+'.xls'); }
+window.doExport=doExport; window.exportPipeline=exportPipeline; window.exportDelivered=exportDelivered; window.exportAll=exportAll;
+
+// ── SIDEBAR / THEME ──────────────────────────────────────────────
+function toggleSidebar(){
+  const sb=el('sidebar'); sb.classList.toggle('collapsed');
+  const col=sb.classList.contains('collapsed');
+  el('sidebarIcon').innerHTML=col?'<polyline points="9 18 15 12 9 6"/><polyline points="15 18 21 12 15 6"/>':'<polyline points="15 18 9 12 15 6"/><polyline points="9 18 3 12 9 6"/>';
+}
+function applyTheme(base, dark) {
+  const suffix = dark?'-dark':'';
+  if(base==='blue'&&!dark) document.body.removeAttribute('data-theme');
+  else document.body.setAttribute('data-theme', base+suffix);
+  const icon=el('themeIcon');
+  if(icon) icon.innerHTML=dark?'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>':'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+}
+function changeTheme(base){
+  const cur=document.body.getAttribute('data-theme')||'';
+  const isDark=cur.includes('dark');
+  applyTheme(base,isDark);
+  try{localStorage.setItem('pm_base_theme',base);}catch(e){}
+  setTimeout(()=>renderCharts(),120);
+}
+function toggleDark(){
+  const cur=document.body.getAttribute('data-theme')||'';
+  const isDark=cur.includes('dark');
+  const base=(el('themeSel')||{value:'blue'}).value||'blue';
+  applyTheme(base,!isDark);
+  try{localStorage.setItem('pm_dark',String(!isDark));}catch(e){}
+  setTimeout(()=>renderCharts(),120);
+}
+window.changeTheme=changeTheme; window.toggleDark=toggleDark;
+window.toggleSidebar=toggleSidebar;
+window.showView=showView;
+window.toggleCharts=toggleCharts;
+window.resetAll=resetAll;
+window.toggleMs=toggleMs;
+
+// ── DEV CONSOLE ──────────────────────────────────────────────────
+document.addEventListener('keydown', function(e) {
+  if(e.ctrlKey&&e.shiftKey&&e.key==='D'){
+    const dc=el('devConsole');
+    dc.style.display=dc.style.display==='flex'?'none':'flex';
+  }
+});
+function devLogin(){
+  const email=el('devEmail').value.trim(); if(!email){alert('Enter email');return;}
+  USER.email=email;
+  USER.name=email.split('@')[0].replace(/\./g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+  USER.role=el('devRole').value||'Admin';
+  USER.IsAdmin=['Admin','Director','Head'].includes(USER.role);
+  el('devConsole').style.display='none';
+  el('lAvatar').textContent=getInitials(USER.name);
+  set('lName',USER.name); set('lEmail',USER.email); set('lRole',USER.role+' (Dev)');
+  set('lVisits',getVisitCount()); set('lLastVisit',getLastVisit());
+  el('launchBtn').disabled=false;
+  el('launchBtnTxt').textContent='Launch Dashboard (Dev)';
+  el('launchBtn').onclick=launchDashboard;
+  el('landingPage').style.display='flex';
+}
+window.devLogin=devLogin;
+window.loginAs=function(email,role){ el('devEmail').value=email; if(role) el('devRole').value=role; devLogin(); };
+
+// ── INIT ─────────────────────────────────────────────────────────
+window.addEventListener('resize',function(){
+  if(mainGridApi) try{mainGridApi.sizeColumnsToFit();}catch(e){}
+  if(pipelineGridApi) try{pipelineGridApi.sizeColumnsToFit();}catch(e){}
+  if(deliveredGridApi) try{deliveredGridApi.sizeColumnsToFit();}catch(e){}
+  if(allGridApi) try{allGridApi.sizeColumnsToFit();}catch(e){}
+});
+
+window.addEventListener('load',function(){
+  el('landingPage').style.display='flex';
+  try{
+    const bt=localStorage.getItem('pm_base_theme')||'blue';
+    const dm=localStorage.getItem('pm_dark')==='true';
+    const sel=el('themeSel'); if(sel) sel.value=bt;
+    applyTheme(bt,dm);
+  }catch(e){}
+  initAccess();
+});
