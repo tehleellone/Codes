@@ -1,0 +1,81 @@
+A) Create one new list: PSD_Assignments
+Create columns with these exact names (no spaces, so the internal name matches what the JS expects). The module auto-detects the list's entity type, so the list title is the only thing that must match PSD_LIST.
+
+Excel data columns (one column per Excel column; duplicates renamed):
+
+Column (internal name)	Type	Maps to Excel column
+ActivityNumber
+Single line of text
+Activity # (dedup key — also copied to Title)
+OrderNumber
+Single line of text
+Order #
+OrderStatus
+Single line of text
+Status (1st)
+ActivityTypeText
+Single line of text
+Type (1st)
+Description
+Multiple lines (plain)
+Description
+Owner
+Single line of text
+Owner (1st)
+CustomerAccount
+Single line of text
+Customer/Account
+CreatedOn
+Single line of text
+Created
+OrderCreatedDate
+Single line of text
+Order Created Date
+Product
+Single line of text
+Product
+BUStatus
+Single line of text
+BU
+DNSStatus
+Single line of text
+DNS
+ProvisioningOwner
+Single line of text
+Owner (2nd)
+ProvisioningType
+Single line of text
+Type (2nd)
+ProvisioningStatus
+Single line of text
+Status (2nd)
+DNSActivityRef
+Single line of text
+DNS Activity Ref
+BUActivityRef
+Single line of text
+BU Activity Ref
+I deliberately stored the raw Created / Order Created Date as text because your file uses dd/MM/yyyy HH:mm, which SharePoint would mis-parse. The workflow dates below are real DateTime fields the portal sets itself.
+
+Workflow columns (added by the portal):
+
+Column (internal name)	Type	Notes
+Category
+Single line of text
+= the Excel tab/sheet name
+PSDStatus
+Choice
+Values exactly: Pending, Inprogress, Completed — default Pending
+UploadDate
+Date and Time
+captured on upload
+AssignmentDate
+Date and Time
+captured on assign
+CompletedDate
+Date and Time
+captured on complete
+AssignedTo
+Person or Group (single)
+the PSD agent
+(Aging is computed in the UI — no column needed. Aging = UploadDate → CompletedDate/now; "Time to Complete" = AssignmentDate → CompletedDate.)
