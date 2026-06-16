@@ -661,36 +661,47 @@ if (fneIsAdmin()) {
   .fne-bulk-hint { font-size: .72rem; color: var(--t3); font-weight: 600; flex: 1 1 100%; }
   .fne-bulk-value { min-width: 150px; padding: .35rem .55rem; border: 1px solid var(--border); border-radius: 8px; font-size: .78rem; background: var(--bg-card); color: var(--t1); }
 
-  /* Import modal */
-  .fne-import-overlay {
-    display: none; position: fixed; inset: 0; z-index: 100000;
-    background: rgba(0,0,0,.55); backdrop-filter: blur(4px);
-    align-items: center; justify-content: center; padding: 1rem;
+  /* Bulk entry table (New Entry) */
+  .fne-entry-tabs {
+    display: flex; gap: .5rem; margin-bottom: 1rem; flex-wrap: wrap;
   }
-  .fne-import-overlay.open { display: flex; }
-  .fne-import-modal {
-    width: min(920px, 96vw); max-height: 90vh; overflow: auto;
-    background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
-    box-shadow: var(--ch); padding: 1.2rem 1.4rem;
+  .fne-entry-tab {
+    padding: .45rem 1rem; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--t2); font-size: .78rem; font-weight: 700; cursor: pointer;
   }
-  .fne-import-modal h3 { margin: 0 0 .35rem; font-size: 1.1rem; }
-  .fne-import-modal p { margin: 0 0 .75rem; font-size: .78rem; color: var(--t3); line-height: 1.5; }
-  .fne-import-textarea {
-    width: 100%; min-height: 160px; box-sizing: border-box;
-    border: 1px solid var(--border); border-radius: 10px; padding: .65rem;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .72rem;
-    background: var(--bg-input); color: var(--t1); resize: vertical;
+  .fne-entry-tab.active {
+    background: var(--grad); color: #fff; border-color: transparent;
   }
-  .fne-import-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin: .75rem 0; align-items: center; }
-  .fne-import-preview {
-    max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: 10px;
-    font-size: .72rem;
+  .fne-bulk-table-hint { font-size: .78rem; color: var(--t3); margin: 0 0 .75rem; line-height: 1.5; }
+  .fne-bulk-table-toolbar {
+    display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-bottom: .65rem;
   }
-  .fne-import-preview table { width: 100%; border-collapse: collapse; }
-  .fne-import-preview th, .fne-import-preview td { padding: .35rem .5rem; border-bottom: 1px solid var(--border); text-align: left; }
-  .fne-import-preview th { position: sticky; top: 0; background: var(--nab); }
-  .fne-import-err { color: #dc2626; font-weight: 700; }
-  .fne-import-ok { color: #16a34a; font-weight: 700; }
+  .fne-bulk-table-wrap {
+    overflow: auto; max-height: 520px; border: 1px solid var(--border); border-radius: 10px;
+  }
+  .fne-bulk-table {
+    width: max-content; min-width: 100%; border-collapse: collapse; font-size: .75rem;
+  }
+  .fne-bulk-table th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--nab); color: var(--acc); font-weight: 700;
+    padding: .45rem .4rem; border-bottom: 1px solid var(--border); white-space: nowrap; text-align: left;
+  }
+  .fne-bulk-table td { padding: .25rem .3rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .fne-bulk-table tr:hover td { background: var(--bg-hover); }
+  .fne-bulk-cell {
+    min-width: 110px; width: 130px; padding: .3rem .4rem;
+    border: 1px solid var(--border); border-radius: 6px; font-size: .72rem;
+    background: var(--bg-card); color: var(--t1); box-sizing: border-box;
+  }
+  .fne-bulk-cell-date { min-width: 120px; width: 130px; }
+  .fne-bulk-cell-num { min-width: 80px; width: 90px; }
+  .fne-bulk-cell-comments { min-width: 180px; width: 200px; }
+  .fne-bulk-del {
+    padding: .2rem .45rem; font-size: .68rem; border: 1px solid rgba(220,38,38,.35);
+    background: rgba(220,38,38,.08); color: #dc2626; border-radius: 6px; cursor: pointer; font-weight: 700;
+  }
+  .fne-bulk-upload-status { font-size: .78rem; font-weight: 600; margin-top: .65rem; color: var(--t3); }
   .ag-theme-alpine .ag-cell-wrapper.ag-row-group { align-items: center; }
   </style>
   
@@ -745,6 +756,13 @@ if (fneIsAdmin()) {
       <div class="fne-health-text" id="fneHealthTxt">Project Health: —</div>
       <div class="fne-health-sub" id="fneHealthSub">Set Expected RFS and Building Status to calculate</div>
     </div>
+
+    <div id="fneEntryModeTabs" class="fne-entry-tabs" style="display:none;">
+      <button type="button" id="fneTabSingle" class="fne-entry-tab active" onclick="fneSetEntryMode('single')">Single Entry</button>
+      <button type="button" id="fneTabBulk" class="fne-entry-tab" onclick="fneSetEntryMode('bulk')">Bulk Entry</button>
+    </div>
+
+    <div id="fneSingleEntryWrap">
   
     <!-- ══ CUSTOMER DETAILS ══ -->
     <div class="fne-form-card">
@@ -885,6 +903,30 @@ if (fneIsAdmin()) {
       </div>
       <div class="fne-attach-list" id="fneAttachList"></div>
     </div>
+
+    </div><!-- end fneSingleEntryWrap -->
+
+    <div id="fneBulkEntryWrap" style="display:none;">
+      <div class="fne-form-card accent-green">
+        <div class="fne-section-hdr" style="color:#10b981;">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+          Bulk New Entries
+        </div>
+        <p class="fne-bulk-table-hint">Spreadsheet-style table — type directly, or copy rows from Excel and paste here (Ctrl+V). Use <strong>Add Row</strong> for more entries. Required: Customer Name, Status, Impl. Type, Building, Vertical, FNE Manager.</p>
+        <div class="fne-bulk-table-toolbar">
+          <button type="button" class="fne-btn fne-btn-secondary" style="padding:.35rem .75rem;font-size:.75rem;" onclick="fneBulkAddRow()">+ Add Row</button>
+          <button type="button" class="fne-btn fne-btn-secondary" style="padding:.35rem .75rem;font-size:.75rem;" onclick="fneBulkClearTable()">Clear Table</button>
+          <span id="fneBulkRowCount" style="font-size:.75rem;color:var(--t3);font-weight:600;"></span>
+        </div>
+        <div class="fne-bulk-table-wrap" id="fneBulkTableWrap">
+          <table class="fne-bulk-table" id="fneBulkTable">
+            <thead id="fneBulkTableHead"></thead>
+            <tbody id="fneBulkTableBody"></tbody>
+          </table>
+        </div>
+        <div id="fneBulkUploadStatus" class="fne-bulk-upload-status"></div>
+      </div>
+    </div>
   
     <!-- ══ ACTIONS ══ -->
     <div class="fne-actions">
@@ -903,6 +945,10 @@ if (fneIsAdmin()) {
       <button type="button" class="fne-btn fne-btn-primary" id="fneSaveBtn" onclick="fneSave()">
         <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         <span id="fneSaveBtnTxt">Save Entry</span>
+      </button>
+      <button type="button" class="fne-btn fne-btn-primary" id="fneBulkUploadBtn" style="display:none;" onclick="fneBulkUploadAll()">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload All Entries
       </button>
     </div>
   
@@ -930,10 +976,6 @@ if (fneIsAdmin()) {
       FNE Tracker — All Records
     </h2>
     ${fneIsAdmin() ? `
-    <button type="button" class="fne-btn fne-btn-secondary" onclick="fneOpenImportModal()">
-      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      Bulk Import
-    </button>
     <button type="button" class="fne-btn fne-btn-primary" onclick="fneOpenForm(null);showFneView('form',document.getElementById('navFneForm'))">
       <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       New Entry
@@ -1013,22 +1055,6 @@ if (fneIsAdmin()) {
       </div>
     </div>
     <div id="fneGrid" class="ag-theme-alpine" style="height:640px;width:100%;"></div>
-  </div>
-
-  <div class="fne-import-overlay" id="fneImportOverlay" onclick="if(event.target===this)fneCloseImportModal()">
-    <div class="fne-import-modal">
-      <h3>Bulk Import from Excel</h3>
-      <p>Copy rows from Excel (include the header row) and paste below. Tab-separated columns are detected automatically. Required columns: <strong>Customer Name, Request Status, Implementation Type, Building Status, Vertical, FNE Manager</strong>.</p>
-      <div class="fne-import-actions">
-        <button type="button" class="fne-btn fne-btn-secondary" style="padding:.35rem .75rem;font-size:.75rem;" onclick="fneDownloadImportTemplate()">Download Template</button>
-        <button type="button" class="fne-btn fne-btn-secondary" style="padding:.35rem .75rem;font-size:.75rem;" onclick="fnePreviewImport()">Preview</button>
-        <button type="button" class="fne-btn fne-btn-primary" style="padding:.35rem .75rem;font-size:.75rem;" onclick="fneRunImport()">Import Records</button>
-        <button type="button" class="fne-btn fne-btn-cancel" style="padding:.35rem .75rem;font-size:.75rem;margin-left:auto;" onclick="fneCloseImportModal()">Close</button>
-      </div>
-      <textarea id="fneImportPaste" class="fne-import-textarea" placeholder="Paste from Excel here (Ctrl+V)..."></textarea>
-      <div id="fneImportStatus" style="font-size:.75rem;font-weight:600;margin:.5rem 0;color:var(--t3);"></div>
-      <div class="fne-import-preview" id="fneImportPreview"></div>
-    </div>
   </div>
   `;
   }
@@ -1139,6 +1165,9 @@ function fneOpenForm(itemId, fromList) {
       fneSetLockState('impl_start', false);
       fneSetActualRfsMaxDate();
       fneCalcHealth();
+      const tabs = document.getElementById('fneEntryModeTabs');
+      if (tabs) tabs.style.display = fneIsAdmin() ? 'flex' : 'none';
+      fneSetEntryMode('single');
       return;
     }
   
@@ -1212,6 +1241,9 @@ function fneOpenForm(itemId, fromList) {
   
     fneSetActualRfsMaxDate();
     fneCalcHealth();
+    const tabs = document.getElementById('fneEntryModeTabs');
+    if (tabs) tabs.style.display = 'none';
+    fneSetEntryMode('single');
   }
   
   // ══════════════════════════════════════════════════════════════════
@@ -2089,51 +2121,258 @@ if (!fneIsAdmin()) {
   }
 
   // ══════════════════════════════════════════════════════════════════
-  //  BULK IMPORT (Excel paste)
+  //  BULK ENTRY TABLE (New Entry — spreadsheet style)
   // ══════════════════════════════════════════════════════════════════
+  const FNE_BULK_TABLE_COLS = [
+    { key: 'customerName',    label: 'Customer Name *', type: 'text',   required: true },
+    { key: 'requestStatus',   label: 'Status *',        type: 'choice', choicesKey: 'requestStatus',   required: true },
+    { key: 'implType',        label: 'Impl. Type *',    type: 'choice', choicesKey: 'implType',        required: true },
+    { key: 'buildingStatus',  label: 'Building *',      type: 'choice', choicesKey: 'buildingStatus',  required: true },
+    { key: 'vertical',        label: 'Vertical *',      type: 'choice', choicesKey: 'vertical',        required: true },
+    { key: 'fneManager',      label: 'FNE Manager *',   type: 'choice', choicesKey: 'fneManager',      required: true },
+    { key: 'subRequest',      label: 'Sub Request',     type: 'choice', choicesKey: 'subRequest' },
+    { key: 'projectType',     label: 'Project Type',    type: 'choice', choicesKey: 'projectType' },
+    { key: 'sof',             label: 'SOF',             type: 'choice', choicesKey: 'sof' },
+    { key: 'criticalProjects',label: 'Critical',        type: 'choice', choicesKey: 'criticalProjects' },
+    { key: 'startDate',       label: 'Received',        type: 'date' },
+    { key: 'expectedRFS',     label: 'Exp. RFS',        type: 'date' },
+    { key: 'rfsBaseline',     label: 'Actual RFS',      type: 'date', noFuture: true },
+    { key: 'mrc',             label: 'MRC',             type: 'number' },
+    { key: 'otc',             label: 'OTC',             type: 'number' },
+    { key: 'contractDuration',label: 'Duration',        type: 'number' },
+    { key: 'woNumber',        label: 'WO No',           type: 'text' },
+    { key: 'fesRef',          label: 'FES Ref',         type: 'text' },
+    { key: 'commentsNew',     label: 'Comments',        type: 'text', wide: true },
+  ];
+
   const FNE_IMPORT_COLUMNS = [
-    { key: 'customerName',    sp: () => FNE_F.CUST_NAME,    required: true,  labels: ['Customer Name','Customer'], type: 'text' },
-    { key: 'requestStatus',   sp: () => FNE_F.REQ_STATUS,   required: true,  labels: ['Request Status','Status'], type: 'text' },
-    { key: 'implType',        sp: () => FNE_F.IMPL_TYPE,    required: true,  labels: ['Impl. Type','Implementation Type'], type: 'text' },
-    { key: 'buildingStatus',  sp: () => FNE_F.BUILD_STATUS, required: true,  labels: ['Building Status','Building'], type: 'text' },
+    { key: 'customerName',    sp: () => FNE_F.CUST_NAME,    required: true,  labels: ['Customer Name'], type: 'text' },
+    { key: 'requestStatus',   sp: () => FNE_F.REQ_STATUS,   required: true,  labels: ['Status'], type: 'text' },
+    { key: 'implType',        sp: () => FNE_F.IMPL_TYPE,    required: true,  labels: ['Impl. Type'], type: 'text' },
+    { key: 'buildingStatus',  sp: () => FNE_F.BUILD_STATUS, required: true,  labels: ['Building'], type: 'text' },
     { key: 'vertical',        sp: () => FNE_F.VERTICAL,     required: true,  labels: ['Vertical'], type: 'text' },
     { key: 'fneManager',      sp: () => FNE_F.FNE_MGR,      required: true,  labels: ['FNE Manager'], type: 'text' },
-    { key: 'fesRef',          sp: () => FNE_F.FES_REF,      required: false, labels: ['FES Ref','FES Reference'], type: 'text' },
-    { key: 'siteRef',         sp: () => FNE_F.SURVEY_REF,   required: false, labels: ['Site Survey Ref','Site Ref'], type: 'text' },
-    { key: 'accountCode',     sp: () => FNE_F.ACC_CODE,     required: false, labels: ['Acc. Code','Account Code'], type: 'number' },
-    { key: 'customerAddress', sp: () => FNE_F.CUST_ADDR,    required: false, labels: ['Address','Customer Address'], type: 'text' },
     { key: 'subRequest',      sp: () => FNE_F.SUB_REQ,      required: false, labels: ['Sub Request'], type: 'text' },
     { key: 'projectType',     sp: () => FNE_F.PROJ_TYPE,    required: false, labels: ['Project Type'], type: 'text' },
-    { key: 'assignedBy',      sp: () => FNE_F.ASSIGNED_BY,  required: false, labels: ['Assigned By'], type: 'text' },
-    { key: 'accountDirector', sp: () => FNE_F.ACC_DIR,      required: false, labels: ['Acct. Director','Account Director'], type: 'text' },
     { key: 'sof',             sp: () => FNE_F.SOF,          required: false, labels: ['SOF'], type: 'text' },
-    { key: 'criticalProjects',sp: () => FNE_F.CRITICAL_PROJ,required: false, labels: ['Critical Projects','Critical Proj.'], type: 'text' },
-    { key: 'sla',             sp: () => FNE_F.SLA,          required: false, labels: ['SLA','SLA (days)'], type: 'number' },
+    { key: 'criticalProjects',sp: () => FNE_F.CRITICAL_PROJ,required: false, labels: ['Critical'], type: 'text' },
+    { key: 'startDate',       sp: () => FNE_F.START_DATE,   required: false, labels: ['Received'], type: 'date' },
+    { key: 'expectedRFS',     sp: () => FNE_F.EXP_RFS,      required: false, labels: ['Exp. RFS'], type: 'date' },
+    { key: 'rfsBaseline',     sp: () => FNE_F.RFS_BASELINE, required: false, labels: ['Actual RFS'], type: 'date', noFuture: true },
     { key: 'mrc',             sp: () => FNE_F.MRC,          required: false, labels: ['MRC'], type: 'number' },
     { key: 'otc',             sp: () => FNE_F.OTC,          required: false, labels: ['OTC'], type: 'number' },
-    { key: 'contractDuration',sp: () => FNE_F.CONTRACT_DUR, required: false, labels: ['Duration','Duration (mo)','Contract Duration (months)'], type: 'number' },
-    { key: 'estimatedCost',   sp: () => FNE_F.EST_COST,     required: false, labels: ['Est. Cost','Estimated Cost'], type: 'number' },
-    { key: 'startDate',       sp: () => FNE_F.START_DATE,   required: false, labels: ['Received Date','Start Date'], type: 'date' },
-    { key: 'expectedRFS',     sp: () => FNE_F.EXP_RFS,      required: false, labels: ['Exp. RFS Date','Expected RFS'], type: 'date' },
-    { key: 'rfsBaseline',     sp: () => FNE_F.RFS_BASELINE, required: false, labels: ['Actual RFS Date','RFS Baseline'], type: 'date', noFuture: true },
-    { key: 'implStart',       sp: () => FNE_F.IMPL_START,   required: false, labels: ['Impl. Start','Implementation Start Date'], type: 'date' },
-    { key: 'targetMigDate',   sp: () => FNE_F.TARGET_MIG,   required: false, labels: ['Target Mig.','Target Migration Date'], type: 'date' },
-    { key: 'blocker',         sp: () => FNE_F.BLOCKER,      required: false, labels: ['Blocker','Current Blocker'], type: 'text' },
-    { key: 'tempConnType',    sp: () => FNE_F.TEMP_CONN,    required: false, labels: ['Temp Conn.','Temp Conn. Type'], type: 'text' },
-    { key: 'ospRequired',     sp: () => FNE_F.OSP_REQ,      required: false, labels: ['OSP Civil','OSP Required'], type: 'text' },
-    { key: 'ospCivilET',      sp: () => FNE_F.OSP_ET,       required: false, labels: ['OSP ET (days)','OSP Civil ET'], type: 'number' },
-    { key: 'gaid',            sp: () => FNE_F.GAID,         required: false, labels: ['GAID'], type: 'text' },
-    { key: 'woNumber',        sp: () => FNE_F.WO_NUM,       required: false, labels: ['WO Number'], type: 'text' },
-    { key: 'bidRef',          sp: () => FNE_F.BID_REF,      required: false, labels: ['Bid Ref','Bid Number'], type: 'text' },
+    { key: 'contractDuration',sp: () => FNE_F.CONTRACT_DUR, required: false, labels: ['Duration'], type: 'number' },
+    { key: 'woNumber',        sp: () => FNE_F.WO_NUM,       required: false, labels: ['WO No'], type: 'text' },
+    { key: 'fesRef',          sp: () => FNE_F.FES_REF,      required: false, labels: ['FES Ref'], type: 'text' },
     { key: 'commentsNew',     sp: () => FNE_F.COMMENTS_NEW, required: false, labels: ['Comments'], type: 'text' },
   ];
 
-  let FNE_IMPORT_PARSED = [];
+  let FNE_BULK_TABLE_READY = false;
 
-  function fneNormHeader(s) {
-    return String(s || '').toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim();
+  function fneSetEntryMode(mode) {
+    const single = document.getElementById('fneSingleEntryWrap');
+    const bulk = document.getElementById('fneBulkEntryWrap');
+    const health = document.getElementById('fneHealthStrip');
+    const saveBtn = document.getElementById('fneSaveBtn');
+    const bulkBtn = document.getElementById('fneBulkUploadBtn');
+    const tabS = document.getElementById('fneTabSingle');
+    const tabB = document.getElementById('fneTabBulk');
+    const isBulk = mode === 'bulk';
+
+    if (single) single.style.display = isBulk ? 'none' : 'block';
+    if (bulk) bulk.style.display = isBulk ? 'block' : 'none';
+    if (health) health.style.display = isBulk ? 'none' : 'flex';
+    if (saveBtn) saveBtn.style.display = isBulk ? 'none' : 'inline-flex';
+    if (bulkBtn) bulkBtn.style.display = isBulk ? 'inline-flex' : 'none';
+    if (tabS) tabS.classList.toggle('active', !isBulk);
+    if (tabB) tabB.classList.toggle('active', isBulk);
+
+    if (isBulk) {
+      fneBulkInitTable();
+    }
   }
 
+  function fneBulkCellHtml(col, val) {
+    const v = val || '';
+    const cls = col.wide ? 'fne-bulk-cell fne-bulk-cell-comments' : (col.type === 'date' ? 'fne-bulk-cell fne-bulk-cell-date' : (col.type === 'number' ? 'fne-bulk-cell fne-bulk-cell-num' : 'fne-bulk-cell'));
+    if (col.type === 'choice') {
+      const opts = (FNE_CHOICES[col.choicesKey] || []);
+      return '<select class="' + cls + '" data-key="' + col.key + '"><option value=""></option>' +
+        opts.map(c => '<option value="' + c + '"' + (c === v ? ' selected' : '') + '>' + c + '</option>').join('') + '</select>';
+    }
+    if (col.type === 'date') {
+      const iso = v ? (fneParseImportDate(v) || v) : '';
+      const max = col.noFuture ? ' max="' + fneTodayDateStr() + '"' : '';
+      return '<input type="date" class="' + cls + '" data-key="' + col.key + '" value="' + iso + '"' + max + '>';
+    }
+    if (col.type === 'number') {
+      return '<input type="number" class="' + cls + '" data-key="' + col.key + '" value="' + v + '">';
+    }
+    return '<input type="text" class="' + cls + '" data-key="' + col.key + '" value="' + String(v).replace(/"/g, '&quot;') + '">';
+  }
+
+  function fneBulkRenderHead() {
+    const head = document.getElementById('fneBulkTableHead');
+    if (!head) return;
+    head.innerHTML = '<tr><th style="width:36px;">#</th>' +
+      FNE_BULK_TABLE_COLS.map(c => '<th>' + c.label + '</th>').join('') +
+      '<th style="width:52px;"></th></tr>';
+  }
+
+  function fneBulkAddRow(data) {
+    const body = document.getElementById('fneBulkTableBody');
+    if (!body) return;
+    const idx = body.rows.length + 1;
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td style="color:var(--t3);font-weight:700;text-align:center;">' + idx + '</td>' +
+      FNE_BULK_TABLE_COLS.map(col => '<td>' + fneBulkCellHtml(col, data ? data[col.key] : '') + '</td>').join('') +
+      '<td><button type="button" class="fne-bulk-del" onclick="fneBulkRemoveRow(this)">×</button></td>';
+    body.appendChild(tr);
+    fneBulkUpdateRowCount();
+  }
+
+  function fneBulkRemoveRow(btn) {
+    const tr = btn.closest('tr');
+    if (tr) tr.remove();
+    const body = document.getElementById('fneBulkTableBody');
+    if (body) {
+      [...body.rows].forEach((row, i) => { row.cells[0].textContent = i + 1; });
+    }
+    fneBulkUpdateRowCount();
+  }
+
+  function fneBulkUpdateRowCount() {
+    const el = document.getElementById('fneBulkRowCount');
+    const n = document.getElementById('fneBulkTableBody')?.rows.length || 0;
+    if (el) el.textContent = n + ' row' + (n !== 1 ? 's' : '');
+  }
+
+  function fneBulkClearTable() {
+    const body = document.getElementById('fneBulkTableBody');
+    if (body) body.innerHTML = '';
+    for (let i = 0; i < 5; i++) fneBulkAddRow();
+    const st = document.getElementById('fneBulkUploadStatus');
+    if (st) st.textContent = '';
+  }
+
+  function fneBulkInitTable() {
+    fneBulkRenderHead();
+    if (!FNE_BULK_TABLE_READY) {
+      const wrap = document.getElementById('fneBulkTableWrap');
+      if (wrap) {
+        wrap.addEventListener('paste', fneBulkHandlePaste);
+      }
+      FNE_BULK_TABLE_READY = true;
+    }
+    const body = document.getElementById('fneBulkTableBody');
+    if (body && !body.rows.length) fneBulkClearTable();
+    else fneBulkUpdateRowCount();
+  }
+
+  function fneBulkReadAllRows() {
+    const body = document.getElementById('fneBulkTableBody');
+    if (!body) return [];
+    const rows = [];
+    [...body.rows].forEach((tr, i) => {
+      const rec = { _line: i + 1, _errors: [] };
+      let hasAny = false;
+      FNE_BULK_TABLE_COLS.forEach(col => {
+        const el = tr.querySelector('[data-key="' + col.key + '"]');
+        const val = el ? String(el.value || '').trim() : '';
+        rec[col.key] = val;
+        if (val) hasAny = true;
+        if (col.required && !val) rec._errors.push(col.label.replace(' *', '') + ' required');
+        if (col.type === 'date' && val) {
+          const parsed = fneParseImportDate(val);
+          if (!parsed) rec._errors.push(col.label + ' invalid date');
+          else {
+            rec[col.key + '_iso'] = parsed;
+            if (col.noFuture && fneIsFutureDate(parsed)) rec._errors.push(col.label + ' cannot be future');
+          }
+        }
+      });
+      if (hasAny) rows.push(rec);
+    });
+    return rows;
+  }
+
+  function fneBulkHandlePaste(e) {
+    const text = e.clipboardData && e.clipboardData.getData('text');
+    if (!text || text.indexOf('\t') < 0) return;
+    e.preventDefault();
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (!lines.length) return;
+    const body = document.getElementById('fneBulkTableBody');
+    if (!body) return;
+
+    let startRow = 0;
+    const active = document.activeElement;
+    if (active && active.closest && active.closest('#fneBulkTableBody tr')) {
+      startRow = [...body.rows].indexOf(active.closest('tr'));
+      if (startRow < 0) startRow = 0;
+    }
+
+    while (body.rows.length < startRow + lines.length) fneBulkAddRow();
+
+    lines.forEach((line, li) => {
+      const cells = line.split('\t').map(c => c.trim());
+      const tr = body.rows[startRow + li];
+      if (!tr) return;
+      FNE_BULK_TABLE_COLS.forEach((col, ci) => {
+        if (ci >= cells.length) return;
+        const el = tr.querySelector('[data-key="' + col.key + '"]');
+        if (!el) return;
+        if (col.type === 'date') {
+          const parsed = fneParseImportDate(cells[ci]);
+          el.value = parsed || cells[ci];
+        } else {
+          el.value = cells[ci];
+        }
+      });
+    });
+    fneBulkUpdateRowCount();
+    fneToast('Pasted ' + lines.length + ' row(s) from Excel', 'success');
+  }
+
+  function fneBulkUploadAll() {
+    if (!fneIsAdmin()) return;
+    const rows = fneBulkReadAllRows();
+    const st = document.getElementById('fneBulkUploadStatus');
+    if (!rows.length) {
+      fneToast('Add at least one row with data', 'error');
+      return;
+    }
+    const valid = rows.filter(r => !r._errors.length);
+    const invalid = rows.length - valid.length;
+    if (!valid.length) {
+      if (st) st.textContent = 'Fix errors before upload. First issue: ' + (rows[0]._errors[0] || 'unknown');
+      fneToast('No valid rows — check required fields', 'error');
+      return;
+    }
+    if (!confirm('Create ' + valid.length + ' new record(s)?' + (invalid ? ' (' + invalid + ' row(s) skipped due to errors)' : ''))) return;
+
+    const url = FNE_SP + "/_api/web/lists/getbytitle('" + encodeURIComponent(FNE_LIST) + "')/items";
+    let done = 0, failed = 0;
+
+    function createNext(i) {
+      if (i >= valid.length) {
+        const msg = 'Uploaded ' + done + ' record(s)' + (failed ? ', ' + failed + ' failed' : '');
+        if (st) st.textContent = msg;
+        fneToast(msg, failed ? 'error' : 'success');
+        fneLoadList();
+        if (done > 0) fneBulkClearTable();
+        return;
+      }
+      if (st) st.textContent = 'Uploading ' + (i + 1) + ' / ' + valid.length + '…';
+      spPost(url, fneBuildImportSpBody(valid[i]), function(err) {
+        if (err) failed++; else done++;
+        createNext(i + 1);
+      });
+    }
+    createNext(0);
+  }
+
+  // Shared import helpers (dates + SP body)
   function fneParseImportDate(val) {
     if (!val) return null;
     const s = String(val).trim();
@@ -2149,54 +2388,6 @@ if (!fneIsAdmin()) {
     const d = new Date(s);
     if (!isNaN(d)) return d.toISOString().split('T')[0];
     return null;
-  }
-
-  function fneSplitImportRow(line) {
-    if (line.indexOf('\t') >= 0) return line.split('\t').map(c => c.trim());
-    return line.split(',').map(c => c.replace(/^"|"$/g, '').trim());
-  }
-
-  function fneParseImportPaste(text) {
-    const lines = String(text || '').trim().split(/\r?\n/).filter(l => l.trim());
-    if (lines.length < 2) return { error: 'Paste at least a header row and one data row from Excel.', rows: [] };
-
-    const headers = fneSplitImportRow(lines[0]);
-    const headerMap = {};
-    headers.forEach((h, idx) => {
-      const norm = fneNormHeader(h);
-      FNE_IMPORT_COLUMNS.forEach(col => {
-        if (headerMap[col.key] !== undefined) return;
-        if (col.labels.some(l => fneNormHeader(l) === norm)) headerMap[col.key] = idx;
-      });
-    });
-
-    const missing = FNE_IMPORT_COLUMNS.filter(c => c.required && headerMap[c.key] === undefined).map(c => c.labels[0]);
-    if (missing.length) {
-      return { error: 'Missing required columns: ' + missing.join(', '), rows: [] };
-    }
-
-    const rows = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cells = fneSplitImportRow(lines[i]);
-      if (cells.every(c => !c)) continue;
-      const rec = { _line: i + 1, _errors: [] };
-      FNE_IMPORT_COLUMNS.forEach(col => {
-        const idx = headerMap[col.key];
-        const raw = idx === undefined ? '' : (cells[idx] || '');
-        rec[col.key] = raw;
-        if (col.required && !String(raw).trim()) rec._errors.push(col.labels[0] + ' is required');
-        if (col.type === 'date' && raw) {
-          const parsed = fneParseImportDate(raw);
-          if (!parsed) rec._errors.push(col.labels[0] + ' invalid date');
-          else rec[col.key + '_iso'] = parsed;
-          if (col.noFuture && parsed && fneIsFutureDate(parsed)) {
-            rec._errors.push(col.labels[0] + ' cannot be future date');
-          }
-        }
-      });
-      rows.push(rec);
-    }
-    return { error: null, rows };
   }
 
   function fneBuildImportSpBody(rec) {
@@ -2228,103 +2419,6 @@ if (!fneIsAdmin()) {
       body[FNE_F.TCV] = (dur || 0) * (mrc || 0) + (otc || 0);
     }
     return body;
-  }
-
-  function fneOpenImportModal() {
-    if (!fneIsAdmin()) { fneToast('Admin access required', 'error'); return; }
-    const o = document.getElementById('fneImportOverlay');
-    if (o) o.classList.add('open');
-    const st = document.getElementById('fneImportStatus');
-    if (st) st.textContent = '';
-    const pv = document.getElementById('fneImportPreview');
-    if (pv) pv.innerHTML = '';
-    FNE_IMPORT_PARSED = [];
-  }
-
-  function fneCloseImportModal() {
-    const o = document.getElementById('fneImportOverlay');
-    if (o) o.classList.remove('open');
-  }
-
-  function fneDownloadImportTemplate() {
-    const headers = FNE_IMPORT_COLUMNS.map(c => c.labels[0]);
-    const sample = [
-      'Sample Customer Ltd', 'In Progress', 'FNE', 'Not Connected', 'DXB', 'Arafat Wanchoo',
-      '', '', '', '', '', '', '', '', 'No', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''
-    ];
-    while (sample.length < headers.length) sample.push('');
-    const tsv = headers.join('\t') + '\n' + sample.slice(0, headers.length).join('\t') + '\n';
-    const blob = new Blob([tsv], { type: 'text/tab-separated-values' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'FNE_Import_Template.tsv';
-    a.click();
-  }
-
-  function fnePreviewImport() {
-    const text = document.getElementById('fneImportPaste')?.value || '';
-    const st = document.getElementById('fneImportStatus');
-    const pv = document.getElementById('fneImportPreview');
-    const parsed = fneParseImportPaste(text);
-    if (parsed.error) {
-      FNE_IMPORT_PARSED = [];
-      if (st) { st.textContent = parsed.error; st.className = 'fne-import-err'; }
-      if (pv) pv.innerHTML = '';
-      return;
-    }
-    FNE_IMPORT_PARSED = parsed.rows;
-    const ok = parsed.rows.filter(r => !r._errors.length).length;
-    const bad = parsed.rows.length - ok;
-    if (st) {
-      st.textContent = parsed.rows.length + ' row(s) found — ' + ok + ' ready, ' + bad + ' with errors';
-      st.className = bad ? 'fne-import-err' : 'fne-import-ok';
-    }
-    if (!pv) return;
-    const showCols = ['customerName','requestStatus','implType','buildingStatus','vertical','fneManager','rfsBaseline'];
-    let html = '<table><tr><th>Row</th>' + showCols.map(c => '<th>' + c + '</th>').join('') + '<th>Status</th></tr>';
-    parsed.rows.slice(0, 50).forEach(r => {
-      html += '<tr><td>' + r._line + '</td>' + showCols.map(c => '<td>' + (r[c] || '—') + '</td>').join('') +
-        '<td class="' + (r._errors.length ? 'fne-import-err' : 'fne-import-ok') + '">' +
-        (r._errors.length ? r._errors.join('; ') : 'OK') + '</td></tr>';
-    });
-    if (parsed.rows.length > 50) html += '<tr><td colspan="8">… and ' + (parsed.rows.length - 50) + ' more rows</td></tr>';
-    html += '</table>';
-    pv.innerHTML = html;
-  }
-
-  function fneRunImport() {
-    if (!fneIsAdmin()) return;
-    if (!FNE_IMPORT_PARSED.length) {
-      fnePreviewImport();
-      if (!FNE_IMPORT_PARSED.length) return;
-    }
-    const valid = FNE_IMPORT_PARSED.filter(r => !r._errors.length);
-    if (!valid.length) {
-      fneToast('No valid rows to import — fix errors in preview first', 'error');
-      return;
-    }
-    if (!confirm('Create ' + valid.length + ' new record(s) in SharePoint?')) return;
-
-    const st = document.getElementById('fneImportStatus');
-    let done = 0, failed = 0;
-    const url = FNE_SP + "/_api/web/lists/getbytitle('" + encodeURIComponent(FNE_LIST) + "')/items";
-
-    function createNext(i) {
-      if (i >= valid.length) {
-        const msg = 'Import complete: ' + done + ' created' + (failed ? ', ' + failed + ' failed' : '');
-        if (st) { st.textContent = msg; st.className = failed ? 'fne-import-err' : 'fne-import-ok'; }
-        fneToast(msg, failed ? 'error' : 'success');
-        fneLoadList();
-        return;
-      }
-      if (st) st.textContent = 'Importing ' + (i + 1) + ' / ' + valid.length + '…';
-      const body = fneBuildImportSpBody(valid[i]);
-      spPost(url, body, function(err) {
-        if (err) failed++; else done++;
-        createNext(i + 1);
-      });
-    }
-    createNext(0);
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -2375,7 +2469,7 @@ if (!fneIsAdmin()) {
 
     if (adminUser) {
       cols.push({
-        colId: 'rowSelect',
+        colId: 'ag-Grid-SelectionColumn',
         headerName: '',
         width: 52,
         minWidth: 52,
@@ -2463,7 +2557,7 @@ if (!fneIsAdmin()) {
         suppressSizeToFit: false,
         cellStyle: { display: 'flex', alignItems: 'center' },
       },
-      rowSelection: adminUser ? { mode: 'multiRow', enableClickSelection: false, checkboxes: false } : undefined,
+      rowSelection: adminUser ? { mode: 'multiRow', enableClickSelection: false } : undefined,
       suppressRowClickSelection: true,
       pagination: true,
       paginationPageSize: 50,
@@ -2605,11 +2699,11 @@ if (!fneIsAdmin()) {
   window.fneExportExcel     = fneExportExcel;
   window.fneBulkFieldChanged = fneBulkFieldChanged;
   window.fneApplyBulkUpdate  = fneApplyBulkUpdate;
-  window.fneOpenImportModal  = fneOpenImportModal;
-  window.fneCloseImportModal = fneCloseImportModal;
-  window.fnePreviewImport    = fnePreviewImport;
-  window.fneRunImport        = fneRunImport;
-  window.fneDownloadImportTemplate = fneDownloadImportTemplate;
+  window.fneSetEntryMode     = fneSetEntryMode;
+  window.fneBulkAddRow       = fneBulkAddRow;
+  window.fneBulkRemoveRow    = fneBulkRemoveRow;
+  window.fneBulkClearTable   = fneBulkClearTable;
+  window.fneBulkUploadAll    = fneBulkUploadAll;
   window.showFneView        = showFneView;
   window.fneTcvCalc         = fneTcvCalc;
   window.fneInit            = fneInit;
