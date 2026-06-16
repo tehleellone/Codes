@@ -708,6 +708,17 @@ if (fneIsAdmin()) {
   .fne-bulk-cell-date { min-width: 120px; width: 130px; }
   .fne-bulk-cell-num { min-width: 80px; width: 90px; }
   .fne-bulk-cell-comments { min-width: 180px; width: 200px; }
+  .fne-bulk-cell-readonly {
+    background: var(--nab) !important; color: var(--t3) !important;
+    cursor: default !important; border-style: dashed !important;
+  }
+  .fne-bulk-cell-readonly.fne-bulk-tcv {
+    color: var(--acc) !important; font-weight: 700;
+  }
+  .fne-bulk-auto-tag {
+    display: block; font-size: .58rem; font-weight: 600; color: var(--t3);
+    text-transform: uppercase; letter-spacing: .03em; margin-top: .1rem;
+  }
   .fne-bulk-del {
     padding: .2rem .45rem; font-size: .68rem; border: 1px solid rgba(220,38,38,.35);
     background: rgba(220,38,38,.08); color: #dc2626; border-radius: 6px; cursor: pointer; font-weight: 700;
@@ -958,7 +969,7 @@ if (fneIsAdmin()) {
           <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
           Bulk New Entries
         </div>
-        <p class="fne-bulk-table-hint">Fill row 1, then use <strong>Copy ↑</strong> on the next row to duplicate it and tweak only what changed — or click <strong>Add Row (copy last)</strong>. You can also paste from Excel (Ctrl+V). Attachments are added per record after upload.</p>
+        <p class="fne-bulk-table-hint">Fill row 1, then use <strong>Copy ↑</strong> on the next row to duplicate it and tweak only what changed — or click <strong>Add Row (copy last)</strong>. You can also paste from Excel (Ctrl+V). Columns marked <strong>Auto-calculated</strong> (TCV, PM Man Days, Project Health, SPI) are read-only and filled by SharePoint or formula. Attachments are added per record after upload.</p>
         <div class="fne-bulk-table-toolbar">
           <button type="button" class="fne-btn fne-btn-secondary" style="padding:.35rem .75rem;font-size:.75rem;" onclick="fneBulkAddRow()">+ Add Row</button>
           <button type="button" class="fne-btn fne-btn-secondary" style="padding:.35rem .75rem;font-size:.75rem;" onclick="fneBulkAddRowCopyLast()">+ Add Row (copy last)</button>
@@ -1107,7 +1118,7 @@ if (fneIsAdmin()) {
         <button type="button" class="fne-modal-close" onclick="fneBulkEditClose()" title="Close">&times;</button>
       </div>
       <div class="fne-modal-body">
-        <p class="fne-bulk-table-hint">Edit any cells below, use <strong>↑</strong> to copy from the row above, then click <strong>Update All</strong>. Paste from Excel (Ctrl+V) is supported.</p>
+        <p class="fne-bulk-table-hint">Edit any cells below, use <strong>↑</strong> to copy from the row above, then click <strong>Update All</strong>. Columns marked <strong>Auto-calculated</strong> are read-only. Paste from Excel (Ctrl+V) is supported.</p>
         <div class="fne-bulk-table-wrap" id="fneBulkEditTableWrap" style="max-height:58vh;">
           <table class="fne-bulk-table" id="fneBulkEditTable">
             <thead id="fneBulkEditTableHead"></thead>
@@ -2094,7 +2105,11 @@ if (!fneIsAdmin()) {
     { key: 'contractDuration', label: 'Duration (mo)',     type: 'number' },
     { key: 'otc',              label: 'OTC',               type: 'number' },
     { key: 'mrc',              label: 'MRC',               type: 'number' },
-    { key: 'commentsNew',        label: 'Comments',          type: 'text', wide: true },
+    { key: 'tcv',              label: 'TCV',               type: 'number', readonly: true, autoCalc: true },
+    { key: 'pmManDays',        label: 'PM Man Days',       type: 'text',   readonly: true, autoCalc: true },
+    { key: 'projectHealth',    label: 'Project Health',    type: 'text',   readonly: true, autoCalc: true },
+    { key: 'spi',              label: 'SPI',               type: 'number', readonly: true, autoCalc: true },
+    { key: 'commentsNew',      label: 'Comments',          type: 'text', wide: true },
   ];
 
   const FNE_IMPORT_COLUMNS = [
@@ -2171,6 +2186,33 @@ if (!fneIsAdmin()) {
     return rec;
   }
 
+  function fneBulkRecalcRowTcv(tr) {
+    if (!tr) return;
+    const gn = key => parseFloat(tr.querySelector('[data-key="' + key + '"]')?.value) || 0;
+    const tcv = gn('contractDuration') * gn('mrc') + gn('otc');
+    const el = tr.querySelector('[data-key="tcv"]');
+    if (el) el.value = tcv ? tcv.toFixed(2) : '';
+  }
+
+  function fneBulkWireRowCalc(tr) {
+    if (!tr) return;
+    ['contractDuration', 'otc', 'mrc'].forEach(key => {
+      const el = tr.querySelector('[data-key="' + key + '"]');
+      if (!el || el.dataset.tcvWired) return;
+      el.dataset.tcvWired = '1';
+      el.addEventListener('input', () => fneBulkRecalcRowTcv(tr));
+    });
+    fneBulkRecalcRowTcv(tr);
+  }
+
+  function fneBulkStripAutoCalc(data) {
+    if (!data) return data;
+    FNE_BULK_TABLE_COLS.forEach(col => {
+      if (col.readonly) data[col.key] = '';
+    });
+    return data;
+  }
+
   function fneSetEntryMode(mode) {
     const single = document.getElementById('fneSingleEntryWrap');
     const bulk = document.getElementById('fneBulkEntryWrap');
@@ -2197,6 +2239,11 @@ if (!fneIsAdmin()) {
   function fneBulkCellHtml(col, val) {
     const v = val || '';
     const cls = col.wide ? 'fne-bulk-cell fne-bulk-cell-comments' : (col.type === 'date' ? 'fne-bulk-cell fne-bulk-cell-date' : (col.type === 'number' ? 'fne-bulk-cell fne-bulk-cell-num' : 'fne-bulk-cell'));
+    if (col.readonly) {
+      const roCls = cls + ' fne-bulk-cell-readonly' + (col.key === 'tcv' ? ' fne-bulk-tcv' : '');
+      const ph = v ? '' : ' placeholder="Auto-calculated"';
+      return '<input type="text" class="' + roCls + '" data-key="' + col.key + '" value="' + String(v).replace(/"/g, '&quot;') + '" readonly tabindex="-1" title="Auto-calculated — not editable"' + ph + '>';
+    }
     if (col.type === 'choice') {
       const opts = (FNE_CHOICES[col.choicesKey] || []);
       return '<select class="' + cls + '" data-key="' + col.key + '"><option value=""></option>' +
@@ -2244,10 +2291,12 @@ if (!fneIsAdmin()) {
   function fneBulkApplyRowData(tr, data) {
     if (!tr || !data) return;
     FNE_BULK_TABLE_COLS.forEach(col => {
+      if (col.readonly) return;
       const el = tr.querySelector('[data-key="' + col.key + '"]');
       if (!el || data[col.key] === undefined) return;
       el.value = data[col.key] || '';
     });
+    fneBulkRecalcRowTcv(tr);
   }
 
   function fneBulkRenumberRows() {
@@ -2265,7 +2314,11 @@ if (!fneIsAdmin()) {
     if (!head) return;
     let html = '<tr><th style="width:36px;">#</th>';
     if (fneBulkIsEdit()) html += '<th style="width:56px;">ID</th>';
-    html += FNE_BULK_TABLE_COLS.map(c => '<th>' + c.label + '</th>').join('') +
+    html += FNE_BULK_TABLE_COLS.map(c =>
+      c.readonly
+        ? '<th>' + c.label + '<span class="fne-bulk-auto-tag">Auto-calculated</span></th>'
+        : '<th>' + c.label + '</th>'
+    ).join('') +
       '<th style="width:' + (fneBulkIsEdit() ? '48' : '72') + 'px;">Actions</th></tr>';
     head.innerHTML = html;
   }
@@ -2284,6 +2337,7 @@ if (!fneIsAdmin()) {
       fneBulkRowActionsHtml(body.rows.length === 0);
     tr.innerHTML = html;
     body.appendChild(tr);
+    fneBulkWireRowCalc(tr);
     fneBulkRenumberRows();
     fneBulkUpdateRowCount();
   }
@@ -2293,7 +2347,7 @@ if (!fneIsAdmin()) {
     const body = fneBulkEl('body');
     if (!body || !body.rows.length) { fneBulkAddRow(); return; }
     const last = body.rows[body.rows.length - 1];
-    fneBulkAddRow(fneBulkReadRowData(last));
+    fneBulkAddRow(fneBulkStripAutoCalc(fneBulkReadRowData(last)));
   }
 
   function fneBulkCopyRowAbove(btn) {
@@ -2363,7 +2417,8 @@ if (!fneIsAdmin()) {
         const el = tr.querySelector('[data-key="' + col.key + '"]');
         const val = el ? String(el.value || '').trim() : '';
         rec[col.key] = val;
-        if (val) hasAny = true;
+        if (!col.readonly && val) hasAny = true;
+        if (col.readonly) return;
         if (col.required && !val) rec._errors.push(col.label.replace(' *', '') + ' required');
         if (col.type === 'date' && val) {
           const parsed = fneParseImportDate(val);
@@ -2411,6 +2466,7 @@ if (!fneIsAdmin()) {
       let colOffset = 0;
       if (fneBulkIsEdit() && cells[0] && /^\d+$/.test(cells[0])) colOffset = 1;
       FNE_BULK_TABLE_COLS.forEach((col, ci) => {
+        if (col.readonly) return;
         const cellIdx = ci + colOffset;
         if (cellIdx >= cells.length) return;
         const el = tr.querySelector('[data-key="' + col.key + '"]');
@@ -2424,6 +2480,7 @@ if (!fneIsAdmin()) {
       });
     });
     fneBulkUpdateRowCount();
+    [...body.rows].forEach(tr => fneBulkRecalcRowTcv(tr));
     fneToast('Pasted ' + lines.length + ' row(s) from Excel', 'success');
   }
 
