@@ -539,6 +539,48 @@
             padding: 1rem
         }
 
+        /* PSD Assignment — full-bleed layout (edge-to-edge beside sidebar) */
+        .portal-shell.psd-full-shell {
+            max-width: none;
+            width: 100%;
+        }
+
+        .content.psd-full-mode {
+            padding: 0 !important;
+            width: 100%;
+            flex: 1;
+            min-width: 0;
+        }
+
+        #psdView {
+            width: 100%;
+            max-width: none;
+            padding: 0.75rem 1rem 1.25rem;
+            box-sizing: border-box;
+        }
+
+        #psdView #psdContainer,
+        #psdView .psd-root {
+            width: 100%;
+            max-width: none;
+        }
+
+        #psdView .top-stats {
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+        }
+
+        @media (max-width: 1400px) {
+            #psdView .top-stats {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 900px) {
+            #psdView .top-stats {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
         @keyframes fadeSection {
             from {
                 opacity: 0;
@@ -2215,6 +2257,10 @@
                         <div class="nav-icon"><i data-lucide="folder-open"></i></div>
                         <div class="nav-label">Process Documents</div>
                     </div>
+                    <div class="nav-item" id="psdNavItem" data-section="psdView" onclick="switchDashboardSection('psdView'); if(typeof psdInit==='function') psdInit();" style="display:none;">
+                        <div class="nav-icon"><i data-lucide="clipboard-list"></i></div>
+                        <div class="nav-label">PSD Assignment</div>
+                    </div>
 <div class="nav-item" data-section="seMailboxView" onclick="switchDashboardSection('seMailboxView');initSEMailbox();">
     <div class="nav-icon"><i data-lucide="inbox"></i></div>
     <div class="nav-label">SE Mailbox</div>
@@ -2480,6 +2526,14 @@
             </div><!-- dashboard-view -->
             <div id="eta-view" class="dashboard-section" style="display:none; width:100%;"></div>
             <div id="pm-view" class="dashboard-section" style="display:none; width:100%;"></div>
+            <!-- PSD ASSIGNMENT SECTION -->
+            <div class="dashboard-section" style="display:none;" id="psdView">
+                <div id="psdLoading" style="text-align:center;padding:40px;color:var(--t2);">
+                    <i data-lucide="loader-2" style="width:40px;height:40px;animation:spin 1s linear infinite;color:var(--acc);display:inline-block;"></i>
+                    <div style="margin-top:12px;font-weight:600;">Loading PSD Assignment...</div>
+                </div>
+                <div id="psdContent" style="display:none;"><div id="psdContainer"></div></div>
+            </div>
             <!-- PENDING REQUESTS SECTION -->
             <div id="pending-requests" class="dashboard-section" style="display: none;">
                 <div style="width:100%;">
@@ -4683,6 +4737,33 @@ applyFilters();
 var rnpsNav = document.getElementById('rnpsNavItem');
 if (rnpsNav) rnpsNav.style.display = 'flex';
 
+                // PSD Assignment: visible to SM Admin, PSD_Admin and PSD_Agent only
+                if (USER_CONTEXT.isAdmin || USER_CONTEXT.role === 'PSD_Admin' || USER_CONTEXT.role === 'PSD_Agent') {
+                    var psdNav = document.getElementById('psdNavItem');
+                    if (psdNav) psdNav.style.display = 'flex';
+                }
+                // PSD_Admin / PSD_Agent: restrict the sidebar to an allowed set of menus
+                if (USER_CONTEXT.role === 'PSD_Admin' || USER_CONTEXT.role === 'PSD_Agent') {
+                    var psdAllowedLabels = [
+                        'Newsletter',
+                        'Events / TT / Activity',
+                        'Project Management',
+                        'Synergy 360',
+                        'Suggestion Box',
+                        'Process Documents',
+                        'Contact Us',
+                        'PSD Assignment'
+                    ];
+                    document.querySelectorAll('.nav-item').forEach(function(item) {
+                        var labelEl = item.querySelector('.nav-label');
+                        var label = labelEl ? labelEl.textContent.trim() : '';
+                        item.style.display = (psdAllowedLabels.indexOf(label) >= 0) ? 'flex' : 'none';
+                    });
+                    document.querySelectorAll('.nav-section-label').forEach(function(lbl) {
+                        lbl.style.display = 'none';
+                    });
+                }
+
                 // Auditor: hide all nav items except allowed ones
                 if (USER_CONTEXT.role === 'Auditor') {
                     var allowedSections = ['qaView', 'suggestionsView', 'processDocsView', 'contactUsView'];
@@ -6648,7 +6729,10 @@ ${USER_CONTEXT.userName}`
             var contentDiv = document.querySelector('.content');
             if (contentDiv) {
                 contentDiv.classList.remove('section-mode');
+                contentDiv.classList.remove('psd-full-mode');
             }
+            var portalShell = document.querySelector('.portal-shell');
+            if (portalShell) portalShell.classList.remove('psd-full-shell');
 
             // ── HIDE ALL SECTIONS ─────────────────────────────────────────
             document.querySelectorAll('.dashboard-section').forEach(function(section) {
@@ -6676,6 +6760,10 @@ ${USER_CONTEXT.userName}`
             if (contentDiv) {
                 if (sectionId === 'pending-requests' || sectionId === 'transfer-requests') {
                     contentDiv.classList.add('section-mode');
+                }
+                if (sectionId === 'psdView') {
+                    contentDiv.classList.add('psd-full-mode');
+                    if (portalShell) portalShell.classList.add('psd-full-shell');
                 }
             }
 
@@ -8009,6 +8097,7 @@ async function ownerFetchUserRole(email) {
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/suggestions.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/processdocs.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/qualityassurance.js"></script>
+    <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/psd-assignment.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/rnps.js"></script>
   <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/semailbox.js"></script>
   <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=4"></script>
