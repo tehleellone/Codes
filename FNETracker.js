@@ -22,6 +22,7 @@
     fneManager:      ['Arafat Wanchoo','Husham Salih','Jamal Sattar','Ishfaq Deen'],
     tempConnType:    ['Wireless','Fibre'],
     blocker:         ['Customer','Infra'],
+    criticalProjects:['Yes','No'],
    projectHealth: [
   'Green',
   'Amber',
@@ -64,6 +65,7 @@
     CONTRACT_DUR: 'ContractDuration0',
     FNE_MGR:      'FNEManager',
     RFS_BASELINE: 'RFS_x0020_Baseline',
+    CRITICAL_PROJ:'Critical_x0020_Projects',
     COMMENTS_NEW: 'Comments_New',
     IMPL_START:   'Implementation_Start_Date',
     PROJ_HEALTH:  'Project_x0020_Health',
@@ -88,6 +90,38 @@
   // Pending attachments for new/edit
   let FNE_PENDING_ATTACH  = [];   // { file, name } to upload
   let FNE_EXISTING_ATTACH = [];   // { FileName, ServerRelativeUrl } from SP
+
+  function fneTodayDateStr() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString().split('T')[0];
+  }
+
+  function fneIsFutureDate(dateStr) {
+    if (!dateStr) return false;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const d = new Date(dateStr); d.setHours(0, 0, 0, 0);
+    return d > today;
+  }
+
+  function fneSetActualRfsMaxDate() {
+    const el = document.getElementById('fne_rfs_baseline');
+    if (el) el.max = fneTodayDateStr();
+  }
+
+  // SharePoint rich-text fields (Comments_New, etc.) are stored as HTML
+  function fneHtmlToPlain(html) {
+    if (html === null || html === undefined || html === '' || html === '—') return '';
+    const s = String(html);
+    if (!s.includes('<')) return s.trim();
+    const el = document.createElement('div');
+    el.innerHTML = s;
+    return (el.textContent || el.innerText || '')
+      .replace(/\u00a0/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
 function fneIsAdmin() {
   const role = (USER && USER.role ? String(USER.role) : '').toLowerCase();
   return !!(
@@ -204,6 +238,7 @@ if (fneIsAdmin()) {
       [FNE_F.FNE_MGR]:      'fneManager',
       [FNE_F.TEMP_CONN]:    'tempConnType',
       [FNE_F.BLOCKER]:      'blocker',
+      [FNE_F.CRITICAL_PROJ]:'criticalProjects',
     };
     const internalNames = Object.keys(fieldMap);
     const url = FNE_SP + "/_api/web/lists/getbytitle('" + encodeURIComponent(FNE_LIST) +
@@ -225,6 +260,7 @@ if (fneIsAdmin()) {
             ospCivil: 'fne_osp', accountDirector: 'fne_acc_dir',
             fneManager: 'fne_fne_mgr', tempConnType: 'fne_temp_conn',
             blocker: 'fne_blocker',
+            criticalProjects: 'fne_critical_projects',
           };
           const selEl = document.getElementById(selMap[key]);
           if (selEl) {
@@ -598,6 +634,31 @@ if (fneIsAdmin()) {
   
   /* Record count badge in header */
   #fneRecordCount { font-size: .75rem; color: var(--t3); font-weight: 600; }
+
+  /* AG Grid multi-select column filter */
+  .fne-ag-set-filter { padding: .5rem; min-width: 200px; max-width: 260px; }
+  .fne-ag-set-search {
+    width: 100%; box-sizing: border-box; margin-bottom: .45rem;
+    padding: .35rem .5rem; border: 1px solid var(--border); border-radius: 8px;
+    font-size: .75rem; background: var(--bg-card); color: var(--t1);
+  }
+  .fne-ag-set-list { max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: .2rem; }
+  .fne-ag-set-option { display: flex; align-items: center; gap: .35rem; font-size: .75rem; cursor: pointer; padding: .15rem 0; }
+  .fne-ag-set-actions { display: flex; gap: .35rem; margin-top: .45rem; }
+  .fne-ag-set-actions button {
+    flex: 1; padding: .25rem .4rem; font-size: .68rem; font-weight: 700;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--nab); color: var(--acc); cursor: pointer;
+  }
+
+  /* Bulk update bar */
+  .fne-bulk-bar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: .55rem;
+    padding: .65rem .85rem; margin-bottom: .75rem;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .fne-bulk-label { font-size: .68rem; font-weight: 700; color: var(--t3); text-transform: uppercase; letter-spacing: .05em; }
+  .fne-bulk-count { font-size: .72rem; color: var(--t3); font-weight: 600; margin-left: auto; }
+  .fne-bulk-value { min-width: 150px; padding: .35rem .55rem; border: 1px solid var(--border); border-radius: 8px; font-size: .78rem; background: var(--bg-card); color: var(--t1); }
   </style>
   
   <div id="fneToast" class="fne-toast"></div>
@@ -678,7 +739,7 @@ if (fneIsAdmin()) {
       <div class="fne-section-hdr" style="color:#d97706;">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         Request Type &amp; Status
-        <span class="fne-section-count" style="color:#d97706;background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);">10 fields</span>
+        <span class="fne-section-count" style="color:#d97706;background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);">11 fields</span>
       </div>
       <div class="fne-grid fne-grid-3">
         ${grp('Request Status', sel('fne_req_status', FNE_CHOICES.requestStatus, 'required'), true)}
@@ -692,6 +753,7 @@ if (fneIsAdmin()) {
       </div>
       <div class="fne-grid fne-grid-4" style="margin-top:.9rem;">
         ${grp('SOF', sel('fne_sof', FNE_CHOICES.sof))}
+        ${grp('Critical Projects', sel('fne_critical_projects', FNE_CHOICES.criticalProjects))}
         ${grp('SLA (days)', inp('fne_sla','number','','e.g. 30'))}
         ${grp('Unit No', inp('fne_unit_no','number'))}
         ${grp('WO Number', inp('fne_wo_num','text','','WO-XXXX'))}
@@ -740,7 +802,11 @@ if (fneIsAdmin()) {
         )}
       </div>
       <div class="fne-grid fne-grid-2" style="margin-top:.9rem;">
-        ${grp('RFS Baseline Date', inp('fne_rfs_baseline','date'))}
+        ${grp('Actual RFS Date',
+          inp('fne_rfs_baseline','date'),
+          false,
+          'Today or past dates only'
+        )}
         ${grp('Implementation Start Date',
           lockWrap('impl_start', `<input id="fne_impl_start" type="date" class="fne-input">`),
           false, 'Locked after first save. Required if FES Ref is set.'
@@ -863,6 +929,7 @@ if (fneIsAdmin()) {
       ${msFilter('sof',        'SOF',              FNE_CHOICES.sof)}
       ${msFilter('health',     'Project Health',   FNE_CHOICES.projectHealth)}
       ${msFilter('blocker',    'Blocker',          FNE_CHOICES.blocker)}
+      ${msFilter('critical',   'Critical Projects',FNE_CHOICES.criticalProjects)}
       <div class="fb-group">
         <div class="fb-group-label">Year</div>
         <select id="fnel_year" class="fb-select" onchange="fneListApplyFilter()">
@@ -871,6 +938,19 @@ if (fneIsAdmin()) {
       </div>
     </div>
   </div>
+
+  ${fneIsAdmin() ? `
+  <div class="fne-bulk-bar" id="fneBulkBar">
+    <span class="fne-bulk-label">Bulk Update</span>
+    <select id="fneBulkField" class="fb-select" onchange="fneBulkFieldChanged()" style="min-width:180px;">
+      <option value="">— Select field —</option>
+    </select>
+    <span id="fneBulkValueWrap"></span>
+    <button type="button" class="fne-btn fne-btn-primary" style="padding:.35rem .85rem;font-size:.75rem;" onclick="fneApplyBulkUpdate()">
+      Apply to Selected
+    </button>
+    <span id="fneBulkSelCount" class="fne-bulk-count">0 selected</span>
+  </div>` : ''}
   
   <!-- Table -->
   <div class="table-section">
@@ -1003,6 +1083,7 @@ function fneOpenForm(itemId, fromList) {
       // Unlock all one-time fields
       fneSetLockState('exp_rfs', false);
       fneSetLockState('impl_start', false);
+      fneSetActualRfsMaxDate();
       fneCalcHealth();
       return;
     }
@@ -1047,11 +1128,12 @@ function fneOpenForm(itemId, fromList) {
     set('fne_assigned_by',  clean(item.assignedBy));
     set('fne_proj_type',    clean(item.projectType));
     set('fne_sof',          clean(item.sof));
+    set('fne_critical_projects', clean(item.criticalProjects));
     set('fne_vertical',     clean(item.vertical));
     set('fne_acc_dir',      clean(item.accountDirector));
     set('fne_am_email',     item.amEmail || '');
     set('fne_fne_mgr',      clean(item.fneManager));
-    set('fne_comments_new', clean(item.commentsNew));
+    set('fne_comments_new', fneHtmlToPlain(item.commentsNew));
     set('fne_blocker',      clean(item.blocker));
     set('fne_temp_conn',    clean(item.tempConnType));
   
@@ -1074,13 +1156,8 @@ function fneOpenForm(itemId, fromList) {
     // Fetch existing attachments
     fneLoadExistingAttachments(itemId);
   
+    fneSetActualRfsMaxDate();
     fneCalcHealth();
-  
-    // Wire health recalc on date/status change
-    ['fne_exp_rfs','fne_rfs_baseline','fne_build_status','fne_req_status'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener('change', fneCalcHealth);
-    });
   }
   
   // ══════════════════════════════════════════════════════════════════
@@ -1117,6 +1194,7 @@ function fneOpenForm(itemId, fromList) {
       'fne_sub_req','fne_bid_ref','fne_impl_type','fne_gaid','fne_build_status',
       'fne_sla','fne_unit_no','fne_assigned_by','fne_proj_type','fne_sof',
       'fne_vertical','fne_acc_dir','fne_am_email','fne_fne_mgr','fne_comments_new',
+      'fne_critical_projects',
       'fne_start_date','fne_exp_rfs','fne_rfs_baseline','fne_impl_start',
       'fne_contract_dur','fne_otc','fne_mrc','fne_tcv',
       'fne_blocker','fne_temp_conn','fne_target_mig','fne_pm_man_days',
@@ -1328,6 +1406,13 @@ if (!fneIsAdmin()) {
   
     const gv = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
     const gn = id => { const v = parseFloat(gv(id)); return isNaN(v) ? null : v; };
+
+    const actualRfsVal = gv('fne_rfs_baseline');
+    if (actualRfsVal && fneIsFutureDate(actualRfsVal)) {
+      fneToast('Actual RFS Date cannot be in the future', 'error');
+      document.getElementById('fne_rfs_baseline')?.focus();
+      return;
+    }
   
     // Strip HTML tags from GAID
     const gaid = gv('fne_gaid').replace(/<[^>]*>/g, '').trim();
@@ -1354,6 +1439,7 @@ if (!fneIsAdmin()) {
       [FNE_F.ASSIGNED_BY]:  gv('fne_assigned_by')  || null,
       [FNE_F.PROJ_TYPE]:    gv('fne_proj_type')    || null,
       [FNE_F.SOF]:          gv('fne_sof')          || null,
+      [FNE_F.CRITICAL_PROJ]:gv('fne_critical_projects') || null,
       [FNE_F.VERTICAL]:     gv('fne_vertical'),
       [FNE_F.ACC_DIR]:      gv('fne_acc_dir')      || null,
       [FNE_F.FNE_MGR]:      gv('fne_fne_mgr'),
@@ -1545,7 +1631,7 @@ if (!fneIsAdmin()) {
       FNE_F.PROJ_TYPE, FNE_F.UNIT_NO, FNE_F.OTC, FNE_F.TCV, FNE_F.OSP_REQ,
       FNE_F.OSP_ET, FNE_F.FES_REF, FNE_F.SURVEY_REF, FNE_F.GAID, FNE_F.BID_REF,
       FNE_F.WO_NUM, FNE_F.ACC_DIR, FNE_F.CONTRACT_DUR, FNE_F.FNE_MGR,
-      FNE_F.RFS_BASELINE, FNE_F.COMMENTS_NEW, FNE_F.IMPL_START, FNE_F.PROJ_HEALTH,
+      FNE_F.RFS_BASELINE, FNE_F.CRITICAL_PROJ, FNE_F.COMMENTS_NEW, FNE_F.IMPL_START, FNE_F.PROJ_HEALTH,
       FNE_F.SPI, FNE_F.TEMP_CONN, FNE_F.TARGET_MIG, FNE_F.BLOCKER, FNE_F.PM_MAN_DAYS,
       'Account_x0020_Manager/Id', 'Account_x0020_Manager/Title', 'Account_x0020_Manager/EMail'
     ].join(',');
@@ -1616,7 +1702,8 @@ if (!fneIsAdmin()) {
       contractDuration:n(it[FNE_F.CONTRACT_DUR]),
       fneManager:      it[FNE_F.FNE_MGR]      || '—',
       rfsBaseline:     it[FNE_F.RFS_BASELINE] || null,
-      commentsNew:     it[FNE_F.COMMENTS_NEW] || '—',
+      criticalProjects:it[FNE_F.CRITICAL_PROJ]|| '—',
+      commentsNew:     fneHtmlToPlain(it[FNE_F.COMMENTS_NEW]) || '—',
       implStart:       it[FNE_F.IMPL_START]   || null,
       projectHealth:   it[FNE_F.PROJ_HEALTH]  || '—',
       spi:             n(it[FNE_F.SPI]),
@@ -1658,6 +1745,7 @@ if (!fneIsAdmin()) {
       sof:             gf('sof'),
       projectHealth:   gf('health'),
       blocker:         gf('blocker'),
+      criticalProjects:gf('critical'),
     };
     const yr = gf('year');
     const filtered = FNE_LIST_DATA.filter(item => {
@@ -1672,7 +1760,7 @@ if (!fneIsAdmin()) {
   
   function fneListReset() {
     ['status','implType','vertical','fneManager','buildStatus','projType',
-     'subReq','assignedBy','accDir','osp','sof','health','blocker','year'].forEach(id => {
+     'subReq','assignedBy','accDir','osp','sof','health','blocker','critical','year'].forEach(id => {
       const el = document.getElementById('fnel_' + id);
       if (el) el.value = '';
     });
@@ -1682,6 +1770,258 @@ if (!fneIsAdmin()) {
     fneRenderGrid(FNE_LIST_DATA);
   }
   
+  // ══════════════════════════════════════════════════════════════════
+  //  AG GRID — MULTI-SELECT COLUMN FILTER (SharePoint-style)
+  // ══════════════════════════════════════════════════════════════════
+  class FneSetColumnFilter {
+    init(params) {
+      this.params = params;
+      this.selected = new Set();
+      this.gui = document.createElement('div');
+      this.gui.className = 'fne-ag-set-filter';
+      this._buildGui();
+    }
+
+    _cellValue(data) {
+      let v = data[this.params.colDef.field];
+      if (v === null || v === undefined || v === '') return '—';
+      return String(v);
+    }
+
+    _allValues() {
+      const values = new Set();
+      this.params.api.forEachNode(node => {
+        if (node.data) values.add(this._cellValue(node.data));
+      });
+      return [...values].sort((a, b) => a.localeCompare(b));
+    }
+
+    _buildGui() {
+      const all = this._allValues();
+      this.gui.innerHTML = '';
+
+      const search = document.createElement('input');
+      search.type = 'text';
+      search.placeholder = 'Search...';
+      search.className = 'fne-ag-set-search';
+      this.gui.appendChild(search);
+
+      const list = document.createElement('div');
+      list.className = 'fne-ag-set-list';
+      this.gui.appendChild(list);
+
+      const render = (term) => {
+        list.innerHTML = '';
+        all.filter(v => !term || v.toLowerCase().includes(term.toLowerCase())).forEach(v => {
+          const row = document.createElement('label');
+          row.className = 'fne-ag-set-option';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = this.selected.has(v);
+          cb.onchange = () => {
+            if (cb.checked) this.selected.add(v);
+            else this.selected.delete(v);
+            this.params.filterChangedCallback();
+          };
+          row.appendChild(cb);
+          row.appendChild(document.createTextNode(' ' + v));
+          list.appendChild(row);
+        });
+      };
+      render('');
+      search.oninput = () => render(search.value);
+
+      const actions = document.createElement('div');
+      actions.className = 'fne-ag-set-actions';
+      const btnAll = document.createElement('button');
+      btnAll.type = 'button';
+      btnAll.textContent = 'Select all';
+      btnAll.onclick = () => { all.forEach(v => this.selected.add(v)); render(search.value); this.params.filterChangedCallback(); };
+      const btnClear = document.createElement('button');
+      btnClear.type = 'button';
+      btnClear.textContent = 'Clear';
+      btnClear.onclick = () => { this.selected.clear(); render(search.value); this.params.filterChangedCallback(); };
+      actions.appendChild(btnAll);
+      actions.appendChild(btnClear);
+      this.gui.appendChild(actions);
+    }
+
+    getGui() { return this.gui; }
+    isFilterActive() { return this.selected.size > 0; }
+    doesFilterPass(params) {
+      if (!this.selected.size) return true;
+      return this.selected.has(this._cellValue(params.data));
+    }
+    getModel() { return this.selected.size ? { values: [...this.selected] } : null; }
+    setModel(model) {
+      this.selected = new Set(model && model.values ? model.values : []);
+      this._buildGui();
+    }
+    destroy() {}
+  }
+  window.FneSetColumnFilter = FneSetColumnFilter;
+
+  const FNE_MS_FILTER_FIELDS = new Set([
+    'fneManager', 'customerName', 'requestStatus', 'projectHealth', 'buildingStatus',
+    'fes', 'fesRef', 'vertical', 'implType', 'subRequest', 'projectType',
+    'accountDirector', 'amName', 'assignedBy', 'tempConnType', 'blocker',
+    'sof', 'ospRequired', 'gaid', 'woNumber', 'bidRef', 'siteRef', 'criticalProjects', 'year',
+  ]);
+
+  const FNE_DATE_FILTER_FIELDS = new Set(['startDate', 'expectedRFS', 'rfsBaseline', 'implStart', 'targetMigDate']);
+
+  function fneEnhanceColDef(col) {
+    if (FNE_MS_FILTER_FIELDS.has(col.field)) {
+      col.filter = FneSetColumnFilter;
+    } else if (col.type === 'numericColumn') {
+      col.filter = 'agNumberColumnFilter';
+    } else if (FNE_DATE_FILTER_FIELDS.has(col.field)) {
+      col.filter = 'agDateColumnFilter';
+    }
+    return col;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  //  BULK UPDATE
+  // ══════════════════════════════════════════════════════════════════
+  const FNE_BULK_FIELDS = {
+    rfsBaseline:      { label: 'Actual RFS Date', type: 'date', spField: () => FNE_F.RFS_BASELINE, noFuture: true },
+    expectedRFS:      { label: 'Expected RFS Date', type: 'date', spField: () => FNE_F.EXP_RFS },
+    implStart:        { label: 'Implementation Start', type: 'date', spField: () => FNE_F.IMPL_START },
+    targetMigDate:    { label: 'Target Migration Date', type: 'date', spField: () => FNE_F.TARGET_MIG },
+    startDate:        { label: 'Received Date', type: 'date', spField: () => FNE_F.START_DATE },
+    requestStatus:    { label: 'Request Status', type: 'choice', spField: () => FNE_F.REQ_STATUS, choices: () => FNE_CHOICES.requestStatus },
+    buildingStatus:   { label: 'Building Status', type: 'choice', spField: () => FNE_F.BUILD_STATUS, choices: () => FNE_CHOICES.buildingStatus },
+    criticalProjects: { label: 'Critical Projects', type: 'choice', spField: () => FNE_F.CRITICAL_PROJ, choices: () => FNE_CHOICES.criticalProjects },
+    implType:         { label: 'Implementation Type', type: 'choice', spField: () => FNE_F.IMPL_TYPE, choices: () => FNE_CHOICES.implType },
+    projectType:      { label: 'Project Type', type: 'choice', spField: () => FNE_F.PROJ_TYPE, choices: () => FNE_CHOICES.projectType },
+    vertical:         { label: 'Vertical', type: 'choice', spField: () => FNE_F.VERTICAL, choices: () => FNE_CHOICES.vertical },
+    fneManager:       { label: 'FNE Manager', type: 'choice', spField: () => FNE_F.FNE_MGR, choices: () => FNE_CHOICES.fneManager },
+    sof:              { label: 'SOF', type: 'choice', spField: () => FNE_F.SOF, choices: () => FNE_CHOICES.sof },
+    blocker:          { label: 'Blocker', type: 'choice', spField: () => FNE_F.BLOCKER, choices: () => FNE_CHOICES.blocker },
+    commentsNew:      { label: 'Comments', type: 'text', spField: () => FNE_F.COMMENTS_NEW },
+  };
+
+  function fneInitBulkBar() {
+    const sel = document.getElementById('fneBulkField');
+    if (!sel || sel.options.length > 1) return;
+    Object.entries(FNE_BULK_FIELDS).forEach(([key, cfg]) => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = cfg.label;
+      sel.appendChild(opt);
+    });
+    fneBulkFieldChanged();
+  }
+
+  function fneBulkFieldChanged() {
+    const wrap = document.getElementById('fneBulkValueWrap');
+    const key = document.getElementById('fneBulkField')?.value;
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    if (!key || !FNE_BULK_FIELDS[key]) return;
+    const cfg = FNE_BULK_FIELDS[key];
+    if (cfg.type === 'date') {
+      const inp = document.createElement('input');
+      inp.type = 'date';
+      inp.id = 'fneBulkValue';
+      inp.className = 'fne-bulk-value';
+      if (cfg.noFuture) inp.max = fneTodayDateStr();
+      wrap.appendChild(inp);
+    } else if (cfg.type === 'choice') {
+      const sel = document.createElement('select');
+      sel.id = 'fneBulkValue';
+      sel.className = 'fne-bulk-value';
+      sel.innerHTML = '<option value="">— Select —</option>' +
+        (cfg.choices() || []).map(c => `<option value="${c}">${c}</option>`).join('');
+      wrap.appendChild(sel);
+    } else {
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.id = 'fneBulkValue';
+      inp.className = 'fne-bulk-value';
+      inp.placeholder = 'New value';
+      wrap.appendChild(inp);
+    }
+  }
+
+  function fneUpdateBulkSelectionCount() {
+    const el = document.getElementById('fneBulkSelCount');
+    if (!el || !FNE_GRID_API) return;
+    const n = FNE_GRID_API.getSelectedRows ? FNE_GRID_API.getSelectedRows().length : 0;
+    el.textContent = n + ' selected';
+  }
+
+  function fneApplyBulkUpdate() {
+    if (!fneIsAdmin()) {
+      fneToast('You do not have permission to bulk update records', 'error');
+      return;
+    }
+    if (!FNE_GRID_API) return;
+    const rows = FNE_GRID_API.getSelectedRows();
+    if (!rows.length) {
+      fneToast('Select at least one row to update', 'error');
+      return;
+    }
+    const fieldKey = document.getElementById('fneBulkField')?.value;
+    const cfg = fieldKey ? FNE_BULK_FIELDS[fieldKey] : null;
+    const valEl = document.getElementById('fneBulkValue');
+    if (!cfg || !valEl) {
+      fneToast('Select a field and value to apply', 'error');
+      return;
+    }
+    const rawVal = valEl.value.trim();
+    if (!rawVal && cfg.type !== 'text') {
+      fneToast('Enter or select a value', 'error');
+      return;
+    }
+    if (cfg.type === 'date' && cfg.noFuture && fneIsFutureDate(rawVal)) {
+      fneToast('Actual RFS Date cannot be in the future', 'error');
+      return;
+    }
+    if (!confirm('Update "' + cfg.label + '" for ' + rows.length + ' selected record(s)?')) return;
+
+    const spField = cfg.spField();
+    let spValue = rawVal || null;
+    if (cfg.type === 'date' && rawVal) spValue = new Date(rawVal).toISOString();
+    if (cfg.type === 'text') spValue = rawVal || null;
+
+    let done = 0, failed = 0;
+    const total = rows.length;
+
+    function updateNext(i) {
+      if (i >= total) {
+        fneToast('Bulk update: ' + done + ' updated' + (failed ? ', ' + failed + ' failed' : ''), failed ? 'error' : 'success');
+        fneLoadList();
+        return;
+      }
+      const row = rows[i];
+      const body = {
+        '__metadata': { 'type': FNE_LIST_ITEM_TYPE },
+        [spField]: spValue,
+      };
+      const url = FNE_SP + "/_api/web/lists/getbytitle('" + encodeURIComponent(FNE_LIST) +
+        "')/items(" + row.id + ")";
+      getDigest(function(digest) {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.setRequestHeader('Accept', 'application/json;odata=verbose');
+        xhr.setRequestHeader('Content-Type', 'application/json;odata=verbose');
+        xhr.setRequestHeader('X-HTTP-Method', 'MERGE');
+        xhr.setRequestHeader('IF-MATCH', '*');
+        if (digest) xhr.setRequestHeader('X-RequestDigest', digest);
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState !== 4) return;
+          if (xhr.status >= 200 && xhr.status < 300) done++;
+          else failed++;
+          updateNext(i + 1);
+        };
+        xhr.send(JSON.stringify(body));
+      });
+    }
+    updateNext(0);
+  }
+
   // ══════════════════════════════════════════════════════════════════
   //  AG GRID RENDER
   // ══════════════════════════════════════════════════════════════════
@@ -1759,11 +2099,12 @@ if (!fneIsAdmin()) {
       { field: 'pmManDays',       headerName: 'PM Man Days',    width: 130, minWidth: 110 },
       { field: 'startDate',       headerName: 'Received Date',  width: 130, minWidth: 110, valueFormatter: p => fmtD(p.value) },
       { field: 'expectedRFS',     headerName: 'Exp. RFS Date',  width: 130, minWidth: 110, valueFormatter: p => fmtD(p.value) },
-      { field: 'rfsBaseline',     headerName: 'RFS Baseline',   width: 130, minWidth: 110, valueFormatter: p => fmtD(p.value) },
+      { field: 'rfsBaseline',     headerName: 'Actual RFS Date',width: 140, minWidth: 120, valueFormatter: p => fmtD(p.value) },
       { field: 'implStart',       headerName: 'Impl. Start',    width: 125, minWidth: 110, valueFormatter: p => fmtD(p.value) },
       { field: 'targetMigDate',   headerName: 'Target Mig.',    width: 125, minWidth: 110, valueFormatter: p => fmtD(p.value) },
       { field: 'tempConnType',    headerName: 'Temp Conn. Type',width: 155, minWidth: 130 },
       { field: 'blocker',         headerName: 'Blocker',        width: 120, minWidth: 100 },
+      { field: 'criticalProjects',headerName: 'Critical Proj.', width: 120, minWidth: 100 },
       { field: 'sof',             headerName: 'SOF',            width: 90,  minWidth: 80  },
       { field: 'ospRequired',     headerName: 'OSP Civil',      width: 110, minWidth: 90  },
       { field: 'ospCivilET',      headerName: 'OSP ET (days)',  width: 120, minWidth: 100, type: 'numericColumn' },
@@ -1776,7 +2117,7 @@ if (!fneIsAdmin()) {
       { field: 'customerAddress', headerName: 'Address',        width: 220, minWidth: 160 },
       { field: 'commentsNew',     headerName: 'Comments',       width: 250, minWidth: 180 },
       { field: 'year',            headerName: 'Year',           width: 90,  minWidth: 80,  type: 'numericColumn' },
-    ];
+    ].map(fneEnhanceColDef);
   
     if (FNE_GRID_API) { try { FNE_GRID_API.destroy(); } catch(e) {} FNE_GRID_API = null; }
     const gridEl = document.getElementById('fneGrid');
@@ -1793,6 +2134,13 @@ if (!fneIsAdmin()) {
         suppressSizeToFit: false,
         cellStyle: { display: 'flex', alignItems: 'center' },
       },
+      rowSelection: fneIsAdmin() ? {
+        mode: 'multiRow',
+        checkboxes: true,
+        headerCheckbox: true,
+        enableClickSelection: false,
+      } : undefined,
+      selectionColumnDef: fneIsAdmin() ? { pinned: 'left', width: 48, maxWidth: 48 } : undefined,
       pagination: true,
       paginationPageSize: 50,
       paginationPageSizeSelector: [25, 50, 100, 250],
@@ -1803,11 +2151,13 @@ if (!fneIsAdmin()) {
       suppressColumnVirtualisation: false,
       onGridReady: p => {
         FNE_GRID_API = p.api;
-        // Don't sizeColumnsToFit — it collapses everything. Just autosize key columns.
+        fneInitBulkBar();
+        fneUpdateBulkSelectionCount();
         setTimeout(() => {
           p.api.autoSizeColumns(['fneManager','customerName','fes','amName','accountDirector'], false);
         }, 150);
       },
+      onSelectionChanged: () => fneUpdateBulkSelectionCount(),
     });
   }
   
@@ -1819,13 +2169,13 @@ if (!fneIsAdmin()) {
     const cols  = ['id','fneManager','amName','customerName','fes','subRequest','implType','projectType',
                     'vertical','accountDirector','requestStatus','projectHealth','buildingStatus','sla',
                     'mrc','otc','tcv','contractDuration','estimatedCost','startDate','expectedRFS',
-                    'rfsBaseline','implStart','targetMigDate','tempConnType','blocker','sof','ospRequired',
+                    'rfsBaseline','implStart','targetMigDate','tempConnType','blocker','criticalProjects','sof','ospRequired',
                     'ospCivilET','gaid','woNumber','bidRef','fesRef','siteRef','accountCode','unitNo',
                     'customerAddress','commentsNew','year'];
     const hdrs  = ['ID','FNE Manager','Acct. Manager','Customer','FES','Sub Request','Impl. Type','Project Type',
                     'Vertical','Acct. Director','Status','Health','Building Status','SLA','MRC','OTC','TCV',
-                    'Duration','Est. Cost','Received','Exp. RFS','RFS Baseline','Impl. Start','Target Mig.',
-                    'Temp Conn.','Blocker','SOF','OSP Civil','OSP ET','GAID','WO Number','Bid Ref','FES Ref',
+                    'Duration','Est. Cost','Received','Exp. RFS','Actual RFS Date','Impl. Start','Target Mig.',
+                    'Temp Conn.','Blocker','Critical Projects','SOF','OSP Civil','OSP ET','GAID','WO Number','Bid Ref','FES Ref',
                     'Site Ref','Acc. Code','Unit No','Address','Comments','Year'];
     const fmt2  = v => { const n=parseFloat(v); if(isNaN(n))return'—'; if(n>=1e6)return(n/1e6).toFixed(2)+'M'; if(n>=1e3)return(n/1e3).toFixed(1)+'K'; return n.toFixed(0); };
     const fmtD  = iso => { if(!iso)return'—'; const d=new Date(iso); return isNaN(d)?'—':d.toLocaleDateString('en-GB'); };
@@ -1901,7 +2251,18 @@ if (!fneIsAdmin()) {
   
     // Wire health recalc for new form fields on change
     setTimeout(() => {
-      ['fne_exp_rfs','fne_rfs_baseline','fne_build_status','fne_req_status'].forEach(id => {
+      fneSetActualRfsMaxDate();
+      const rfsEl = document.getElementById('fne_rfs_baseline');
+      if (rfsEl) {
+        rfsEl.addEventListener('change', function() {
+          if (fneIsFutureDate(rfsEl.value)) {
+            fneToast('Actual RFS Date cannot be in the future', 'error');
+            rfsEl.value = '';
+          }
+          fneCalcHealth();
+        });
+      }
+      ['fne_exp_rfs','fne_build_status','fne_req_status'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('change', fneCalcHealth);
       });
@@ -1918,10 +2279,13 @@ if (!fneIsAdmin()) {
   window.fneListApplyFilter = fneListApplyFilter;
   window.fneListReset       = fneListReset;
   window.fneExportExcel     = fneExportExcel;
+  window.fneBulkFieldChanged = fneBulkFieldChanged;
+  window.fneApplyBulkUpdate  = fneApplyBulkUpdate;
   window.showFneView        = showFneView;
   window.fneTcvCalc         = fneTcvCalc;
   window.fneInit            = fneInit;
   window.fneHandleAttachDrop = fneHandleAttachDrop;
   window.fneRemovePendingAttach  = fneRemovePendingAttach;
   window.fneRemoveExistingAttach = fneRemoveExistingAttach;
+  window.fneHtmlToPlain     = fneHtmlToPlain;
   window.FNE_GRID_API       = null;
