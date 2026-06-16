@@ -32,19 +32,21 @@
   };
 
   // Vertical → Account Director (auto-select on form & bulk tables)
+  // Keys are normalized (lowercase, no spaces/dashes) — SP uses KeyA, KeyB, HUNT, F-NE, etc.
   const FNE_VERTICAL_DIRECTOR_MAP = {
-    'AUH':     'Fatma Almheiri',
-    'DXB':     'Mohamad Amer Sibai',
-    'Key A':   'Hany Jawee',
-    'Key B':   'Mazen Adem',
-    'LE':      'Muhammad Shahzad Hasan',
-    'Hunting': 'Khalid Karmastaji',
-    'NE-F':    'Majd Nairoukh',
-    'F-NE':    'Majd Nairoukh',
-    'HUNT':    'Khalid Karmastaji',
-    'FOGH':    'Hany Jawee',
-    'TRE':     'Hany Jawee',
-    'TRM':     'Mazen Adem',
+    'auh':     'Fatma Almheiri',
+    'dxb':     'Mohamad Amer Sibai',
+    'keya':    'Hany Jawee',
+    'keyb':    'Mazen Adem',
+    'le':      'Muhammad Shahzad Hasan',
+    'hunt':    'Khalid Karmastaji',
+    'hunting': 'Khalid Karmastaji',
+    'fne':     'Majd Nairoukh',
+    'nef':     'Majd Nairoukh',
+    // legacy vertical codes still in some records
+    'fogh':    'Hany Jawee',
+    'tre':     'Hany Jawee',
+    'trm':     'Mazen Adem',
   };
 
   const FNE_POWER_EMAILS = ['husham.salih@du.ae', 'tehleel.lone@du.ae'];
@@ -182,9 +184,20 @@ function fneNormStr(s) {
   return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
+function fneNormVerticalKey(vertical) {
+  return String(vertical || '').toLowerCase().replace(/[\s\-_]/g, '');
+}
+
+function fneResolveDirectorForVertical(vertical) {
+  const key = fneNormVerticalKey(vertical);
+  return key ? (FNE_VERTICAL_DIRECTOR_MAP[key] || null) : null;
+}
+
 function fneMatchSelectOption(selectEl, targetName) {
   if (!selectEl || !targetName) return false;
   const t = fneNormStr(targetName);
+  const tTokens = t.split(' ').filter(Boolean);
+
   for (let i = 0; i < selectEl.options.length; i++) {
     const opt = selectEl.options[i];
     if (!opt.value) continue;
@@ -194,13 +207,37 @@ function fneMatchSelectOption(selectEl, targetName) {
       return true;
     }
   }
+
+  // Match by last name or first name (handles Mazen Adem vs Mazen Adam, etc.)
+  for (let i = 0; i < selectEl.options.length; i++) {
+    const opt = selectEl.options[i];
+    if (!opt.value) continue;
+    const vTokens = fneNormStr(opt.value).split(' ').filter(Boolean);
+    if (!vTokens.length || !tTokens.length) continue;
+    const tLast = tTokens[tTokens.length - 1];
+    const vLast = vTokens[vTokens.length - 1];
+    if (tLast.length >= 3 && vLast.length >= 3 &&
+        (tLast === vLast || tLast.indexOf(vLast) >= 0 || vLast.indexOf(tLast) >= 0)) {
+      selectEl.value = opt.value;
+      return true;
+    }
+    if (tTokens[0].length >= 4 && vTokens[0] === tTokens[0]) {
+      selectEl.value = opt.value;
+      return true;
+    }
+  }
   return false;
 }
 
 function fneSetDirectorForVertical(vertical, directorEl) {
   if (!directorEl || !vertical) return;
-  const director = FNE_VERTICAL_DIRECTOR_MAP[vertical];
-  if (director) fneMatchSelectOption(directorEl, director);
+  const director = fneResolveDirectorForVertical(vertical);
+  if (!director) return;
+  if (fneMatchSelectOption(directorEl, director)) return;
+  // Short-name fallback for Key A / Key B directors
+  const vk = fneNormVerticalKey(vertical);
+  if (vk === 'keya' || vk === 'fogh' || vk === 'tre') fneMatchSelectOption(directorEl, 'Hany');
+  else if (vk === 'keyb' || vk === 'trm') fneMatchSelectOption(directorEl, 'Mazen');
 }
 
 function fneWireVerticalDirector() {
@@ -211,6 +248,22 @@ function fneWireVerticalDirector() {
   vEl.addEventListener('change', function() {
     fneSetDirectorForVertical(vEl.value, dEl);
   });
+  if (vEl.value) fneSetDirectorForVertical(vEl.value, dEl);
+}
+
+function fneReapplyVerticalDirectors() {
+  const vEl = document.getElementById('fne_vertical');
+  const dEl = document.getElementById('fne_acc_dir');
+  if (vEl && dEl && vEl.value) fneSetDirectorForVertical(vEl.value, dEl);
+  ['fneBulkTableBody', 'fneBulkEditTableBody'].forEach(function(bodyId) {
+    const body = document.getElementById(bodyId);
+    if (!body) return;
+    [...body.rows].forEach(function(tr) {
+      const v = tr.querySelector('[data-key="vertical"]');
+      const d = tr.querySelector('[data-key="accountDirector"]');
+      if (v && d && v.value) fneSetDirectorForVertical(v.value, d);
+    });
+  });
 }
 
 function fneRefreshSelectOptions(selEl, choices) {
@@ -220,6 +273,24 @@ function fneRefreshSelectOptions(selEl, choices) {
   selEl.innerHTML = '<option value="">' + (isFilter ? 'All' : '— Select —') + '</option>' +
     choices.map(c => '<option value="' + c + '">' + c + '</option>').join('');
   if (cur && choices.indexOf(cur) >= 0) selEl.value = cur;
+}
+
+function fneRefreshBulkTableChoiceSelects() {
+  ['fneBulkTableBody', 'fneBulkEditTableBody'].forEach(function(bodyId) {
+    const body = document.getElementById(bodyId);
+    if (!body) return;
+    fneBulkTableCols().forEach(function(col) {
+      if (col.type !== 'choice' || !col.choicesKey) return;
+      const choices = FNE_CHOICES[col.choicesKey];
+      if (!choices || !choices.length) return;
+      body.querySelectorAll('[data-key="' + col.key + '"]').forEach(function(sel) {
+        const cur = sel.value;
+        sel.innerHTML = '<option value=""></option>' +
+          choices.map(function(c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+        if (cur && choices.indexOf(cur) >= 0) sel.value = cur;
+      });
+    });
+  });
 }
 
 function fneRefreshAllChoiceDropdowns() {
@@ -235,6 +306,8 @@ function fneRefreshAllChoiceDropdowns() {
     const choices = FNE_CHOICES[key];
     if (choices && choices.length) fneRefreshSelectOptions(document.getElementById('fnel_' + filterId), choices);
   });
+  fneRefreshBulkTableChoiceSelects();
+  fneReapplyVerticalDirectors();
 }
 
 function fneApplyCriticalProjectsAccess() {
@@ -2368,6 +2441,7 @@ if (!fneIsAdmin()) {
     vEl.addEventListener('change', function() {
       fneSetDirectorForVertical(vEl.value, dEl);
     });
+    if (vEl.value) fneSetDirectorForVertical(vEl.value, dEl);
   }
 
   function fneBulkStripAutoCalc(data) {
@@ -2521,6 +2595,9 @@ if (!fneIsAdmin()) {
     const prev = tr && tr.previousElementSibling;
     if (!tr || !prev) return;
     fneBulkApplyRowData(tr, fneBulkReadRowData(prev));
+    const vEl = tr.querySelector('[data-key="vertical"]');
+    const dEl = tr.querySelector('[data-key="accountDirector"]');
+    if (vEl && dEl && vEl.value && !dEl.value) fneSetDirectorForVertical(vEl.value, dEl);
   }
 
   function fneBulkRemoveRow(btn) {
