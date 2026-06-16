@@ -708,6 +708,35 @@ if (fneIsAdmin()) {
   .fne-bulk-copy:disabled { opacity: .35; cursor: not-allowed; }
   .fne-bulk-row-actions { white-space: nowrap; text-align: center; }
   .fne-bulk-upload-status { font-size: .78rem; font-weight: 600; margin-top: .65rem; color: var(--t3); }
+
+  /* Bulk edit modal (list view) */
+  .fne-modal-overlay {
+    position: fixed; inset: 0; z-index: 10050;
+    background: rgba(15, 23, 42, .55);
+    display: none; align-items: center; justify-content: center;
+    padding: 1rem;
+  }
+  .fne-modal-overlay.open { display: flex; }
+  .fne-modal-panel {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+    width: min(96vw, 1400px); max-height: 92vh; display: flex; flex-direction: column;
+    box-shadow: 0 24px 48px rgba(0,0,0,.25);
+  }
+  .fne-modal-header {
+    display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+    padding: .85rem 1rem; border-bottom: 1px solid var(--border);
+  }
+  .fne-modal-header h3 { margin: 0; font-size: 1rem; color: var(--t1); }
+  .fne-modal-close {
+    border: none; background: transparent; font-size: 1.35rem; line-height: 1;
+    cursor: pointer; color: var(--t3); padding: .15rem .35rem;
+  }
+  .fne-modal-body { padding: .85rem 1rem 1rem; overflow: auto; }
+  .fne-modal-footer {
+    display: flex; align-items: center; justify-content: flex-end; gap: .55rem;
+    padding: .75rem 1rem; border-top: 1px solid var(--border);
+  }
+  .fne-bulk-id { background: var(--nab) !important; color: var(--acc); font-weight: 700; cursor: default; }
   .ag-theme-alpine .ag-cell-wrapper.ag-row-group { align-items: center; }
   </style>
   
@@ -1027,13 +1056,17 @@ if (fneIsAdmin()) {
 
   ${fneIsAdmin() ? `
   <div class="fne-bulk-bar" id="fneBulkBar">
-    <span class="fne-bulk-label">Bulk Update</span>
-    <span class="fne-bulk-hint">Step 1: tick row checkboxes on the far left of the grid → Step 2: pick field & value → Apply</span>
+    <span class="fne-bulk-label">Bulk actions</span>
+    <button type="button" class="fne-btn fne-btn-primary" style="padding:.35rem .85rem;font-size:.75rem;" onclick="fneBulkEditOpen()">
+      Bulk Edit (table)
+    </button>
+    <span class="fne-bulk-hint">Step 1: tick row checkboxes on the far left → Step 2: Bulk Edit (table) to change many fields at once, or use Quick Update below for one field.</span>
+    <span class="fne-bulk-label" style="margin-left:.25rem;">Quick update</span>
     <select id="fneBulkField" class="fb-select" onchange="fneBulkFieldChanged()" style="min-width:180px;">
       <option value="">— Select field —</option>
     </select>
     <span id="fneBulkValueWrap"></span>
-    <button type="button" class="fne-btn fne-btn-primary" style="padding:.35rem .85rem;font-size:.75rem;" onclick="fneApplyBulkUpdate()">
+    <button type="button" class="fne-btn fne-btn-secondary" style="padding:.35rem .85rem;font-size:.75rem;" onclick="fneApplyBulkUpdate()">
       Apply to Selected
     </button>
     <span id="fneBulkSelCount" class="fne-bulk-count">0 selected</span>
@@ -1062,6 +1095,29 @@ if (fneIsAdmin()) {
       </div>
     </div>
     <div id="fneGrid" class="ag-theme-alpine" style="height:640px;width:100%;"></div>
+  </div>
+
+  <div id="fneBulkEditModal" class="fne-modal-overlay" onclick="if(event.target===this)fneBulkEditClose()">
+    <div class="fne-modal-panel" onclick="event.stopPropagation()">
+      <div class="fne-modal-header">
+        <h3 id="fneBulkEditTitle">Bulk Edit Selected Records</h3>
+        <button type="button" class="fne-modal-close" onclick="fneBulkEditClose()" title="Close">&times;</button>
+      </div>
+      <div class="fne-modal-body">
+        <p class="fne-bulk-table-hint">Edit any cells below, use <strong>↑</strong> to copy from the row above, then click <strong>Update All</strong>. Paste from Excel (Ctrl+V) is supported.</p>
+        <div class="fne-bulk-table-wrap" id="fneBulkEditTableWrap" style="max-height:58vh;">
+          <table class="fne-bulk-table" id="fneBulkEditTable">
+            <thead id="fneBulkEditTableHead"></thead>
+            <tbody id="fneBulkEditTableBody"></tbody>
+          </table>
+        </div>
+        <div id="fneBulkEditStatus" class="fne-bulk-upload-status"></div>
+      </div>
+      <div class="fne-modal-footer">
+        <button type="button" class="fne-btn fne-btn-cancel" onclick="fneBulkEditClose()">Cancel</button>
+        <button type="button" class="fne-btn fne-btn-primary" onclick="fneBulkEditSaveAll()">Update All</button>
+      </div>
+    </div>
   </div>
   `;
   }
@@ -2208,6 +2264,40 @@ if (!fneIsAdmin()) {
   ];
 
   let FNE_BULK_TABLE_READY = false;
+  let FNE_BULK_TABLE_CTX = 'new';
+
+  const FNE_BULK_TABLE_IDS = {
+    new:  { head: 'fneBulkTableHead', body: 'fneBulkTableBody', wrap: 'fneBulkTableWrap', status: 'fneBulkUploadStatus', count: 'fneBulkRowCount' },
+    edit: { head: 'fneBulkEditTableHead', body: 'fneBulkEditTableBody', wrap: 'fneBulkEditTableWrap', status: 'fneBulkEditStatus', count: 'fneBulkEditRowCount' },
+  };
+
+  function fneBulkSetCtx(ctx) { FNE_BULK_TABLE_CTX = ctx === 'edit' ? 'edit' : 'new'; }
+  function fneBulkIsEdit() { return FNE_BULK_TABLE_CTX === 'edit'; }
+  function fneBulkEl(key) {
+    const ids = FNE_BULK_TABLE_IDS[FNE_BULK_TABLE_CTX];
+    return ids ? document.getElementById(ids[key]) : null;
+  }
+  function fneBulkBodyId() { return FNE_BULK_TABLE_IDS[FNE_BULK_TABLE_CTX].body; }
+
+  function fneBulkPlainVal(v) {
+    if (v === null || v === undefined || v === '—' || v === '') return '';
+    return String(v);
+  }
+  function fneBulkPlainDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return isNaN(d) ? '' : d.toISOString().split('T')[0];
+  }
+  function fneGridRowToBulkEdit(row) {
+    const rec = { _id: row.id };
+    FNE_BULK_TABLE_COLS.forEach(col => {
+      const v = row[col.key];
+      if (col.type === 'date') rec[col.key] = fneBulkPlainDate(v);
+      else if (col.type === 'number') rec[col.key] = (v === '—' || v === null || v === undefined || v === '') ? '' : String(v);
+      else rec[col.key] = fneBulkPlainVal(v);
+    });
+    return rec;
+  }
 
   function fneSetEntryMode(mode) {
     const single = document.getElementById('fneSingleEntryWrap');
@@ -2228,7 +2318,7 @@ if (!fneIsAdmin()) {
     if (tabB) tabB.classList.toggle('active', isBulk);
 
     if (isBulk) {
-      fneBulkInitTable();
+      fneBulkInitTable('new');
     }
   }
 
@@ -2255,15 +2345,23 @@ if (!fneIsAdmin()) {
   }
 
   function fneBulkRowActionsHtml(isFirst) {
-    return '<td class="fne-bulk-row-actions">' +
+    let html = '<td class="fne-bulk-row-actions">' +
       '<button type="button" class="fne-bulk-copy" onclick="fneBulkCopyRowAbove(this)" title="Copy values from row above"' +
-      (isFirst ? ' disabled' : '') + '>↑</button>' +
-      '<button type="button" class="fne-bulk-del" onclick="fneBulkRemoveRow(this)" title="Remove row">×</button></td>';
+      (isFirst ? ' disabled' : '') + '>↑</button>';
+    if (!fneBulkIsEdit()) {
+      html += '<button type="button" class="fne-bulk-del" onclick="fneBulkRemoveRow(this)" title="Remove row">×</button>';
+    }
+    return html + '</td>';
   }
 
   function fneBulkReadRowData(tr) {
     const data = {};
     if (!tr) return data;
+    if (tr.dataset.recordId) data._id = tr.dataset.recordId;
+    else {
+      const idEl = tr.querySelector('.fne-bulk-id');
+      if (idEl && idEl.value) data._id = idEl.value;
+    }
     FNE_BULK_TABLE_COLS.forEach(col => {
       const el = tr.querySelector('[data-key="' + col.key + '"]');
       data[col.key] = el ? String(el.value || '').trim() : '';
@@ -2281,7 +2379,7 @@ if (!fneIsAdmin()) {
   }
 
   function fneBulkRenumberRows() {
-    const body = document.getElementById('fneBulkTableBody');
+    const body = fneBulkEl('body');
     if (!body) return;
     [...body.rows].forEach((row, i) => {
       row.cells[0].textContent = i + 1;
@@ -2291,27 +2389,36 @@ if (!fneIsAdmin()) {
   }
 
   function fneBulkRenderHead() {
-    const head = document.getElementById('fneBulkTableHead');
+    const head = fneBulkEl('head');
     if (!head) return;
-    head.innerHTML = '<tr><th style="width:36px;">#</th>' +
-      FNE_BULK_TABLE_COLS.map(c => '<th>' + c.label + '</th>').join('') +
-      '<th style="width:72px;">Actions</th></tr>';
+    let html = '<tr><th style="width:36px;">#</th>';
+    if (fneBulkIsEdit()) html += '<th style="width:56px;">ID</th>';
+    html += FNE_BULK_TABLE_COLS.map(c => '<th>' + c.label + '</th>').join('') +
+      '<th style="width:' + (fneBulkIsEdit() ? '48' : '72') + 'px;">Actions</th></tr>';
+    head.innerHTML = html;
   }
 
   function fneBulkAddRow(data) {
-    const body = document.getElementById('fneBulkTableBody');
+    const body = fneBulkEl('body');
     if (!body) return;
     const tr = document.createElement('tr');
-    tr.innerHTML = '<td style="color:var(--t3);font-weight:700;text-align:center;">1</td>' +
-      FNE_BULK_TABLE_COLS.map(col => '<td>' + fneBulkCellHtml(col, data ? data[col.key] : '') + '</td>').join('') +
+    if (data && data._id) tr.dataset.recordId = String(data._id);
+    let html = '<td style="color:var(--t3);font-weight:700;text-align:center;">1</td>';
+    if (fneBulkIsEdit()) {
+      const idVal = data && data._id ? String(data._id) : '';
+      html += '<td><input type="text" class="fne-bulk-cell fne-bulk-id" readonly tabindex="-1" value="' + idVal + '"></td>';
+    }
+    html += FNE_BULK_TABLE_COLS.map(col => '<td>' + fneBulkCellHtml(col, data ? data[col.key] : '') + '</td>').join('') +
       fneBulkRowActionsHtml(body.rows.length === 0);
+    tr.innerHTML = html;
     body.appendChild(tr);
     fneBulkRenumberRows();
     fneBulkUpdateRowCount();
   }
 
   function fneBulkAddRowCopyLast() {
-    const body = document.getElementById('fneBulkTableBody');
+    if (fneBulkIsEdit()) return;
+    const body = fneBulkEl('body');
     if (!body || !body.rows.length) { fneBulkAddRow(); return; }
     const last = body.rows[body.rows.length - 1];
     fneBulkAddRow(fneBulkReadRowData(last));
@@ -2325,7 +2432,8 @@ if (!fneIsAdmin()) {
   }
 
   function fneBulkRemoveRow(btn) {
-    const body = document.getElementById('fneBulkTableBody');
+    if (fneBulkIsEdit()) return;
+    const body = fneBulkEl('body');
     if (!body || body.rows.length <= 1) {
       fneToast('At least one row is required', 'error');
       return;
@@ -2337,40 +2445,48 @@ if (!fneIsAdmin()) {
   }
 
   function fneBulkUpdateRowCount() {
-    const el = document.getElementById('fneBulkRowCount');
-    const n = document.getElementById('fneBulkTableBody')?.rows.length || 0;
+    const el = fneBulkEl('count');
+    const n = fneBulkEl('body')?.rows.length || 0;
     if (el) el.textContent = n + ' row' + (n !== 1 ? 's' : '');
   }
 
   function fneBulkClearTable() {
-    const body = document.getElementById('fneBulkTableBody');
+    fneBulkSetCtx('new');
+    const body = fneBulkEl('body');
     if (body) body.innerHTML = '';
     fneBulkAddRow();
-    const st = document.getElementById('fneBulkUploadStatus');
+    const st = fneBulkEl('status');
     if (st) st.textContent = '';
   }
 
-  function fneBulkInitTable() {
+  function fneBulkInitTable(ctx) {
+    fneBulkSetCtx(ctx || 'new');
     fneBulkRenderHead();
     if (!FNE_BULK_TABLE_READY) {
-      const wrap = document.getElementById('fneBulkTableWrap');
-      if (wrap) {
-        wrap.addEventListener('paste', fneBulkHandlePaste);
-      }
+      Object.values(FNE_BULK_TABLE_IDS).forEach(ids => {
+        const wrap = document.getElementById(ids.wrap);
+        if (wrap) wrap.addEventListener('paste', fneBulkHandlePaste);
+      });
       FNE_BULK_TABLE_READY = true;
     }
-    const body = document.getElementById('fneBulkTableBody');
+    if (fneBulkIsEdit()) return;
+    const body = fneBulkEl('body');
     if (body && !body.rows.length) fneBulkClearTable();
     else fneBulkUpdateRowCount();
   }
 
   function fneBulkReadAllRows() {
-    const body = document.getElementById('fneBulkTableBody');
+    const body = fneBulkEl('body');
     if (!body) return [];
+    const isEdit = fneBulkIsEdit();
     const rows = [];
     [...body.rows].forEach((tr, i) => {
       const rec = { _line: i + 1, _errors: [] };
       let hasAny = false;
+      if (isEdit) {
+        rec._id = tr.dataset.recordId || tr.querySelector('.fne-bulk-id')?.value || '';
+        if (!rec._id) rec._errors.push('Record ID missing');
+      }
       FNE_BULK_TABLE_COLS.forEach(col => {
         const el = tr.querySelector('[data-key="' + col.key + '"]');
         const val = el ? String(el.value || '').trim() : '';
@@ -2386,42 +2502,52 @@ if (!fneIsAdmin()) {
           }
         }
       });
-      if (hasAny) rows.push(rec);
+      if (isEdit || hasAny) rows.push(rec);
     });
     return rows;
   }
 
   function fneBulkHandlePaste(e) {
+    const wrap = e.currentTarget;
+    fneBulkSetCtx(wrap && wrap.id === 'fneBulkEditTableWrap' ? 'edit' : 'new');
     const text = e.clipboardData && e.clipboardData.getData('text');
     if (!text || text.indexOf('\t') < 0) return;
     e.preventDefault();
     const lines = text.split(/\r?\n/).filter(l => l.trim());
     if (!lines.length) return;
-    const body = document.getElementById('fneBulkTableBody');
+    const body = fneBulkEl('body');
     if (!body) return;
 
     let startRow = 0;
     const active = document.activeElement;
-    if (active && active.closest && active.closest('#fneBulkTableBody tr')) {
+    const bodyId = fneBulkBodyId();
+    if (active && active.closest && active.closest('#' + bodyId + ' tr')) {
       startRow = [...body.rows].indexOf(active.closest('tr'));
       if (startRow < 0) startRow = 0;
     }
 
-    while (body.rows.length < startRow + lines.length) fneBulkAddRow();
+    if (!fneBulkIsEdit()) {
+      while (body.rows.length < startRow + lines.length) fneBulkAddRow();
+    } else {
+      if (startRow + lines.length > body.rows.length) lines.splice(body.rows.length - startRow);
+    }
 
     lines.forEach((line, li) => {
       const cells = line.split('\t').map(c => c.trim());
       const tr = body.rows[startRow + li];
       if (!tr) return;
+      let colOffset = 0;
+      if (fneBulkIsEdit() && cells[0] && /^\d+$/.test(cells[0])) colOffset = 1;
       FNE_BULK_TABLE_COLS.forEach((col, ci) => {
-        if (ci >= cells.length) return;
+        const cellIdx = ci + colOffset;
+        if (cellIdx >= cells.length) return;
         const el = tr.querySelector('[data-key="' + col.key + '"]');
         if (!el) return;
         if (col.type === 'date') {
-          const parsed = fneParseImportDate(cells[ci]);
-          el.value = parsed || cells[ci];
+          const parsed = fneParseImportDate(cells[cellIdx]);
+          el.value = parsed || cells[cellIdx];
         } else {
-          el.value = cells[ci];
+          el.value = cells[cellIdx];
         }
       });
     });
@@ -2455,8 +2581,9 @@ if (!fneIsAdmin()) {
 
   function fneBulkUploadAll() {
     if (!fneIsAdmin()) return;
+    fneBulkSetCtx('new');
     const rows = fneBulkReadAllRows();
-    const st = document.getElementById('fneBulkUploadStatus');
+    const st = fneBulkEl('status');
     if (!rows.length) {
       fneToast('Add at least one row with data', 'error');
       return;
@@ -2494,6 +2621,101 @@ if (!fneIsAdmin()) {
       });
     }
     createNext(0);
+  }
+
+  function fneBulkEditOpen() {
+    if (!fneIsAdmin()) {
+      fneToast('You do not have permission to bulk edit records', 'error');
+      return;
+    }
+    const selected = fneGetSelectedGridRows();
+    if (!selected.length) {
+      fneToast('Select at least one row using the checkboxes on the left', 'error');
+      return;
+    }
+    fneBulkSetCtx('edit');
+    fneBulkInitTable('edit');
+    const body = fneBulkEl('body');
+    if (body) body.innerHTML = '';
+    selected.forEach(row => fneBulkAddRow(fneGridRowToBulkEdit(row)));
+    const st = fneBulkEl('status');
+    if (st) st.textContent = selected.length + ' record(s) loaded — edit and click Update All';
+    const title = document.getElementById('fneBulkEditTitle');
+    if (title) title.textContent = 'Bulk Edit — ' + selected.length + ' record(s)';
+    const modal = document.getElementById('fneBulkEditModal');
+    if (modal) modal.classList.add('open');
+  }
+
+  function fneBulkEditClose() {
+    const modal = document.getElementById('fneBulkEditModal');
+    if (modal) modal.classList.remove('open');
+    const editBody = document.getElementById('fneBulkEditTableBody');
+    if (editBody) editBody.innerHTML = '';
+    const st = document.getElementById('fneBulkEditStatus');
+    if (st) st.textContent = '';
+    fneBulkSetCtx('new');
+  }
+
+  function fneMergeSpItem(itemId, body, cb) {
+    const url = FNE_SP + "/_api/web/lists/getbytitle('" + encodeURIComponent(FNE_LIST) +
+      "')/items(" + itemId + ")";
+    getDigest(function(digest) {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url, true);
+      xhr.setRequestHeader('Accept', 'application/json;odata=verbose');
+      xhr.setRequestHeader('Content-Type', 'application/json;odata=verbose');
+      xhr.setRequestHeader('X-HTTP-Method', 'MERGE');
+      xhr.setRequestHeader('IF-MATCH', '*');
+      if (digest) xhr.setRequestHeader('X-RequestDigest', digest);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        cb(xhr.status >= 200 && xhr.status < 300 ? null : new Error('HTTP ' + xhr.status));
+      };
+      xhr.send(JSON.stringify(body));
+    });
+  }
+
+  function fneBulkEditSaveAll() {
+    if (!fneIsAdmin()) return;
+    fneBulkSetCtx('edit');
+    const rows = fneBulkReadAllRows();
+    const st = document.getElementById('fneBulkEditStatus');
+    if (!rows.length) {
+      fneToast('No records to update', 'error');
+      return;
+    }
+    const valid = rows.filter(r => !r._errors.length);
+    const invalid = rows.length - valid.length;
+    if (!valid.length) {
+      if (st) st.textContent = 'Fix errors before update. First issue: ' + (rows[0]._errors[0] || 'unknown');
+      fneToast('No valid rows — check required fields', 'error');
+      return;
+    }
+    if (!confirm('Update ' + valid.length + ' record(s)?' + (invalid ? ' (' + invalid + ' row(s) skipped due to errors)' : ''))) return;
+
+    let done = 0, failed = 0;
+
+    function updateNext(i) {
+      if (i >= valid.length) {
+        const msg = 'Updated ' + done + ' record(s)' + (failed ? ', ' + failed + ' failed' : '');
+        if (st) st.textContent = msg;
+        fneToast(msg, failed ? 'error' : 'success');
+        fneLoadList();
+        if (done > 0) fneBulkEditClose();
+        return;
+      }
+      if (st) st.textContent = 'Updating ' + (i + 1) + ' / ' + valid.length + '…';
+      const rec = valid[i];
+      const body = fneBuildImportSpBody(rec);
+      fneEnsureUserId(rec.amEmail, function(amUserId) {
+        if (amUserId) body['Account_x0020_ManagerId'] = amUserId;
+        fneMergeSpItem(rec._id, body, function(err) {
+          if (err) failed++; else done++;
+          updateNext(i + 1);
+        });
+      });
+    }
+    updateNext(0);
   }
 
   // Shared import helpers (dates + SP body)
@@ -2591,26 +2813,6 @@ if (!fneIsAdmin()) {
     const adminUser = fneIsAdmin();
     const cols = [];
 
-    if (adminUser) {
-      cols.push({
-        colId: 'ag-Grid-SelectionColumn',
-        headerName: '',
-        width: 52,
-        minWidth: 52,
-        maxWidth: 52,
-        pinned: 'left',
-        lockPosition: 'left',
-        suppressMovable: true,
-        sortable: false,
-        filter: false,
-        resizable: false,
-        checkboxSelection: true,
-        headerCheckboxSelection: true,
-        headerCheckboxSelectionFilteredOnly: true,
-        suppressHeaderMenuButton: true,
-      });
-    }
-
     cols.push(
     {
   headerName: '✏',
@@ -2681,7 +2883,20 @@ if (!fneIsAdmin()) {
         suppressSizeToFit: false,
         cellStyle: { display: 'flex', alignItems: 'center' },
       },
-      rowSelection: adminUser ? { mode: 'multiRow', enableClickSelection: false } : undefined,
+      rowSelection: adminUser ? {
+        mode: 'multiRow',
+        checkboxes: true,
+        headerCheckbox: true,
+        enableClickSelection: false,
+      } : undefined,
+      selectionColumnDef: adminUser ? {
+        pinned: 'left',
+        width: 52,
+        maxWidth: 52,
+        suppressHeaderMenuButton: true,
+        sortable: false,
+        resizable: false,
+      } : undefined,
       suppressRowClickSelection: true,
       pagination: true,
       paginationPageSize: 50,
@@ -2830,6 +3045,9 @@ if (!fneIsAdmin()) {
   window.fneBulkRemoveRow    = fneBulkRemoveRow;
   window.fneBulkClearTable   = fneBulkClearTable;
   window.fneBulkUploadAll    = fneBulkUploadAll;
+  window.fneBulkEditOpen     = fneBulkEditOpen;
+  window.fneBulkEditClose    = fneBulkEditClose;
+  window.fneBulkEditSaveAll  = fneBulkEditSaveAll;
   window.showFneView        = showFneView;
   window.fneTcvCalc         = fneTcvCalc;
   window.fneInit            = fneInit;
