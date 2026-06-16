@@ -73,7 +73,7 @@
     TEMP_CONN:    'Current_x0020_Temporary_x0020_Co',
     TARGET_MIG:   'Target_x0020_Migration_x0020_Dat',
     BLOCKER:      'Current_x0020_Blocker',
-    PM_MAN_DAYS:  'PM_x0020_Man_x0020_days_x002f_Ac',
+    PM_MAN_DAYS:  'PM_x0020_Man_x0020_days_x002f_Ac', // display: Project Duration
   };
   
   // ─── State ─────────────────────────────────────────────────────────
@@ -838,7 +838,7 @@ if (fneIsAdmin()) {
         ${grp('Customer Address', inp('fne_cust_addr','text','','Street, Area, City'))}
       </div>
       <div class="fne-grid fne-grid-2" style="margin-top:.9rem;" id="fne_pm_row" style="display:none;">
-        ${grp('PM Man Days / Actual Duration', `<input id="fne_pm_man_days" type="text" class="fne-input" readonly placeholder="Calculated by SharePoint">`, false, 'Read-only — calculated by SP formula')}
+        ${grp('Project Duration', `<input id="fne_pm_man_days" type="text" class="fne-input" readonly placeholder="Auto-calculated by SharePoint">`, false, 'Read-only — auto-calculated by SharePoint')}
       </div>
     </div>
   
@@ -969,7 +969,7 @@ if (fneIsAdmin()) {
           <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
           Bulk New Entries
         </div>
-        <p class="fne-bulk-table-hint">Fill row 1, then use <strong>Copy ↑</strong> on the next row to duplicate it and tweak only what changed — or click <strong>Add Row (copy last)</strong>. You can also paste from Excel (Ctrl+V). Columns marked <strong>Auto-calculated</strong> (TCV, PM Man Days, Project Health, SPI) are read-only and filled by SharePoint or formula. Attachments are added per record after upload.</p>
+        <p class="fne-bulk-table-hint">Fill row 1, then use <strong>Copy ↑</strong> on the next row to duplicate it and tweak only what changed — or click <strong>Add Row (copy last)</strong>. You can also paste from Excel (Ctrl+V). Columns marked <strong>Auto-calculated</strong> (TCV, Project Duration, Project Health, SPI) are read-only and filled by SharePoint or formula. Attachments are added per record after upload.</p>
         <div class="fne-bulk-table-toolbar">
           <button type="button" class="fne-btn fne-btn-secondary" style="padding:.35rem .75rem;font-size:.75rem;" onclick="fneBulkAddRow()">+ Add Row</button>
           <button type="button" class="fne-btn fne-btn-secondary" style="padding:.35rem .75rem;font-size:.75rem;" onclick="fneBulkAddRowCopyLast()">+ Add Row (copy last)</button>
@@ -1269,7 +1269,7 @@ function fneOpenForm(itemId, fromList) {
     set('fne_acc_code',     item.accountCode || '');
     set('fne_cust_name',    clean(item.customerName));
     set('fne_cust_addr',    clean(item.customerAddress));
-    // Show PM Man Days (read-only, calculated)
+    // Show Project Duration (read-only, SP calculated)
     const pmRow = document.getElementById('fne_pm_row');
     if (pmRow) pmRow.style.display = 'block';
     set('fne_pm_man_days',  clean(item.pmManDays));
@@ -1615,7 +1615,7 @@ if (!fneIsAdmin()) {
       [FNE_F.TEMP_CONN]:    gv('fne_temp_conn')    || null,
       [FNE_F.FES_REF]:      gv('fne_fes_ref')      || null,
       // Note: PROJ_HEALTH (Project_x0020_Health) is a SP calculated column — read-only, not written here
-      // Note: PM_MAN_DAYS is a SP calculated column — read-only, not written here
+      // Note: PM_MAN_DAYS (Project Duration display) is a SP calculated column — read-only, not written here
       // Note: Account_x0020_Manager (Person field) is set separately via user ID lookup below
     };
   
@@ -2106,7 +2106,7 @@ if (!fneIsAdmin()) {
     { key: 'otc',              label: 'OTC',               type: 'number' },
     { key: 'mrc',              label: 'MRC',               type: 'number' },
     { key: 'tcv',              label: 'TCV',               type: 'number', readonly: true, autoCalc: true },
-    { key: 'pmManDays',        label: 'PM Man Days',       type: 'text',   readonly: true, autoCalc: true },
+    { key: 'pmManDays',        label: 'Project Duration',  type: 'text',   readonly: true, autoCalc: true },
     { key: 'projectHealth',    label: 'Project Health',    type: 'text',   readonly: true, autoCalc: true },
     { key: 'spi',              label: 'SPI',               type: 'number', readonly: true, autoCalc: true },
     { key: 'commentsNew',      label: 'Comments',          type: 'text', wide: true },
@@ -2795,7 +2795,7 @@ if (!fneIsAdmin()) {
       { field: 'tcv',             headerName: 'TCV',            width: 125, minWidth: 100, type: 'numericColumn', valueFormatter: p => fmt2(p.value), cellStyle: { fontWeight: '700', color: 'var(--acc)' } },
       { field: 'contractDuration',headerName: 'Duration (mo)', width: 120, minWidth: 100, type: 'numericColumn' },
       { field: 'estimatedCost',   headerName: 'Est. Cost',      width: 120, minWidth: 100, type: 'numericColumn', valueFormatter: p => fmt2(p.value) },
-      { field: 'pmManDays',       headerName: 'PM Man Days',    width: 130, minWidth: 110 },
+      { field: 'pmManDays',       headerName: 'Project Duration', width: 140, minWidth: 120 },
       { field: 'startDate',       headerName: 'Received Date',  width: 130, minWidth: 110, valueFormatter: p => fmtD(p.value) },
       { field: 'expectedRFS',     headerName: 'Exp. RFS Date',  width: 130, minWidth: 110, valueFormatter: p => fmtD(p.value) },
       { field: 'rfsBaseline',     headerName: 'Actual RFS Date',width: 140, minWidth: 120, valueFormatter: p => fmtD(p.value) },
@@ -2863,13 +2863,13 @@ if (!fneIsAdmin()) {
     const data  = FNE_LIST_DATA;
     const cols  = ['id','fneManager','amName','customerName','fes','subRequest','implType','projectType',
                     'vertical','accountDirector','requestStatus','projectHealth','buildingStatus','sla',
-                    'mrc','otc','tcv','contractDuration','estimatedCost','startDate','expectedRFS',
+                    'mrc','otc','tcv','contractDuration','estimatedCost','pmManDays','startDate','expectedRFS',
                     'rfsBaseline','implStart','targetMigDate','tempConnType','blocker','criticalProjects','sof','ospRequired',
                     'ospCivilET','gaid','woNumber','bidRef','fesRef','siteRef','accountCode','unitNo',
                     'customerAddress','commentsNew','year'];
     const hdrs  = ['ID','FNE Manager','Acct. Manager','Customer','FES','Sub Request','Impl. Type','Project Type',
                     'Vertical','Acct. Director','Status','Health','Building Status','SLA','MRC','OTC','TCV',
-                    'Duration','Est. Cost','Received','Exp. RFS','Actual RFS Date','Impl. Start','Target Mig.',
+                    'Duration (mo)','Est. Cost','Project Duration','Received','Exp. RFS','Actual RFS Date','Impl. Start','Target Mig.',
                     'Temp Conn.','Blocker','Critical Projects','SOF','OSP Civil','OSP ET','GAID','WO Number','Bid Ref','FES Ref',
                     'Site Ref','Acc. Code','Unit No','Address','Comments','Year'];
     const fmt2  = v => { const n=parseFloat(v); if(isNaN(n))return'—'; if(n>=1e6)return(n/1e6).toFixed(2)+'M'; if(n>=1e3)return(n/1e3).toFixed(1)+'K'; return n.toFixed(0); };
