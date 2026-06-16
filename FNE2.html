@@ -562,6 +562,13 @@ body[data-theme="dark"] .badge-warning,body[data-theme="magenta-dark"] .badge-wa
                 <div class="ms-dropdown" id="msd-month"></div>
               </div>
             </div>
+            <div class="fb-group">
+              <div class="fb-group-label">Critical Projects</div>
+              <div class="ms-wrap" id="ms-critical">
+                <div class="ms-trigger" id="mst-critical" onclick="toggleMsFilter('critical')"><span id="mstxt-critical">All</span><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+                <div class="ms-dropdown" id="msd-critical"></div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -802,6 +809,7 @@ const F = {
   CONTRACT_DUR: 'ContractDuration0',
   FNE_MGR:      'FNEManager',
   RFS_BASELINE: 'RFS_x0020_Baseline',
+  CRITICAL_PROJ:'Critical_x0020_Projects',
   COMMENTS_NEW: 'Comments_New',
   SPI:          'SPI',
   PROJ_HEALTH:  'Project_x0020_Health',
@@ -839,6 +847,7 @@ const MS_STATE = {
   year: new Set(),
   quarter: new Set(),
   month: new Set(),
+  critical: new Set(),
 };
 
 // ══════════════════════════════════════════════════════════════════
@@ -1430,7 +1439,7 @@ function loadData(onComplete){
     F.COMMENTS,F.REQ_STATUS,F.CUST_ADDR,F.ACC_CODE,F.ASSIGNED_BY,
     F.PROJ_TYPE,F.UNIT_NO,F.OTC,F.TCV,F.OSP_REQ,F.OSP_ET,
     F.FES_REF,F.SURVEY_REF,F.GAID,F.BID_REF,F.WO_NUM,F.ACC_DIR,
-    F.CONTRACT_DUR,F.FNE_MGR,F.RFS_BASELINE,F.COMMENTS_NEW,F.SPI,F.PROJ_HEALTH,
+    F.CONTRACT_DUR,F.FNE_MGR,F.RFS_BASELINE,F.CRITICAL_PROJ,F.COMMENTS_NEW,F.SPI,F.PROJ_HEALTH,
     'Account_x0020_Manager/Title','Account_x0020_Manager/EMail'
   ].join(',');
   let allResults=[];
@@ -1504,7 +1513,8 @@ function mapItem(it){
     contractDuration: num(it[F.CONTRACT_DUR]),
     fneManager:  it[F.FNE_MGR]||'—',
     rfsBaseline: it[F.RFS_BASELINE]||null,
-    commentsNew: it[F.COMMENTS_NEW]||'—',
+    criticalProjects: it[F.CRITICAL_PROJ]||'—',
+    commentsNew: (typeof fneHtmlToPlain==='function'?fneHtmlToPlain(it[F.COMMENTS_NEW]):String(it[F.COMMENTS_NEW]||'').replace(/<[^>]*>/g,'').trim())||'—',
     spi:         num(it[F.SPI]),
     projectHealth: it[F.PROJ_HEALTH]||'—',
   };
@@ -1527,6 +1537,7 @@ const MS_CFG = {
   year:     { field:'year',        txtId:'mstxt-year',     dropId:'msd-year' },
   quarter:  { field:'quarter',     txtId:'mstxt-quarter',  dropId:'msd-quarter' },
   month:    { field:'month',       txtId:'mstxt-month',    dropId:'msd-month' },
+  critical: { field:'criticalProjects', txtId:'mstxt-critical', dropId:'msd-critical' },
 };
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -2065,6 +2076,13 @@ function renderProjectType(items,c){destroyChart('projType');const types=[...new
 function renderGrid(){
   if(typeof agGrid==='undefined'){el('myGrid').innerHTML='<div style="padding:20px;color:var(--t3);">AG Grid not loaded.</div>';return;}
   const data=getViewItems();
+  const DASH_MS_FIELDS=new Set(['fneManager','amName','customerName','fes','subRequest','implType','projectType','vertical','accountDirector','requestStatus','projectHealth','buildingStatus','criticalProjects','ospRequired','bidRef','woNumber','gaid','siteRef','fesRef','assignedBy']);
+  const dashEnhanceCol=function(col){
+    if(typeof FneSetColumnFilter!=='undefined'&&DASH_MS_FIELDS.has(col.field))col.filter=FneSetColumnFilter;
+    else if(col.type==='numericColumn')col.filter='agNumberColumnFilter';
+    else if(['startDate','expectedRFS','rfsBaseline'].includes(col.field))col.filter='agDateColumnFilter';
+    return col;
+  };
   const healthRenderer=p=>{const v=p.value||'—';const col=v===HEALTH_GREEN?'badge-success':v===HEALTH_AMBER?'badge-warning':v===HEALTH_RED?'badge-danger':'badge-neutral';return`<span class="status-badge ${col}">${v}</span>`;};
   const statusRenderer=p=>{const v=p.value||'—';const col=STATUS_COMPLETED.includes(v)?'badge-success':STATUS_INPROGRESS.includes(v)?'badge-info':STATUS_ONHOLD.includes(v)?'badge-warning':STATUS_CANCELLED.includes(v)?'badge-danger':'badge-neutral';return`<span class="status-badge ${col}">${v}</span>`;};
   const spiRenderer=p=>{const v=num(p.value);const col=v>=1?'#16a34a':v>=0.8?'#d97706':'#dc2626';return`<span style="font-weight:700;color:${col}">${v.toFixed(2)}</span>`;};
@@ -2089,7 +2107,8 @@ function renderGrid(){
     {field:'buildingStatus',headerName:'Building Status',width:140},
     {field:'startDate',headerName:'Start Date',width:120,valueFormatter:p=>fmtDate(p.value)},
     {field:'expectedRFS',headerName:'Expected RFS',width:130,valueFormatter:p=>fmtDate(p.value)},
-    {field:'rfsBaseline',headerName:'RFS Baseline',width:130,valueFormatter:p=>fmtDate(p.value)},
+    {field:'rfsBaseline',headerName:'Actual RFS Date',width:140,valueFormatter:p=>fmtDate(p.value)},
+    {field:'criticalProjects',headerName:'Critical Projects',width:130},
     {field:'contractDuration',headerName:'Duration',width:100,type:'numericColumn'},
     {field:'ospRequired',headerName:'OSP Required',width:120},
     {field:'ospCivilET',headerName:'OSP Civil ET',width:120,type:'numericColumn'},
@@ -2102,7 +2121,7 @@ function renderGrid(){
     {field:'accountCode',headerName:'Account Code',width:120},
     {field:'customerAddress',headerName:'Address',width:200},
     {field:'commentsNew',headerName:'Comments',width:200},
-  ];
+  ].map(dashEnhanceCol);
   const opts={columnDefs:cols,rowData:data,defaultColDef:{sortable:true,filter:true,resizable:true,flex:1,minWidth:90},pagination:true,paginationPageSize:50,paginationPageSizeSelector:[25,50,100,250],rowHeight:44,headerHeight:48,animateRows:true,enableCellTextSelection:true,onGridReady:p=>{GRID_API=p.api;setTimeout(()=>{p.api.sizeColumnsToFit();},100);}};
   if(GRID_API){try{GRID_API.destroy();}catch(e){}GRID_API=null;}
   el('myGrid').innerHTML='';
@@ -2122,8 +2141,8 @@ function gridSearch(v){if(GRID_API)GRID_API.setGridOption('quickFilterText',v);}
 // ══════════════════════════════════════════════════════════════════
 function exportExcel(){
   const data=getViewItems();
-  const cols=['fneManager','amName','customerName','fes','subRequest','implType','projectType','vertical','accountDirector','requestStatus','projectHealth','spi','sla','mrc','otc','tcv','estimatedCost','buildingStatus','startDate','expectedRFS','rfsBaseline','contractDuration','ospRequired','ospCivilET','bidRef','woNumber','gaid','siteRef','fesRef','assignedBy','accountCode','commentsNew'];
-  const headers=['FNE Manager','Account Manager','Customer','FES','Sub Request','Impl. Type','Project Type','Vertical','Acct. Director','Status','Health','SPI','SLA','MRC','OTC','TCV','Est. Cost','Building Status','Start Date','Expected RFS','RFS Baseline','Duration','OSP Required','OSP Civil ET','Bid Ref','WO Number','GAID','Site Ref','FES Ref','Assigned By','Account Code','Comments'];
+  const cols=['fneManager','amName','customerName','fes','subRequest','implType','projectType','vertical','accountDirector','requestStatus','projectHealth','spi','sla','mrc','otc','tcv','estimatedCost','buildingStatus','startDate','expectedRFS','rfsBaseline','criticalProjects','contractDuration','ospRequired','ospCivilET','bidRef','woNumber','gaid','siteRef','fesRef','assignedBy','accountCode','commentsNew'];
+  const headers=['FNE Manager','Account Manager','Customer','FES','Sub Request','Impl. Type','Project Type','Vertical','Acct. Director','Status','Health','SPI','SLA','MRC','OTC','TCV','Est. Cost','Building Status','Start Date','Expected RFS','Actual RFS Date','Critical Projects','Duration','OSP Required','OSP Civil ET','Bid Ref','WO Number','GAID','Site Ref','FES Ref','Assigned By','Account Code','Comments'];
   let html='<html><head><meta charset="utf-8"></head><body><table border="1" cellpadding="4" cellspacing="0">';
   html+='<tr>'+headers.map(h=>'<th style="background:#2563eb;color:white;font-weight:bold;padding:10px;">'+h+'</th>').join('')+'</tr>';
   data.forEach((row,i)=>{const bg=i%2===0?'#f0f7ff':'#ffffff';html+='<tr>'+cols.map(c=>{let v=row[c];if(v===undefined||v===null)v='—';if(['startDate','expectedRFS','rfsBaseline'].includes(c))v=fmtDate(v);if(['mrc','otc','tcv','estimatedCost'].includes(c))v=fmt(num(v));return'<td style="background:'+bg+';padding:8px;">'+v+'</td>';}).join('')+'</tr>';});
