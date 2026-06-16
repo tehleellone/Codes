@@ -659,7 +659,18 @@ if (fneIsAdmin()) {
   .fne-bulk-label { font-size: .68rem; font-weight: 700; color: var(--t3); text-transform: uppercase; letter-spacing: .05em; }
   .fne-bulk-count { font-size: .72rem; color: var(--t3); font-weight: 600; margin-left: auto; }
   .fne-bulk-hint { font-size: .72rem; color: var(--t3); font-weight: 600; flex: 1 1 100%; }
-  .fne-bulk-value { min-width: 150px; padding: .35rem .55rem; border: 1px solid var(--border); border-radius: 8px; font-size: .78rem; background: var(--bg-card); color: var(--t1); }
+  /* AG Grid row selection checkboxes */
+  #fneGrid .ag-checkbox-input-wrapper {
+    opacity: 1 !important;
+    width: 16px; height: 16px;
+  }
+  #fneGrid .ag-header-select-all .ag-checkbox-input-wrapper {
+    opacity: 1 !important;
+  }
+  #fneGrid .ag-cell[col-id="fne_select"],
+  #fneGrid .ag-header-cell[col-id="fne_select"] {
+    display: flex; align-items: center; justify-content: center;
+  }
 
   /* Bulk entry table (New Entry) */
   .fne-entry-tabs {
@@ -1056,19 +1067,11 @@ if (fneIsAdmin()) {
 
   ${fneIsAdmin() ? `
   <div class="fne-bulk-bar" id="fneBulkBar">
-    <span class="fne-bulk-label">Bulk actions</span>
+    <span class="fne-bulk-label">Bulk edit</span>
     <button type="button" class="fne-btn fne-btn-primary" style="padding:.35rem .85rem;font-size:.75rem;" onclick="fneBulkEditOpen()">
-      Bulk Edit (table)
+      Bulk Edit
     </button>
-    <span class="fne-bulk-hint">Step 1: tick row checkboxes on the far left → Step 2: Bulk Edit (table) to change many fields at once, or use Quick Update below for one field.</span>
-    <span class="fne-bulk-label" style="margin-left:.25rem;">Quick update</span>
-    <select id="fneBulkField" class="fb-select" onchange="fneBulkFieldChanged()" style="min-width:180px;">
-      <option value="">— Select field —</option>
-    </select>
-    <span id="fneBulkValueWrap"></span>
-    <button type="button" class="fne-btn fne-btn-secondary" style="padding:.35rem .85rem;font-size:.75rem;" onclick="fneApplyBulkUpdate()">
-      Apply to Selected
-    </button>
+    <span class="fne-bulk-hint">Tick the checkboxes on the far left of the grid, then click Bulk Edit to update all selected records in a spreadsheet table.</span>
     <span id="fneBulkSelCount" class="fne-bulk-count">0 selected</span>
   </div>` : ''}
   
@@ -2031,69 +2034,8 @@ if (!fneIsAdmin()) {
   }
 
   // ══════════════════════════════════════════════════════════════════
-  //  BULK UPDATE
+  //  BULK EDIT — grid selection helpers
   // ══════════════════════════════════════════════════════════════════
-  const FNE_BULK_FIELDS = {
-    rfsBaseline:      { label: 'Actual RFS Date', type: 'date', spField: () => FNE_F.RFS_BASELINE, noFuture: true },
-    expectedRFS:      { label: 'Expected RFS Date', type: 'date', spField: () => FNE_F.EXP_RFS },
-    implStart:        { label: 'Implementation Start', type: 'date', spField: () => FNE_F.IMPL_START },
-    targetMigDate:    { label: 'Target Migration Date', type: 'date', spField: () => FNE_F.TARGET_MIG },
-    startDate:        { label: 'Received Date', type: 'date', spField: () => FNE_F.START_DATE },
-    requestStatus:    { label: 'Request Status', type: 'choice', spField: () => FNE_F.REQ_STATUS, choices: () => FNE_CHOICES.requestStatus },
-    buildingStatus:   { label: 'Building Status', type: 'choice', spField: () => FNE_F.BUILD_STATUS, choices: () => FNE_CHOICES.buildingStatus },
-    criticalProjects: { label: 'Critical Projects', type: 'choice', spField: () => FNE_F.CRITICAL_PROJ, choices: () => FNE_CHOICES.criticalProjects },
-    implType:         { label: 'Implementation Type', type: 'choice', spField: () => FNE_F.IMPL_TYPE, choices: () => FNE_CHOICES.implType },
-    projectType:      { label: 'Project Type', type: 'choice', spField: () => FNE_F.PROJ_TYPE, choices: () => FNE_CHOICES.projectType },
-    vertical:         { label: 'Vertical', type: 'choice', spField: () => FNE_F.VERTICAL, choices: () => FNE_CHOICES.vertical },
-    fneManager:       { label: 'FNE Manager', type: 'choice', spField: () => FNE_F.FNE_MGR, choices: () => FNE_CHOICES.fneManager },
-    sof:              { label: 'SOF', type: 'choice', spField: () => FNE_F.SOF, choices: () => FNE_CHOICES.sof },
-    blocker:          { label: 'Blocker', type: 'choice', spField: () => FNE_F.BLOCKER, choices: () => FNE_CHOICES.blocker },
-    commentsNew:      { label: 'Comments', type: 'text', spField: () => FNE_F.COMMENTS_NEW },
-  };
-
-  function fneInitBulkBar() {
-    const sel = document.getElementById('fneBulkField');
-    if (!sel || sel.options.length > 1) return;
-    Object.entries(FNE_BULK_FIELDS).forEach(([key, cfg]) => {
-      const opt = document.createElement('option');
-      opt.value = key;
-      opt.textContent = cfg.label;
-      sel.appendChild(opt);
-    });
-    fneBulkFieldChanged();
-  }
-
-  function fneBulkFieldChanged() {
-    const wrap = document.getElementById('fneBulkValueWrap');
-    const key = document.getElementById('fneBulkField')?.value;
-    if (!wrap) return;
-    wrap.innerHTML = '';
-    if (!key || !FNE_BULK_FIELDS[key]) return;
-    const cfg = FNE_BULK_FIELDS[key];
-    if (cfg.type === 'date') {
-      const inp = document.createElement('input');
-      inp.type = 'date';
-      inp.id = 'fneBulkValue';
-      inp.className = 'fne-bulk-value';
-      if (cfg.noFuture) inp.max = fneTodayDateStr();
-      wrap.appendChild(inp);
-    } else if (cfg.type === 'choice') {
-      const sel = document.createElement('select');
-      sel.id = 'fneBulkValue';
-      sel.className = 'fne-bulk-value';
-      sel.innerHTML = '<option value="">— Select —</option>' +
-        (cfg.choices() || []).map(c => `<option value="${c}">${c}</option>`).join('');
-      wrap.appendChild(sel);
-    } else {
-      const inp = document.createElement('input');
-      inp.type = 'text';
-      inp.id = 'fneBulkValue';
-      inp.className = 'fne-bulk-value';
-      inp.placeholder = 'New value';
-      wrap.appendChild(inp);
-    }
-  }
-
   function fneUpdateBulkSelectionCount() {
     const el = document.getElementById('fneBulkSelCount');
     if (!el || !FNE_GRID_API) return;
@@ -2111,76 +2053,6 @@ if (!fneIsAdmin()) {
       if (node.isSelected && node.isSelected() && node.data) rows.push(node.data);
     });
     return rows;
-  }
-
-  function fneApplyBulkUpdate() {
-    if (!fneIsAdmin()) {
-      fneToast('You do not have permission to bulk update records', 'error');
-      return;
-    }
-    if (!FNE_GRID_API) return;
-    const rows = fneGetSelectedGridRows();
-    if (!rows.length) {
-      fneToast('Select at least one row to update', 'error');
-      return;
-    }
-    const fieldKey = document.getElementById('fneBulkField')?.value;
-    const cfg = fieldKey ? FNE_BULK_FIELDS[fieldKey] : null;
-    const valEl = document.getElementById('fneBulkValue');
-    if (!cfg || !valEl) {
-      fneToast('Select a field and value to apply', 'error');
-      return;
-    }
-    const rawVal = valEl.value.trim();
-    if (!rawVal && cfg.type !== 'text') {
-      fneToast('Enter or select a value', 'error');
-      return;
-    }
-    if (cfg.type === 'date' && cfg.noFuture && fneIsFutureDate(rawVal)) {
-      fneToast('Actual RFS Date cannot be in the future', 'error');
-      return;
-    }
-    if (!confirm('Update "' + cfg.label + '" for ' + rows.length + ' selected record(s)?')) return;
-
-    const spField = cfg.spField();
-    let spValue = rawVal || null;
-    if (cfg.type === 'date' && rawVal) spValue = new Date(rawVal).toISOString();
-    if (cfg.type === 'text') spValue = rawVal || null;
-
-    let done = 0, failed = 0;
-    const total = rows.length;
-
-    function updateNext(i) {
-      if (i >= total) {
-        fneToast('Bulk update: ' + done + ' updated' + (failed ? ', ' + failed + ' failed' : ''), failed ? 'error' : 'success');
-        fneLoadList();
-        return;
-      }
-      const row = rows[i];
-      const body = {
-        '__metadata': { 'type': FNE_LIST_ITEM_TYPE },
-        [spField]: spValue,
-      };
-      const url = FNE_SP + "/_api/web/lists/getbytitle('" + encodeURIComponent(FNE_LIST) +
-        "')/items(" + row.id + ")";
-      getDigest(function(digest) {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', url, true);
-        xhr.setRequestHeader('Accept', 'application/json;odata=verbose');
-        xhr.setRequestHeader('Content-Type', 'application/json;odata=verbose');
-        xhr.setRequestHeader('X-HTTP-Method', 'MERGE');
-        xhr.setRequestHeader('IF-MATCH', '*');
-        if (digest) xhr.setRequestHeader('X-RequestDigest', digest);
-        xhr.onreadystatechange = function() {
-          if (xhr.readyState !== 4) return;
-          if (xhr.status >= 200 && xhr.status < 300) done++;
-          else failed++;
-          updateNext(i + 1);
-        };
-        xhr.send(JSON.stringify(body));
-      });
-    }
-    updateNext(0);
   }
 
   // ══════════════════════════════════════════════════════════════════
@@ -2813,6 +2685,28 @@ if (!fneIsAdmin()) {
     const adminUser = fneIsAdmin();
     const cols = [];
 
+    if (adminUser) {
+      cols.push({
+        colId: 'fne_select',
+        headerName: '',
+        width: 48,
+        minWidth: 48,
+        maxWidth: 48,
+        pinned: 'left',
+        lockPosition: 'left',
+        suppressMovable: true,
+        sortable: false,
+        filter: false,
+        resizable: false,
+        checkboxSelection: true,
+        headerCheckboxSelection: true,
+        headerCheckboxSelectionFilteredOnly: true,
+        suppressHeaderMenuButton: true,
+        showDisabledCheckboxes: true,
+        cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
+      });
+    }
+
     cols.push(
     {
   headerName: '✏',
@@ -2866,7 +2760,7 @@ if (!fneIsAdmin()) {
       { field: 'commentsNew',     headerName: 'Comments',       width: 250, minWidth: 180 },
       { field: 'year',            headerName: 'Year',           width: 90,  minWidth: 80,  type: 'numericColumn' },
     );
-    const enhancedCols = cols.map(fneEnhanceColDef);
+    const enhancedCols = cols.map(col => col.colId === 'fne_select' ? col : fneEnhanceColDef(col));
   
     if (FNE_GRID_API) { try { FNE_GRID_API.destroy(); } catch(e) {} FNE_GRID_API = null; }
     const gridEl = document.getElementById('fneGrid');
@@ -2883,21 +2777,9 @@ if (!fneIsAdmin()) {
         suppressSizeToFit: false,
         cellStyle: { display: 'flex', alignItems: 'center' },
       },
-      rowSelection: adminUser ? {
-        mode: 'multiRow',
-        checkboxes: true,
-        headerCheckbox: true,
-        enableClickSelection: false,
-      } : undefined,
-      selectionColumnDef: adminUser ? {
-        pinned: 'left',
-        width: 52,
-        maxWidth: 52,
-        suppressHeaderMenuButton: true,
-        sortable: false,
-        resizable: false,
-      } : undefined,
+      rowSelection: adminUser ? 'multiple' : undefined,
       suppressRowClickSelection: true,
+      isRowSelectable: () => adminUser,
       pagination: true,
       paginationPageSize: 50,
       paginationPageSizeSelector: [25, 50, 100, 250],
@@ -2908,7 +2790,6 @@ if (!fneIsAdmin()) {
       suppressColumnVirtualisation: false,
       onGridReady: p => {
         FNE_GRID_API = p.api;
-        fneInitBulkBar();
         fneUpdateBulkSelectionCount();
         setTimeout(() => {
           p.api.autoSizeColumns(['fneManager','customerName','fes','amName','accountDirector'], false);
@@ -3036,8 +2917,6 @@ if (!fneIsAdmin()) {
   window.fneListApplyFilter = fneListApplyFilter;
   window.fneListReset       = fneListReset;
   window.fneExportExcel     = fneExportExcel;
-  window.fneBulkFieldChanged = fneBulkFieldChanged;
-  window.fneApplyBulkUpdate  = fneApplyBulkUpdate;
   window.fneSetEntryMode     = fneSetEntryMode;
   window.fneBulkAddRow       = fneBulkAddRow;
   window.fneBulkAddRowCopyLast = fneBulkAddRowCopyLast;
