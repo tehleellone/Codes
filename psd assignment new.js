@@ -141,21 +141,37 @@ function psdInjectStyles() {
         '.psd-panel{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1rem 1.15rem;margin-top:1rem;box-shadow:var(--cs);width:100%;box-sizing:border-box}' +
         '.psd-panel-title{font-size:.95rem;font-weight:800;color:var(--t1);display:flex;align-items:center;gap:.45rem;margin-bottom:.85rem}' +
         '.psd-upload-zone{display:block;width:100%;padding:16px;border:2px dashed var(--border-s);border-radius:12px;background:var(--bg-input);color:var(--t2);cursor:pointer;font-size:.85rem}' +
-        '.psd-filter-bar{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.9rem 1rem;margin-bottom:1rem;box-shadow:var(--cs)}' +
-        '.psd-filter-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.65rem}' +
-        '.psd-filter-head span{font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--t3)}' +
-        '.psd-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.65rem}' +
-        '.psd-agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.85rem;margin:1rem 0}' +
+        '.filter-bar{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.85rem 1rem;margin-bottom:1rem;box-shadow:var(--cs)}' +
+        '.filter-bar-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem}' +
+        '.filter-bar-label{font-size:.68rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em}' +
+        '.filter-bar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.55rem .65rem;align-items:end}' +
+        '.fb-group{display:flex;flex-direction:column;gap:.2rem;min-width:0}' +
+        '.fb-group-label{font-size:.63rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em}' +
+        '.fb-select{padding:.38rem .65rem;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--t1);font-size:.8rem;cursor:pointer;width:100%}' +
+        '.psd-bulk-bar{display:flex;align-items:center;flex-wrap:wrap;gap:.55rem;padding:.65rem .85rem;margin-bottom:.75rem;background:var(--bg-card);border:1px solid var(--border);border-radius:10px}' +
+        '.psd-bulk-label{font-size:.68rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em}' +
+        '.psd-bulk-count{font-size:.72rem;color:var(--t3);font-weight:600;margin-left:auto}' +
+        '.psd-bulk-hint{font-size:.72rem;color:var(--t3);font-weight:600;flex:1 1 100%}' +
+        '.psd-ag-set-filter{padding:.5rem;min-width:200px;max-width:260px}' +
+        '.psd-ag-set-search{width:100%;box-sizing:border-box;margin-bottom:.45rem;padding:.35rem .5rem;border:1px solid var(--border);border-radius:8px;font-size:.75rem;background:var(--bg-card);color:var(--t1)}' +
+        '.psd-ag-set-list{max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:.2rem}' +
+        '.psd-ag-set-option{display:flex;align-items:center;gap:.35rem;font-size:.75rem;cursor:pointer;padding:.15rem 0}' +
+        '.psd-ag-set-actions{display:flex;gap:.35rem;margin-top:.45rem}' +
+        '.psd-ag-set-actions button{flex:1;padding:.25rem .4rem;font-size:.68rem;font-weight:700;border:1px solid var(--border);border-radius:6px;background:var(--nab);color:var(--acc);cursor:pointer}' +
+        '.psd-status-badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700}' +
+        '.psd-badge-pending{background:rgba(148,163,184,.15);color:#64748b}' +
+        '.psd-badge-inprogress{background:rgba(245,158,11,.15);color:#d97706}' +
+        '.psd-badge-completed{background:rgba(34,197,94,.15);color:#16a34a}' +
+        '[id^="psdGrid"] .ag-checkbox-input-wrapper,[id^="psdAssign"] .ag-checkbox-input-wrapper,[id^="psdAssigned"] .ag-checkbox-input-wrapper,[id^="psdAgent"] .ag-checkbox-input-wrapper{opacity:1!important;width:16px;height:16px}' +
+        '.psd-grid-action{display:flex;align-items:center;gap:6px}' +
+        '.psd-grid-action .fb-select{font-size:.72rem;padding:4px 6px;max-width:130px}' +
+        '.psd-grid-action button{padding:4px 10px;font-size:.68rem;border:none;border-radius:6px;background:var(--grad);color:#fff;font-weight:700;cursor:pointer}' +
         '.psd-agent-tile{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.85rem 1rem;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s;box-shadow:var(--cs)}' +
         '.psd-agent-tile:hover{transform:translateY(-2px);box-shadow:var(--ch)}' +
         '.psd-agent-tile.selected{border-color:var(--acc);box-shadow:0 0 0 2px var(--glow)}' +
         '.psd-agent-tile-head{display:flex;align-items:center;gap:.55rem;margin-bottom:.55rem}' +
         '.psd-agent-avatar{width:36px;height:36px;border-radius:50%;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.78rem;flex-shrink:0}' +
-        '.psd-bulk-bar{display:flex;align-items:center;gap:.65rem;flex-wrap:wrap;padding:.75rem 1rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;margin-bottom:.75rem}' +
-        '.psd-bulk-hint{font-size:.72rem;color:var(--t3);flex:1;min-width:180px}' +
-        '.psd-grid-action{display:flex;align-items:center;gap:6px}' +
-        '.psd-grid-action select{font-size:.72rem;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--t1);max-width:120px}' +
-        '.psd-grid-action button{font-size:.68rem;padding:4px 10px;border:none;border-radius:6px;background:var(--grad);color:#fff;font-weight:700;cursor:pointer}';
+        '.psd-agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.85rem;margin:1rem 0}' +
     document.head.appendChild(s);
 }
 
@@ -168,12 +184,37 @@ function psdSetFullLayout(on) {
 
 function psdCssVar(name) { return getComputedStyle(document.body).getPropertyValue(name).trim() || '#a855f7'; }
 
+function psdSafeColor(c, fallback) {
+    if (c && typeof c === 'string' && c.trim()) return c.trim();
+    return fallback || '#a855f7';
+}
+
 function psdLinearGradient(chart, c1, c2) {
-    var ctx = chart.ctx, area = chart.chartArea;
-    if (!area) return c1;
-    var g = ctx.createLinearGradient(0, area.bottom, 0, area.top);
-    g.addColorStop(0, c1); g.addColorStop(1, c2);
-    return g;
+    var from = psdSafeColor(c1, '#64748b');
+    var to = psdSafeColor(c2, '#a855f7');
+    if (!chart || !chart.ctx) return from;
+    var area = chart.chartArea;
+    if (!area || area.bottom == null || area.top == null) return from;
+    try {
+        var g = chart.ctx.createLinearGradient(0, area.bottom, 0, area.top);
+        g.addColorStop(0, from);
+        g.addColorStop(1, to);
+        return g;
+    } catch (e) { return from; }
+}
+
+function psdHorizontalGradient(chart, c1, c2) {
+    var from = psdSafeColor(c1, '#0284c7');
+    var to = psdSafeColor(c2, '#a855f7');
+    if (!chart || !chart.ctx) return from;
+    var area = chart.chartArea;
+    if (!area || area.left == null || area.right == null) return from;
+    try {
+        var g = chart.ctx.createLinearGradient(area.left, 0, area.right, 0);
+        g.addColorStop(0, from);
+        g.addColorStop(1, to);
+        return g;
+    } catch (e) { return from; }
 }
 
 function psdCenterTextPlugin(total, subtitle) {
@@ -291,6 +332,7 @@ async function psdUpdateItem(id, fields, digest) {
 // ============================================================
 window.psdInit = async function () {
     psdInjectStyles();
+    if (typeof injectAGGridThemeStyles === 'function') injectAGGridThemeStyles();
     psdSetFullLayout(true);
     var loadingEl = document.getElementById('psdLoading');
     var contentEl = document.getElementById('psdContent');
@@ -458,20 +500,73 @@ function psdFilterBarHTML(items, prefix) {
     var agents = psdAllAgents.map(function (a) { return a.name; });
     var products = psdUniqueValues(items, 'Product');
     function sel(id, label, opts, val) {
-        return '<div class="filter-group"><label class="filter-label">' + label + '</label><select class="filter-select" id="' + prefix + id + '" onchange="psdApplyDashboardFilters()" style="font-size:.82rem;padding:8px;">' +
+        return '<div class="fb-group"><div class="fb-group-label">' + label + '</div>' +
+            '<select class="fb-select" id="' + prefix + id + '" onchange="psdApplyDashboardFilters()">' +
             '<option value="">All</option>' + opts.map(function (o) {
                 return '<option value="' + psdEsc(o) + '"' + (val === o ? ' selected' : '') + '>' + psdEsc(o) + '</option>';
             }).join('') + '</select></div>';
     }
-    return '<div class="psd-filter-bar">' +
-        '<div class="psd-filter-head"><span>Filters</span><button type="button" class="reset-btn" onclick="psdResetDashboardFilters()" style="padding:6px 12px;font-size:.72rem;">Reset</button></div>' +
-        '<div class="psd-filter-grid">' +
+    return '<div class="filter-bar" style="margin-bottom:.85rem;">' +
+        '<div class="filter-bar-header">' +
+            '<span class="filter-bar-label">Filters</span>' +
+            '<button type="button" class="reset-btn" onclick="psdResetDashboardFilters()">Reset</button>' +
+        '</div>' +
+        '<div class="filter-bar-grid">' +
             sel('Status', 'Status', statuses, psdDashFilters.status) +
             sel('Category', 'Category', cats, psdDashFilters.category) +
             sel('Agent', 'Assigned To', agents, psdDashFilters.agent) +
             sel('Product', 'Product', products, psdDashFilters.product) +
-            '<div class="filter-group"><label class="filter-label">Search</label><input type="text" class="filter-select" id="' + prefix + 'Search" placeholder="Activity, Order, Customer…" value="' + psdEsc(psdDashFilters.search) + '" oninput="psdApplyDashboardFilters()" style="font-size:.82rem;padding:8px;cursor:text;"></div>' +
+            '<div class="fb-group"><div class="fb-group-label">Search</div>' +
+            '<input type="text" class="fb-select" id="' + prefix + 'Search" placeholder="Activity, Order, Customer…" value="' + psdEsc(psdDashFilters.search) + '" oninput="psdApplyDashboardFilters()" style="cursor:text;"></div>' +
         '</div></div>';
+}
+
+var psdAssignFilters = { category: '', product: '' };
+var psdAssignedFilters = { category: '', product: '', agent: '' };
+
+function psdQueueFilterBarHTML(type, items) {
+    var prefix = type === 'assign' ? 'psdAssignF' : 'psdAssignedF';
+    var f = type === 'assign' ? psdAssignFilters : psdAssignedFilters;
+    var fn = type === 'assign' ? 'psdApplyAssignFilters' : 'psdApplyAssignedFilters';
+    var resetFn = type === 'assign' ? 'psdResetAssignFilters' : 'psdResetAssignedFilters';
+    var cats = psdUniqueValues(items, 'Category');
+    var products = psdUniqueValues(items, 'Product');
+    var agents = psdUniqueValues(items, 'AssignedToName');
+    function sel(id, label, opts, val) {
+        return '<div class="fb-group"><div class="fb-group-label">' + label + '</div>' +
+            '<select class="fb-select" id="' + prefix + id + '" onchange="' + fn + '()">' +
+            '<option value="">All</option>' + opts.map(function (o) {
+                return '<option value="' + psdEsc(o) + '"' + (val === o ? ' selected' : '') + '>' + psdEsc(o) + '</option>';
+            }).join('') + '</select></div>';
+    }
+    var agentCol = type === 'assigned' ? sel('Agent', 'Assigned To', agents, f.agent) : '';
+    return '<div class="filter-bar" style="margin-bottom:.85rem;">' +
+        '<div class="filter-bar-header"><span class="filter-bar-label">Filters</span>' +
+        '<button type="button" class="reset-btn" onclick="' + resetFn + '()">Reset</button></div>' +
+        '<div class="filter-bar-grid">' + sel('Category', 'Category', cats, f.category) + sel('Product', 'Product', products, f.product) + agentCol + '</div></div>';
+}
+
+window.psdApplyAssignFilters = function () {
+    psdAssignFilters.category = (document.getElementById('psdAssignFCategory') || {}).value || '';
+    psdAssignFilters.product = (document.getElementById('psdAssignFProduct') || {}).value || '';
+    psdRenderTabBody();
+};
+window.psdResetAssignFilters = function () { psdAssignFilters = { category: '', product: '' }; psdRenderTabBody(); };
+window.psdApplyAssignedFilters = function () {
+    psdAssignedFilters.category = (document.getElementById('psdAssignedFCategory') || {}).value || '';
+    psdAssignedFilters.product = (document.getElementById('psdAssignedFProduct') || {}).value || '';
+    psdAssignedFilters.agent = (document.getElementById('psdAssignedFAgent') || {}).value || '';
+    psdRenderTabBody();
+};
+window.psdResetAssignedFilters = function () { psdAssignedFilters = { category: '', product: '', agent: '' }; psdRenderTabBody(); };
+
+function psdApplyQueueFilters(items, f, includeAgent) {
+    return items.filter(function (it) {
+        if (f.category && it.Category !== f.category) return false;
+        if (f.product && it.Product !== f.product) return false;
+        if (includeAgent && f.agent && it.AssignedToName !== f.agent) return false;
+        return true;
+    });
 }
 
 function psdSummary(items) {
@@ -544,115 +639,303 @@ function psdAgentTilesHTML(items) {
 }
 
 // ============================================================
-// AG-GRID (FNE-style)
+// AG-GRID (FNE-style — set filters, checkbox col, DOM actions)
 // ============================================================
-function psdStatusRenderer() {
-    return function (p) {
-        if (!p.value) return '';
-        var c = psdStatusColor(p.value);
-        return '<span style="background:' + c + '22;color:' + c + ';padding:2px 10px;border-radius:20px;font-weight:700;font-size:.72rem;">' + p.value + '</span>';
+function psdMapRow(it) {
+    if (!it) return null;
+    return {
+        id: it.ID,
+        activityNumber: it.ActivityNumber || '—',
+        orderNumber: it.OrderNumber || '—',
+        category: it.Category || '—',
+        status: it.PSDStatus || '—',
+        assignedTo: it.AssignedToName || '—',
+        customer: it.CustomerAccount || '—',
+        description: it.Description || '—',
+        product: it.Product || '—',
+        uploadDate: it.UploadDate || null,
+        assignmentDate: it.AssignmentDate || null,
+        reassignDate: it.ReassignDate || null,
+        completedDate: it.CompletedDate || null,
+        slaDays: psdSlaDays(it),
+        agingDays: psdAging(it)
     };
 }
 
-function psdAgentOptionsHTML(selected) {
-    return '<option value="">Select…</option>' + psdAllAgents.map(function (a) {
-        return '<option value="' + psdEsc(a.name) + '"' + (selected === a.name ? ' selected' : '') + '>' + psdEsc(a.name) + '</option>';
-    }).join('');
+function PsdSetColumnFilter() {}
+PsdSetColumnFilter.prototype.init = function (params) {
+    this.params = params;
+    this.selected = new Set();
+    this.gui = document.createElement('div');
+    this.gui.className = 'psd-ag-set-filter';
+    this._buildGui();
+};
+PsdSetColumnFilter.prototype._cellValue = function (data) {
+    var v = data[this.params.colDef.field];
+    if (v === null || v === undefined || v === '') return '—';
+    return String(v);
+};
+PsdSetColumnFilter.prototype._allValues = function () {
+    var values = new Set(), self = this;
+    this.params.api.forEachNode(function (node) {
+        if (node.data) values.add(self._cellValue(node.data));
+    });
+    return Array.from(values).sort(function (a, b) { return a.localeCompare(b); });
+};
+PsdSetColumnFilter.prototype._buildGui = function () {
+    var self = this, all = this._allValues();
+    this.gui.innerHTML = '';
+    var search = document.createElement('input');
+    search.type = 'text';
+    search.placeholder = 'Search...';
+    search.className = 'psd-ag-set-search';
+    this.gui.appendChild(search);
+    var list = document.createElement('div');
+    list.className = 'psd-ag-set-list';
+    this.gui.appendChild(list);
+    var render = function (term) {
+        list.innerHTML = '';
+        all.filter(function (v) { return !term || v.toLowerCase().indexOf(term.toLowerCase()) >= 0; }).forEach(function (v) {
+            var row = document.createElement('label');
+            row.className = 'psd-ag-set-option';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = self.selected.has(v);
+            cb.onchange = function () {
+                if (cb.checked) self.selected.add(v); else self.selected.delete(v);
+                self.params.filterChangedCallback();
+            };
+            row.appendChild(cb);
+            row.appendChild(document.createTextNode(' ' + v));
+            list.appendChild(row);
+        });
+    };
+    render('');
+    search.oninput = function () { render(search.value); };
+    var actions = document.createElement('div');
+    actions.className = 'psd-ag-set-actions';
+    var btnAll = document.createElement('button');
+    btnAll.type = 'button';
+    btnAll.textContent = 'Select all';
+    btnAll.onclick = function () { all.forEach(function (v) { self.selected.add(v); }); render(search.value); self.params.filterChangedCallback(); };
+    var btnClear = document.createElement('button');
+    btnClear.type = 'button';
+    btnClear.textContent = 'Clear';
+    btnClear.onclick = function () { self.selected.clear(); render(search.value); self.params.filterChangedCallback(); };
+    actions.appendChild(btnAll);
+    actions.appendChild(btnClear);
+    this.gui.appendChild(actions);
+};
+PsdSetColumnFilter.prototype.getGui = function () { return this.gui; };
+PsdSetColumnFilter.prototype.isFilterActive = function () { return this.selected.size > 0; };
+PsdSetColumnFilter.prototype.doesFilterPass = function (params) {
+    if (!this.selected.size) return true;
+    return this.selected.has(this._cellValue(params.data));
+};
+PsdSetColumnFilter.prototype.getModel = function () { return this.selected.size ? { values: Array.from(this.selected) } : null; };
+PsdSetColumnFilter.prototype.setModel = function (model) {
+    this.selected = new Set(model && model.values ? model.values : []);
+    this._buildGui();
+};
+PsdSetColumnFilter.prototype.destroy = function () {};
+
+var PSD_MS_FILTER_FIELDS = new Set([
+    'activityNumber', 'orderNumber', 'category', 'status', 'assignedTo', 'customer', 'description', 'product'
+]);
+var PSD_DATE_FILTER_FIELDS = new Set(['uploadDate', 'assignmentDate', 'reassignDate', 'completedDate']);
+
+function psdEnhanceColDef(col) {
+    if (PSD_MS_FILTER_FIELDS.has(col.field)) col.filter = PsdSetColumnFilter;
+    else if (col.type === 'numericColumn') col.filter = 'agNumberColumnFilter';
+    else if (PSD_DATE_FILTER_FIELDS.has(col.field)) col.filter = 'agDateColumnFilter';
+    return col;
 }
 
-function psdBaseColDefs(mode) {
-    var cols = [
-        { headerName: 'Activity #', field: 'ActivityNumber', pinned: 'left', width: 130, filter: 'agTextColumnFilter' },
-        { headerName: 'Order #', field: 'OrderNumber', width: 150, filter: 'agTextColumnFilter' },
-        { headerName: 'Category', field: 'Category', width: 130, filter: 'agTextColumnFilter' },
-        { headerName: 'Status', field: 'PSDStatus', width: 120, cellRenderer: psdStatusRenderer(), filter: 'agTextColumnFilter' },
-        { headerName: 'Assigned To', field: 'AssignedToName', width: 140, filter: 'agTextColumnFilter' },
-        { headerName: 'Customer/Account', field: 'CustomerAccount', width: 200, filter: 'agTextColumnFilter' },
-        { headerName: 'Description', field: 'Description', width: 240, filter: 'agTextColumnFilter' },
-        { headerName: 'Product', field: 'Product', width: 100, filter: 'agTextColumnFilter' },
-        { headerName: 'Upload Date', field: 'UploadDate', width: 120, valueFormatter: function (p) { return psdFmtDate(p.value); }, filter: 'agDateColumnFilter' },
-        { headerName: 'Assigned Date', field: 'AssignmentDate', width: 125, valueFormatter: function (p) { return psdFmtDate(p.value); }, filter: 'agDateColumnFilter' },
-        { headerName: 'Reassign Date', field: 'ReassignDate', width: 125, valueFormatter: function (p) { return psdFmtDate(p.value); }, filter: 'agDateColumnFilter' },
-        { headerName: 'Completed Date', field: 'CompletedDate', width: 130, valueFormatter: function (p) { return psdFmtDate(p.value); }, filter: 'agDateColumnFilter' },
-        { headerName: 'SLA (d)', width: 90, valueGetter: function (p) { return psdSlaDays(p.data); }, filter: 'agNumberColumnFilter' },
-        { headerName: 'Aging (d)', width: 90, valueGetter: function (p) { return psdAging(p.data); }, filter: 'agNumberColumnFilter' }
-    ];
+function psdStatusBadge(val) {
+    var map = {};
+    map[PSD_STATUS.PENDING] = 'psd-badge-pending';
+    map[PSD_STATUS.INPROGRESS] = 'psd-badge-inprogress';
+    map[PSD_STATUS.COMPLETED] = 'psd-badge-completed';
+    var cls = map[val] || 'psd-badge-pending';
+    return '<span class="psd-status-badge ' + cls + '">' + psdEsc(val || '—') + '</span>';
+}
+
+function psdFmtGridDate(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-GB');
+}
+
+function psdAgentSelectEl(selected) {
+    var sel = document.createElement('select');
+    sel.className = 'fb-select';
+    var empty = document.createElement('option');
+    empty.value = '';
+    empty.textContent = 'Select…';
+    sel.appendChild(empty);
+    psdAllAgents.forEach(function (a) {
+        var opt = document.createElement('option');
+        opt.value = a.name;
+        opt.textContent = a.name;
+        if (selected === a.name) opt.selected = true;
+        sel.appendChild(opt);
+    });
+    return sel;
+}
+
+function psdAssignActionRenderer(params) {
+    if (!params.data) return null;
+    var wrap = document.createElement('div');
+    wrap.className = 'psd-grid-action';
+    var sel = psdAgentSelectEl('');
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Assign';
+    btn.onclick = function () {
+        if (!sel.value) { psdToast('Pick an agent', 'warn'); return; }
+        psdDoAssign([{ id: params.data.id, agentName: sel.value }], false);
+    };
+    wrap.appendChild(sel);
+    wrap.appendChild(btn);
+    return wrap;
+}
+
+function psdReassignActionRenderer(params) {
+    if (!params.data) return null;
+    var wrap = document.createElement('div');
+    wrap.className = 'psd-grid-action';
+    var sel = psdAgentSelectEl(params.data.assignedTo === '—' ? '' : params.data.assignedTo);
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = 'Reassign';
+    btn.onclick = function () {
+        if (!sel.value) { psdToast('Pick an agent to reassign', 'warn'); return; }
+        psdDoAssign([{ id: params.data.id, agentName: sel.value }], true);
+    };
+    wrap.appendChild(sel);
+    wrap.appendChild(btn);
+    return wrap;
+}
+
+function psdCompleteActionRenderer(params) {
+    if (!params.data || params.data.status !== PSD_STATUS.INPROGRESS) return null;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'export-btn';
+    btn.style.cssText = 'padding:4px 12px;font-size:.68rem;';
+    btn.textContent = 'Complete';
+    btn.onclick = function () { psdComplete(params.data.id); };
+    return btn;
+}
+
+function psdBuildColDefs(mode) {
+    var selectable = mode === 'assign' || mode === 'assigned';
+    var cols = [];
+    if (selectable) {
+        cols.push({
+            colId: 'psd_select',
+            headerName: '',
+            width: 48, minWidth: 48, maxWidth: 48,
+            pinned: 'left', lockPosition: 'left', suppressMovable: true,
+            sortable: false, filter: false, resizable: false,
+            checkboxSelection: true,
+            headerCheckboxSelection: true,
+            headerCheckboxSelectionFilteredOnly: true,
+            suppressHeaderMenuButton: true,
+            showDisabledCheckboxes: true,
+            cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
+        });
+    }
+    cols.push(
+        { field: 'activityNumber', headerName: 'Activity #', width: 130, minWidth: 120, pinned: 'left', suppressSizeToFit: true },
+        { field: 'orderNumber', headerName: 'Order #', width: 150, minWidth: 130 },
+        { field: 'category', headerName: 'Category', width: 130, minWidth: 110 },
+        { field: 'status', headerName: 'Status', width: 125, minWidth: 110, cellRenderer: function (p) { return psdStatusBadge(p.value); } },
+        { field: 'assignedTo', headerName: 'Assigned To', width: 140, minWidth: 120 },
+        { field: 'customer', headerName: 'Customer/Account', width: 200, minWidth: 160 },
+        { field: 'description', headerName: 'Description', width: 240, minWidth: 180 },
+        { field: 'product', headerName: 'Product', width: 100, minWidth: 90 },
+        { field: 'uploadDate', headerName: 'Upload Date', width: 120, minWidth: 110, valueFormatter: function (p) { return psdFmtGridDate(p.value); } },
+        { field: 'assignmentDate', headerName: 'Assigned Date', width: 125, minWidth: 110, valueFormatter: function (p) { return psdFmtGridDate(p.value); } },
+        { field: 'reassignDate', headerName: 'Reassign Date', width: 125, minWidth: 110, valueFormatter: function (p) { return psdFmtGridDate(p.value); } },
+        { field: 'completedDate', headerName: 'Completed Date', width: 130, minWidth: 110, valueFormatter: function (p) { return psdFmtGridDate(p.value); } },
+        { field: 'slaDays', headerName: 'SLA (d)', width: 90, minWidth: 80, type: 'numericColumn' },
+        { field: 'agingDays', headerName: 'Aging (d)', width: 90, minWidth: 80, type: 'numericColumn' }
+    );
     if (mode === 'assign') {
-        cols.unshift({ headerCheckboxSelection: true, checkboxSelection: true, headerCheckboxSelectionFilteredOnly: true, width: 48, pinned: 'left', filter: false, sortable: false });
-        cols.push({
-            headerName: 'Action', width: 200, pinned: 'right', filter: false, sortable: false,
-            cellRenderer: function (p) {
-                if (!p.data) return '';
-                return '<div class="psd-grid-action"><select class="psd-row-agent" data-id="' + p.data.ID + '">' + psdAgentOptionsHTML('') +
-                    '</select><button type="button" data-assign="' + p.data.ID + '">Assign</button></div>';
-            }
-        });
+        cols.push({ headerName: 'Action', width: 210, minWidth: 190, pinned: 'right', sortable: false, filter: false, cellRenderer: psdAssignActionRenderer });
+    } else if (mode === 'assigned') {
+        cols.push({ headerName: 'Reassign', width: 220, minWidth: 200, pinned: 'right', sortable: false, filter: false, cellRenderer: psdReassignActionRenderer });
+    } else if (mode === 'agentqueue') {
+        cols.push({ headerName: 'Action', width: 120, minWidth: 100, pinned: 'right', sortable: false, filter: false, cellRenderer: psdCompleteActionRenderer });
     }
-    if (mode === 'assigned') {
-        cols.unshift({ headerCheckboxSelection: true, checkboxSelection: true, headerCheckboxSelectionFilteredOnly: true, width: 48, pinned: 'left', filter: false, sortable: false });
-        cols.push({
-            headerName: 'Reassign', width: 210, pinned: 'right', filter: false, sortable: false,
-            cellRenderer: function (p) {
-                if (!p.data) return '';
-                return '<div class="psd-grid-action"><select class="psd-row-reassign" data-id="' + p.data.ID + '">' + psdAgentOptionsHTML(p.data.AssignedToName) +
-                    '</select><button type="button" data-reassign="' + p.data.ID + '">Reassign</button></div>';
-            }
-        });
-    }
-    if (mode === 'agentqueue') {
-        cols.push({
-            headerName: 'Action', width: 120, pinned: 'right', filter: false, sortable: false,
-            cellRenderer: function (p) {
-                if (!p.data || p.data.PSDStatus !== PSD_STATUS.INPROGRESS) return '';
-                return '<button type="button" class="export-btn" style="padding:4px 12px;font-size:.68rem;" data-complete="' + p.data.ID + '">Complete</button>';
-            }
-        });
-    }
-    return cols;
+    return cols.map(function (col) { return col.colId === 'psd_select' ? col : psdEnhanceColDef(col); });
 }
 
-function psdGridSectionHTML(title, gridId, searchId, exportFn, count) {
+function psdGridSectionHTML(title, gridId, countId, searchId, exportFn, count) {
     return '<div class="table-section">' +
-        '<div class="table-header"><h3 class="table-title">' + psdEsc(title) + ' <span style="font-weight:600;color:var(--t3);font-size:.78rem;">(' + count + ')</span></h3>' +
-        '<div class="table-actions">' +
-            '<input type="text" class="search-box" id="' + searchId + '" placeholder="Search all columns…" oninput="psdGridQuickFilter(\'' + gridId + '\',this.value)">' +
-            '<button type="button" class="export-btn" onclick="' + exportFn + '"><i data-lucide="file-spreadsheet" style="width:15px;height:15px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Export CSV</button>' +
-        '</div></div>' +
-        '<div id="' + gridId + '" class="ag-theme-alpine" style="height:580px;width:100%;"></div></div>';
+        '<div class="table-header">' +
+            '<h3 class="table-title">' + psdEsc(title) + ' · <span id="' + countId + '">' + count + ' record' + (count !== 1 ? 's' : '') + '</span></h3>' +
+            '<div class="table-actions">' +
+                '<button type="button" class="export-btn" onclick="' + exportFn + '">' +
+                    '<i data-lucide="file-spreadsheet" style="width:15px;height:15px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Export CSV</button>' +
+                '<input type="text" class="search-box" id="' + searchId + '" placeholder="Search all columns…" oninput="psdGridQuickFilter(\'' + gridId + '\',this.value)">' +
+            '</div></div>' +
+        '<div id="' + gridId + '" class="ag-theme-alpine" style="height:640px;width:100%;"></div></div>';
 }
 
-function psdMountGrid(gridId, gridKey, items, mode) {
+function psdUpdateBulkSelCount(gridKey) {
+    var map = { assign: 'psdAssignBulkCount', assigned: 'psdAssignedBulkCount' };
+    var el = document.getElementById(map[gridKey]);
+    if (!el) return;
+    el.textContent = psdGetSelectedRows(gridKey).length + ' selected';
+}
+
+function psdRenderGrid(gridKey, gridId, countId, items, mode) {
     var el = document.getElementById(gridId);
-    if (!el || typeof agGrid === 'undefined') {
-        if (el) el.innerHTML = psdErrBox('ag-Grid not loaded.');
+    if (!el) return;
+    if (typeof agGrid === 'undefined') {
+        el.innerHTML = psdErrBox('ag-Grid not loaded.');
         return;
     }
+    var data = (items || []).map(psdMapRow).filter(Boolean);
+    var countEl = document.getElementById(countId);
+    if (countEl) countEl.textContent = data.length + ' record' + (data.length !== 1 ? 's' : '');
+
     psdDestroyGrid(gridKey);
     el.innerHTML = '';
+    var selectable = mode === 'assign' || mode === 'assigned';
     var opts = {
-        columnDefs: psdBaseColDefs(mode),
-        rowData: items || [],
-        defaultColDef: { sortable: true, filter: true, resizable: true, floatingFilter: true, minWidth: 90 },
+        columnDefs: psdBuildColDefs(mode),
+        rowData: data,
+        defaultColDef: {
+            sortable: true,
+            filter: true,
+            resizable: true,
+            suppressSizeToFit: false,
+            cellStyle: { display: 'flex', alignItems: 'center' }
+        },
+        rowSelection: selectable ? 'multiple' : undefined,
+        suppressRowClickSelection: true,
+        isRowSelectable: selectable ? function () { return true; } : undefined,
         pagination: true,
         paginationPageSize: 50,
         paginationPageSizeSelector: [25, 50, 100, 250],
-        rowSelection: (mode === 'assign' || mode === 'assigned') ? 'multiple' : undefined,
-        suppressRowClickSelection: true,
+        rowHeight: 46,
+        headerHeight: 50,
         animateRows: true,
-        rowHeight: 44,
-        headerHeight: 48,
         enableCellTextSelection: true,
-        onGridReady: function (p) { psdGrids[gridKey] = p.api; }
+        onGridReady: function (p) {
+            psdGrids[gridKey] = p.api;
+            psdUpdateBulkSelCount(gridKey);
+            setTimeout(function () {
+                p.api.autoSizeColumns(['activityNumber', 'customer', 'description', 'assignedTo'], false);
+            }, 150);
+        },
+        onSelectionChanged: function () { psdUpdateBulkSelCount(gridKey); }
     };
     if (agGrid.createGrid) psdGrids[gridKey] = agGrid.createGrid(el, opts);
     else { new agGrid.Grid(el, opts); psdGrids[gridKey] = opts.api; }
-
-    el.addEventListener('click', function (ev) {
-        var t = ev.target;
-        if (t.dataset && t.dataset.assign) psdAssignRow(parseInt(t.dataset.assign, 10));
-        if (t.dataset && t.dataset.reassign) psdReassignRow(parseInt(t.dataset.reassign, 10));
-        if (t.dataset && t.dataset.complete) psdComplete(parseInt(t.dataset.complete, 10));
-    });
 }
 
 window.psdGridQuickFilter = function (gridId, val) {
@@ -676,12 +959,20 @@ function psdExportGrid(key, prefix) {
 
 function psdBulkBarHTML(type) {
     var isAssign = type === 'assign';
+    var countId = isAssign ? 'psdAssignBulkCount' : 'psdAssignedBulkCount';
     return '<div class="psd-bulk-bar">' +
-        '<span style="font-size:.78rem;font-weight:800;color:var(--t1);">' + (isAssign ? 'Bulk Assign' : 'Bulk Reassign') + '</span>' +
-        '<select id="psdBulkAgent" class="filter-select" style="font-size:.82rem;padding:8px;min-width:180px;">' + psdAgentOptionsHTML('') + '</select>' +
+        '<span class="psd-bulk-label">' + (isAssign ? 'Bulk Assign' : 'Bulk Reassign') + '</span>' +
+        '<select id="psdBulkAgent" class="fb-select" style="max-width:200px;">' + psdAgentOptionsHTML('') + '</select>' +
         '<button type="button" class="export-btn" onclick="psdBulk' + (isAssign ? 'Assign' : 'Reassign') + '()" style="padding:8px 18px;">' +
-        (isAssign ? 'Assign Selected' : 'Reassign Selected') + '</button>' +
-        '<span class="psd-bulk-hint">Select rows using checkboxes, pick an agent, then click bulk action.</span></div>';
+            (isAssign ? 'Assign Selected' : 'Reassign Selected') + '</button>' +
+        '<span class="psd-bulk-hint">Tick checkboxes on the left, pick an agent, then run bulk action.</span>' +
+        '<span id="' + countId + '" class="psd-bulk-count">0 selected</span></div>';
+}
+
+function psdAgentOptionsHTML(selected) {
+    return '<option value="">Select…</option>' + psdAllAgents.map(function (a) {
+        return '<option value="' + psdEsc(a.name) + '"' + (selected === a.name ? ' selected' : '') + '>' + psdEsc(a.name) + '</option>';
+    }).join('');
 }
 
 // ============================================================
@@ -717,10 +1008,10 @@ function psdRenderDashboard(body) {
             psdChartCard('Aging Distribution', 'psdChartAging', 'Days since upload', false) +
         '</div>' +
         psdUploadSectionHTML() +
-        psdGridSectionHTML('All Records', 'psdGrid', 'psdDashSearch', 'psdExportDashCsv()', items.length);
+        psdGridSectionHTML('All Records', 'psdGrid', 'psdDashCount', 'psdDashSearch', 'psdExportDashCsv()', items.length);
 
     psdBuildDashboardCharts(items, s);
-    psdMountGrid('psdGrid', 'dash', items, 'records');
+    psdRenderGrid('dash', 'psdGrid', 'psdDashCount', items, 'records');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -742,7 +1033,12 @@ function psdBuildDashboardCharts(items, s) {
         psdCharts.status = new Chart(sc, {
             type: 'doughnut',
             data: { labels: ['Pending', 'In Progress', 'Completed'], datasets: [{ data: [s.pending, s.inprogress, s.completed],
-                backgroundColor: function (ctx) { var pal = [p.pending, p.inprogress, p.completed][ctx.dataIndex]; return psdLinearGradient(ctx.chart, pal.from, pal.to); },
+                backgroundColor: function (ctx) {
+                    if (ctx.dataIndex == null || ctx.dataIndex < 0) return '#94a3b8';
+                    var pal = [p.pending, p.inprogress, p.completed][ctx.dataIndex];
+                    if (!pal) return '#94a3b8';
+                    return psdLinearGradient(ctx.chart, pal.from, pal.to);
+                },
                 borderWidth: 3, borderColor: psdCssVar('--bg-card'), hoverOffset: 10, spacing: 3 }] },
             options: { responsive: true, maintainAspectRatio: false, cutout: '68%', plugins: { legend: legend, tooltip: psdChartTooltip() } },
             plugins: [psdCenterTextPlugin(s.total, 'Activities')]
@@ -755,9 +1051,18 @@ function psdBuildDashboardCharts(items, s) {
     var ac = document.getElementById('psdChartAgent');
     if (ac) psdCharts.agent = new Chart(ac, {
         type: 'bar',
-        data: { labels: names.length ? names : ['—'], datasets: [{ label: 'Completed', data: names.map(function (n) { return byAgent[n]; }),
-            backgroundColor: function (ctx) { return psdLinearGradient(ctx.chart, PSD_CHART_PALETTE.agents[ctx.dataIndex % 6], psdCssVar('--acc2')); },
-            borderRadius: 8, maxBarThickness: 48 }] },
+        data: {
+            labels: names.length ? names : ['No data'],
+            datasets: [{
+                label: 'Completed',
+                data: names.length ? names.map(function (n) { return byAgent[n]; }) : [0],
+                backgroundColor: function (ctx) {
+                    if (ctx.dataIndex == null || ctx.dataIndex < 0) return psdCssVar('--acc');
+                    return psdLinearGradient(ctx.chart, PSD_CHART_PALETTE.agents[ctx.dataIndex % 6], psdCssVar('--acc2'));
+                },
+                borderRadius: 8, maxBarThickness: 48
+            }]
+        },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: psdChartTooltip() },
             scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: grid }, ticks: { precision: 0 } } } }
     });
@@ -767,8 +1072,19 @@ function psdBuildDashboardCharts(items, s) {
     var cats = Object.keys(byCat).sort(function (a, b) { return byCat[b] - byCat[a]; });
     var cc = document.getElementById('psdChartCategory');
     if (cc) psdCharts.category = new Chart(cc, {
-        type: 'bar', data: { labels: cats, datasets: [{ data: cats.map(function (c) { return byCat[c]; }), borderRadius: 8, barThickness: 18,
-            backgroundColor: function (ctx) { var c = PSD_CHART_PALETTE.categories[ctx.dataIndex % 6]; var g = ctx.chart.ctx.createLinearGradient(ctx.chart.chartArea.left, 0, ctx.chart.chartArea.right, 0); g.addColorStop(0, c); g.addColorStop(1, psdCssVar('--acc2')); return g; } }] },
+        type: 'bar',
+        data: {
+            labels: cats.length ? cats : ['No data'],
+            datasets: [{
+                data: cats.length ? cats.map(function (c) { return byCat[c]; }) : [0],
+                borderRadius: 8, barThickness: 18,
+                backgroundColor: function (ctx) {
+                    if (ctx.dataIndex == null || ctx.dataIndex < 0) return '#0284c7';
+                    var col = PSD_CHART_PALETTE.categories[ctx.dataIndex % PSD_CHART_PALETTE.categories.length];
+                    return psdHorizontalGradient(ctx.chart, col, psdCssVar('--acc2'));
+                }
+            }]
+        },
         options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: psdChartTooltip() },
             scales: { x: { beginAtZero: true, grid: { color: grid } }, y: { grid: { display: false } } } }
     });
@@ -782,8 +1098,19 @@ function psdBuildDashboardCharts(items, s) {
     });
     var agc = document.getElementById('psdChartAging');
     if (agc) psdCharts.aging = new Chart(agc, {
-        type: 'bar', data: { labels: keys, datasets: [{ data: keys.map(function (k) { return buckets[k]; }),
-            backgroundColor: function (ctx) { return psdLinearGradient(ctx.chart, PSD_CHART_PALETTE.aging[ctx.dataIndex], psdCssVar('--acc')); }, borderRadius: 10, maxBarThickness: 56 }] },
+        type: 'bar',
+        data: {
+            labels: keys,
+            datasets: [{
+                data: keys.map(function (k) { return buckets[k]; }),
+                backgroundColor: function (ctx) {
+                    if (ctx.dataIndex == null || ctx.dataIndex < 0) return '#eab308';
+                    var col = PSD_CHART_PALETTE.aging[ctx.dataIndex] || '#eab308';
+                    return psdLinearGradient(ctx.chart, col, psdCssVar('--acc'));
+                },
+                borderRadius: 10, maxBarThickness: 56
+            }]
+        },
         options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: psdChartTooltip() },
             scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: grid }, ticks: { precision: 0 } } } }
     });
@@ -795,22 +1122,23 @@ function psdBuildDashboardCharts(items, s) {
 function psdRenderAssignQueue(body) {
     if (!psdAllAgents.length) { body.innerHTML = psdErrBox('No PSD agents in Account Mapping (Team = PSD).'); return; }
     var pending = psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.PENDING; });
-    body.innerHTML = psdBulkBarHTML('assign') + psdGridSectionHTML('Assign Queue — Pending', 'psdAssignGrid', 'psdAssignSearch', 'psdExportAssignCsv()', pending.length);
-    psdMountGrid('psdAssignGrid', 'assign', pending, 'assign');
+    pending = psdApplyQueueFilters(pending, psdAssignFilters, false);
+    body.innerHTML = psdQueueFilterBarHTML('assign', psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.PENDING; })) +
+        psdBulkBarHTML('assign') +
+        psdGridSectionHTML('Assign Queue — Pending', 'psdAssignGrid', 'psdAssignCount', 'psdAssignSearch', 'psdExportAssignCsv()', pending.length);
+    psdRenderGrid('assign', 'psdAssignGrid', 'psdAssignCount', pending, 'assign');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function psdRenderAssignedQueue(body) {
     if (!psdAllAgents.length) { body.innerHTML = psdErrBox('No PSD agents in Account Mapping (Team = PSD).'); return; }
     var assigned = psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.INPROGRESS; });
-    body.innerHTML = psdBulkBarHTML('reassign') + psdGridSectionHTML('Assigned Queue — In Progress', 'psdAssignedGrid', 'psdAssignedSearch', 'psdExportAssignedCsv()', assigned.length);
-    psdMountGrid('psdAssignedGrid', 'assigned', assigned, 'assigned');
+    assigned = psdApplyQueueFilters(assigned, psdAssignedFilters, true);
+    body.innerHTML = psdQueueFilterBarHTML('assigned', psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.INPROGRESS; })) +
+        psdBulkBarHTML('reassign') +
+        psdGridSectionHTML('Assigned Queue — In Progress', 'psdAssignedGrid', 'psdAssignedCount', 'psdAssignedSearch', 'psdExportAssignedCsv()', assigned.length);
+    psdRenderGrid('assigned', 'psdAssignedGrid', 'psdAssignedCount', assigned, 'assigned');
     if (typeof lucide !== 'undefined') lucide.createIcons();
-}
-
-function psdGetRowAgentSelect(id, cls) {
-    var sel = document.querySelector('.' + cls + '[data-id="' + id + '"]');
-    return sel ? sel.value : (document.getElementById('psdBulkAgent') || {}).value || '';
 }
 
 async function psdDoAssign(pairs, isReassign) {
@@ -838,24 +1166,12 @@ async function psdDoAssign(pairs, isReassign) {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-window.psdAssignRow = function (id) {
-    var name = psdGetRowAgentSelect(id, 'psd-row-agent');
-    if (!name) { psdToast('Pick an agent', 'warn'); return; }
-    psdDoAssign([{ id: id, agentName: name }], false);
-};
-
-window.psdReassignRow = function (id) {
-    var name = psdGetRowAgentSelect(id, 'psd-row-reassign');
-    if (!name) { psdToast('Pick an agent to reassign', 'warn'); return; }
-    psdDoAssign([{ id: id, agentName: name }], true);
-};
-
 window.psdBulkAssign = function () {
     var name = (document.getElementById('psdBulkAgent') || {}).value;
     if (!name) { psdToast('Pick an agent', 'warn'); return; }
     var rows = psdGetSelectedRows('assign');
     if (!rows.length) { psdToast('Select at least one row', 'warn'); return; }
-    psdDoAssign(rows.map(function (r) { return { id: r.ID, agentName: name }; }), false);
+    psdDoAssign(rows.map(function (r) { return { id: r.id, agentName: name }; }), false);
 };
 
 window.psdBulkReassign = function () {
@@ -863,7 +1179,7 @@ window.psdBulkReassign = function () {
     if (!name) { psdToast('Pick an agent', 'warn'); return; }
     var rows = psdGetSelectedRows('assigned');
     if (!rows.length) { psdToast('Select at least one row', 'warn'); return; }
-    psdDoAssign(rows.map(function (r) { return { id: r.ID, agentName: name }; }), true);
+    psdDoAssign(rows.map(function (r) { return { id: r.id, agentName: name }; }), true);
 };
 
 // ============================================================
@@ -940,11 +1256,11 @@ function psdRenderMyQueue(body) {
             psdTile('Total Assigned', mine.length, 'All time', 'var(--acc)') +
             psdTile('Avg SLA', s.avgTtc + ' d', 'Assign/Reassign → done', 'var(--acc2)') +
         '</div>' +
-        psdGridSectionHTML('My Queue — In Progress', 'psdAgentQueueGrid', 'psdAgentSearch', 'psdExportAgentQueueCsv()', inq.length) +
-        psdGridSectionHTML('My Records', 'psdAgentGrid', 'psdAgentRecSearch', 'psdExportAgentRecordsCsv()', mine.length);
+        psdGridSectionHTML('My Queue — In Progress', 'psdAgentQueueGrid', 'psdAgentQueueCount', 'psdAgentSearch', 'psdExportAgentQueueCsv()', inq.length) +
+        psdGridSectionHTML('My Records', 'psdAgentGrid', 'psdAgentRecCount', 'psdAgentRecSearch', 'psdExportAgentRecordsCsv()', mine.length);
 
-    psdMountGrid('psdAgentQueueGrid', 'agentQueue', inq, 'agentqueue');
-    psdMountGrid('psdAgentGrid', 'agentRecords', mine, 'records');
+    psdRenderGrid('agentQueue', 'psdAgentQueueGrid', 'psdAgentQueueCount', inq, 'agentqueue');
+    psdRenderGrid('agentRecords', 'psdAgentGrid', 'psdAgentRecCount', mine, 'records');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
