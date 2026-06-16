@@ -13,12 +13,12 @@
     implType:        ['Shortfall','FNE','Site Office','Wireless Implementation'],
     buildingStatus:  ['RFS','Partial RFS','Not Connected'],
     sof:             ['Yes','No'],
-    vertical:        ['AUH','DXB','F-NE','FOGH','HUNT','TRE','TRM'],
+    vertical:        [],
     requestStatus:   ['In Progress','Completed','Cancelled','On Hold'],
     assignedBy:      ['Service Manager','Account Manager','Solution Manager','Project Manager'],
     projectType:     ['FNE','PIS','Rollout','Taawun','Site Office','Wireless'],
     ospCivil:        ['Yes','No'],
-    accountDirector: ['Khalid Karmastaji','Mazen Adam','Khalid Alawadi','Shahzad Hasan','Hany Jawee','Mohamed Alzarooni','NA'],
+    accountDirector: [],
     fneManager:      ['Arafat Wanchoo','Husham Salih','Jamal Sattar','Ishfaq Deen'],
     tempConnType:    ['Wireless','Fibre'],
     blocker:         ['Customer','Infra'],
@@ -29,6 +29,42 @@
   'Red',
   'No Expected RFS to calculate Project Health'
 ],
+  };
+
+  // Vertical → Account Director (auto-select on form & bulk tables)
+  const FNE_VERTICAL_DIRECTOR_MAP = {
+    'AUH':     'Fatma Almheiri',
+    'DXB':     'Mohamad Amer Sibai',
+    'Key A':   'Hany Jawee',
+    'Key B':   'Mazen Adem',
+    'LE':      'Muhammad Shahzad Hasan',
+    'Hunting': 'Khalid Karmastaji',
+    'NE-F':    'Majd Nairoukh',
+    'F-NE':    'Majd Nairoukh',
+    'HUNT':    'Khalid Karmastaji',
+    'FOGH':    'Hany Jawee',
+    'TRE':     'Hany Jawee',
+    'TRM':     'Mazen Adem',
+  };
+
+  const FNE_POWER_EMAILS = ['husham.salih@du.ae', 'tehleel.lone@du.ae'];
+
+  const FNE_FORM_SEL_MAP = {
+    subRequest: 'fne_sub_req', implType: 'fne_impl_type',
+    buildingStatus: 'fne_build_status', sof: 'fne_sof',
+    vertical: 'fne_vertical', requestStatus: 'fne_req_status',
+    assignedBy: 'fne_assigned_by', projectType: 'fne_proj_type',
+    ospCivil: 'fne_osp', accountDirector: 'fne_acc_dir',
+    fneManager: 'fne_fne_mgr', tempConnType: 'fne_temp_conn',
+    blocker: 'fne_blocker', criticalProjects: 'fne_critical_projects',
+  };
+
+  const FNE_FILTER_SEL_MAP = {
+    status: 'requestStatus', implType: 'implType', vertical: 'vertical',
+    fneManager: 'fneManager', buildStatus: 'buildingStatus', projType: 'projectType',
+    subReq: 'subRequest', assignedBy: 'assignedBy', accDir: 'accountDirector',
+    osp: 'ospCivil', sof: 'sof', health: 'projectHealth', blocker: 'blocker',
+    critical: 'criticalProjects',
   };
 
   // ─── SP Field internal name map ────────────────────────────────────
@@ -93,15 +129,15 @@
 
   function fneTodayDateStr() {
     const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d.toISOString().split('T')[0];
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
   }
 
   function fneIsFutureDate(dateStr) {
     if (!dateStr) return false;
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const d = new Date(dateStr); d.setHours(0, 0, 0, 0);
-    return d > today;
+    return dateStr > fneTodayDateStr();
   }
 
   function fneSetActualRfsMaxDate() {
@@ -132,6 +168,77 @@ function fneIsAdmin() {
       role === 'director'
     )
   );
+}
+
+function fneNormEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function fneIsPowerUser() {
+  return FNE_POWER_EMAILS.indexOf(fneNormEmail(USER && USER.email)) >= 0;
+}
+
+function fneNormStr(s) {
+  return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function fneMatchSelectOption(selectEl, targetName) {
+  if (!selectEl || !targetName) return false;
+  const t = fneNormStr(targetName);
+  for (let i = 0; i < selectEl.options.length; i++) {
+    const opt = selectEl.options[i];
+    if (!opt.value) continue;
+    const v = fneNormStr(opt.value);
+    if (v === t || v.includes(t) || t.includes(v)) {
+      selectEl.value = opt.value;
+      return true;
+    }
+  }
+  return false;
+}
+
+function fneSetDirectorForVertical(vertical, directorEl) {
+  if (!directorEl || !vertical) return;
+  const director = FNE_VERTICAL_DIRECTOR_MAP[vertical];
+  if (director) fneMatchSelectOption(directorEl, director);
+}
+
+function fneWireVerticalDirector() {
+  const vEl = document.getElementById('fne_vertical');
+  const dEl = document.getElementById('fne_acc_dir');
+  if (!vEl || !dEl || vEl.dataset.vdWired) return;
+  vEl.dataset.vdWired = '1';
+  vEl.addEventListener('change', function() {
+    fneSetDirectorForVertical(vEl.value, dEl);
+  });
+}
+
+function fneRefreshSelectOptions(selEl, choices) {
+  if (!selEl || !choices || !choices.length) return;
+  const cur = selEl.value;
+  const isFilter = selEl.id.indexOf('fnel_') === 0;
+  selEl.innerHTML = '<option value="">' + (isFilter ? 'All' : '— Select —') + '</option>' +
+    choices.map(c => '<option value="' + c + '">' + c + '</option>').join('');
+  if (cur && choices.indexOf(cur) >= 0) selEl.value = cur;
+}
+
+function fneRefreshAllChoiceDropdowns() {
+  Object.keys(FNE_FORM_SEL_MAP).forEach(function(key) {
+    if (key === 'criticalProjects' && !fneIsPowerUser()) return;
+    const id = FNE_FORM_SEL_MAP[key];
+    const choices = FNE_CHOICES[key];
+    if (choices && choices.length) fneRefreshSelectOptions(document.getElementById(id), choices);
+  });
+  Object.keys(FNE_FILTER_SEL_MAP).forEach(function(filterId) {
+    const key = FNE_FILTER_SEL_MAP[filterId];
+    if (key === 'criticalProjects' && !fneIsPowerUser()) return;
+    const choices = FNE_CHOICES[key];
+    if (choices && choices.length) fneRefreshSelectOptions(document.getElementById('fnel_' + filterId), choices);
+  });
+}
+
+function fneApplyCriticalProjectsAccess() {
+  /* Critical Projects field is omitted from form HTML for non-power users */
 }
   // ══════════════════════════════════════════════════════════════════
   //  NAV INJECTION
@@ -218,6 +325,8 @@ if (fneIsAdmin()) {
   
     // Load SP choices dynamically (fire-and-forget)
     fneLoadSpChoices();
+    fneWireVerticalDirector();
+    fneApplyCriticalProjectsAccess();
   }
   
   // ══════════════════════════════════════════════════════════════════
@@ -251,26 +360,10 @@ if (fneIsAdmin()) {
         const key = fieldMap[f.InternalName];
         if (key && f.Choices && f.Choices.results && f.Choices.results.length) {
           FNE_CHOICES[key] = f.Choices.results;
-          // Refresh any open select
-          const selMap = {
-            subRequest: 'fne_sub_req', implType: 'fne_impl_type',
-            buildingStatus: 'fne_build_status', sof: 'fne_sof',
-            vertical: 'fne_vertical', requestStatus: 'fne_req_status',
-            assignedBy: 'fne_assigned_by', projectType: 'fne_proj_type',
-            ospCivil: 'fne_osp', accountDirector: 'fne_acc_dir',
-            fneManager: 'fne_fne_mgr', tempConnType: 'fne_temp_conn',
-            blocker: 'fne_blocker',
-            criticalProjects: 'fne_critical_projects',
-          };
-          const selEl = document.getElementById(selMap[key]);
-          if (selEl) {
-            const cur = selEl.value;
-            selEl.innerHTML = '<option value="">— Select —</option>' +
-              f.Choices.results.map(c => `<option value="${c}">${c}</option>`).join('');
-            if (cur) selEl.value = cur;
-          }
         }
       });
+      fneRefreshAllChoiceDropdowns();
+      if (document.getElementById('fneBulkTableHead')) fneBulkRenderHead();
     });
   }
   
@@ -861,7 +954,7 @@ if (fneIsAdmin()) {
       </div>
       <div class="fne-grid fne-grid-4" style="margin-top:.9rem;">
         ${grp('SOF', sel('fne_sof', FNE_CHOICES.sof))}
-        ${grp('Critical Projects', sel('fne_critical_projects', FNE_CHOICES.criticalProjects))}
+        ${fneIsPowerUser() ? grp('Critical Projects', sel('fne_critical_projects', FNE_CHOICES.criticalProjects)) : ''}
         ${grp('SLA (days)', inp('fne_sla','number','','e.g. 30'))}
         ${grp('Unit No', inp('fne_unit_no','number'))}
         ${grp('WO Number', inp('fne_wo_num','text','','WO-XXXX'))}
@@ -1066,7 +1159,7 @@ if (fneIsAdmin()) {
       ${msFilter('sof',        'SOF',              FNE_CHOICES.sof)}
       ${msFilter('health',     'Project Health',   FNE_CHOICES.projectHealth)}
       ${msFilter('blocker',    'Blocker',          FNE_CHOICES.blocker)}
-      ${msFilter('critical',   'Critical Projects',FNE_CHOICES.criticalProjects)}
+      ${fneIsPowerUser() ? msFilter('critical', 'Critical Projects', FNE_CHOICES.criticalProjects) : ''}
       <div class="fb-group">
         <div class="fb-group-label">Year</div>
         <select id="fnel_year" class="fb-select" onchange="fneListApplyFilter()">
@@ -1076,13 +1169,18 @@ if (fneIsAdmin()) {
     </div>
   </div>
 
-  ${fneIsAdmin() ? `
+  ${fneIsAdmin() || fneIsPowerUser() ? `
   <div class="fne-bulk-bar" id="fneBulkBar">
+    ${fneIsAdmin() ? `
     <span class="fne-bulk-label">Bulk edit</span>
     <button type="button" class="fne-btn fne-btn-primary" style="padding:.35rem .85rem;font-size:.75rem;" onclick="fneBulkEditOpen()">
       Bulk Edit
-    </button>
-    <span class="fne-bulk-hint">Tick the checkboxes on the far left of the grid, then click Bulk Edit to update all selected records in a spreadsheet table.</span>
+    </button>` : ''}
+    ${fneIsPowerUser() ? `
+    <button type="button" class="fne-btn fne-btn-danger" style="padding:.35rem .85rem;font-size:.75rem;" onclick="fneBulkDeleteSelected()">
+      Bulk Delete
+    </button>` : ''}
+    <span class="fne-bulk-hint">Tick the checkboxes on the far left of the grid${fneIsAdmin() ? ', then Bulk Edit to update selected records in a spreadsheet table' : ''}${fneIsPowerUser() ? (fneIsAdmin() ? ', or Bulk Delete to remove them' : ' — then Bulk Delete to remove selected records') : ''}.</span>
     <span id="fneBulkSelCount" class="fne-bulk-count">0 selected</span>
   </div>` : ''}
   
@@ -1288,7 +1386,7 @@ function fneOpenForm(itemId, fromList) {
     set('fne_assigned_by',  clean(item.assignedBy));
     set('fne_proj_type',    clean(item.projectType));
     set('fne_sof',          clean(item.sof));
-    set('fne_critical_projects', clean(item.criticalProjects));
+    if (fneIsPowerUser()) set('fne_critical_projects', clean(item.criticalProjects));
     set('fne_vertical',     clean(item.vertical));
     set('fne_acc_dir',      clean(item.accountDirector));
     set('fne_am_email',     item.amEmail || '');
@@ -1602,7 +1700,6 @@ if (!fneIsAdmin()) {
       [FNE_F.ASSIGNED_BY]:  gv('fne_assigned_by')  || null,
       [FNE_F.PROJ_TYPE]:    gv('fne_proj_type')    || null,
       [FNE_F.SOF]:          gv('fne_sof')          || null,
-      [FNE_F.CRITICAL_PROJ]:gv('fne_critical_projects') || null,
       [FNE_F.VERTICAL]:     gv('fne_vertical'),
       [FNE_F.ACC_DIR]:      gv('fne_acc_dir')      || null,
       [FNE_F.FNE_MGR]:      gv('fne_fne_mgr'),
@@ -1614,10 +1711,13 @@ if (!fneIsAdmin()) {
       [FNE_F.BLOCKER]:      gv('fne_blocker')      || null,
       [FNE_F.TEMP_CONN]:    gv('fne_temp_conn')    || null,
       [FNE_F.FES_REF]:      gv('fne_fes_ref')      || null,
-      // Note: PROJ_HEALTH (Project_x0020_Health) is a SP calculated column — read-only, not written here
-      // Note: PM_MAN_DAYS (Project Duration display) is a SP calculated column — read-only, not written here
-      // Note: Account_x0020_Manager (Person field) is set separately via user ID lookup below
     };
+    if (fneIsPowerUser()) {
+      body[FNE_F.CRITICAL_PROJ] = gv('fne_critical_projects') || null;
+    }
+    // Note: PROJ_HEALTH (Project_x0020_Health) is a SP calculated column — read-only, not written here
+    // Note: PM_MAN_DAYS (Project Duration display) is a SP calculated column — read-only, not written here
+    // Note: Account_x0020_Manager (Person field) is set separately via user ID lookup below
   
     // Date fields — only include if not locked (for one-time fields)
     const expRfsLocked = document.getElementById('lockwrap_exp_rfs')?.classList.contains('fne-locked');
@@ -2066,6 +2166,54 @@ if (!fneIsAdmin()) {
     return rows;
   }
 
+  function fneDeleteSpItem(itemId, cb) {
+    const url = FNE_SP + "/_api/web/lists/getbytitle('" + encodeURIComponent(FNE_LIST) +
+      "')/items(" + itemId + ")";
+    getDigest(function(digest) {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url, true);
+      xhr.setRequestHeader('Accept', 'application/json;odata=verbose');
+      xhr.setRequestHeader('Content-Type', 'application/json;odata=verbose');
+      xhr.setRequestHeader('X-HTTP-Method', 'DELETE');
+      xhr.setRequestHeader('IF-MATCH', '*');
+      if (digest) xhr.setRequestHeader('X-RequestDigest', digest);
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4) return;
+        cb(xhr.status >= 200 && xhr.status < 300 ? null : new Error('HTTP ' + xhr.status));
+      };
+      xhr.send();
+    });
+  }
+
+  function fneBulkDeleteSelected() {
+    if (!fneIsPowerUser()) {
+      fneToast('You do not have permission to bulk delete records', 'error');
+      return;
+    }
+    const rows = fneGetSelectedGridRows();
+    if (!rows.length) {
+      fneToast('Select at least one row using the checkboxes on the left', 'error');
+      return;
+    }
+    if (!confirm('Delete ' + rows.length + ' selected record(s)? This cannot be undone.')) return;
+
+    let done = 0, failed = 0;
+    const total = rows.length;
+
+    function deleteNext(i) {
+      if (i >= total) {
+        fneToast('Deleted ' + done + ' record(s)' + (failed ? ', ' + failed + ' failed' : ''), failed ? 'error' : 'success');
+        fneLoadList();
+        return;
+      }
+      fneDeleteSpItem(rows[i].id, function(err) {
+        if (err) failed++; else done++;
+        deleteNext(i + 1);
+      });
+    }
+    deleteNext(0);
+  }
+
   // ══════════════════════════════════════════════════════════════════
   //  BULK ENTRY TABLE (New Entry — spreadsheet style)
   // ══════════════════════════════════════════════════════════════════
@@ -2082,7 +2230,7 @@ if (!fneIsAdmin()) {
     { key: 'projectType',      label: 'Project Type',      type: 'choice', choicesKey: 'projectType' },
     { key: 'assignedBy',       label: 'Assigned By',       type: 'choice', choicesKey: 'assignedBy' },
     { key: 'sof',              label: 'SOF',               type: 'choice', choicesKey: 'sof' },
-    { key: 'criticalProjects', label: 'Critical Projects', type: 'choice', choicesKey: 'criticalProjects' },
+    { key: 'criticalProjects', label: 'Critical Projects', type: 'choice', choicesKey: 'criticalProjects', powerOnly: true },
     { key: 'sla',              label: 'SLA (days)',        type: 'number' },
     { key: 'unitNo',           label: 'Unit No',           type: 'number' },
     { key: 'woNumber',         label: 'WO Number',         type: 'text' },
@@ -2111,6 +2259,12 @@ if (!fneIsAdmin()) {
     { key: 'spi',              label: 'SPI',               type: 'number', readonly: true, autoCalc: true },
     { key: 'commentsNew',      label: 'Comments',          type: 'text', wide: true },
   ];
+
+  function fneBulkTableCols() {
+    return FNE_BULK_TABLE_COLS.filter(function(c) {
+      return !c.powerOnly || fneIsPowerUser();
+    });
+  }
 
   const FNE_IMPORT_COLUMNS = [
     { key: 'customerName',     sp: () => FNE_F.CUST_NAME,    required: true,  type: 'text' },
@@ -2177,7 +2331,7 @@ if (!fneIsAdmin()) {
   }
   function fneGridRowToBulkEdit(row) {
     const rec = { _id: row.id };
-    FNE_BULK_TABLE_COLS.forEach(col => {
+    fneBulkTableCols().forEach(col => {
       const v = row[col.key];
       if (col.type === 'date') rec[col.key] = fneBulkPlainDate(v);
       else if (col.type === 'number') rec[col.key] = (v === '—' || v === null || v === undefined || v === '') ? '' : String(v);
@@ -2205,9 +2359,20 @@ if (!fneIsAdmin()) {
     fneBulkRecalcRowTcv(tr);
   }
 
+  function fneBulkWireVerticalDirector(tr) {
+    if (!tr) return;
+    const vEl = tr.querySelector('[data-key="vertical"]');
+    const dEl = tr.querySelector('[data-key="accountDirector"]');
+    if (!vEl || !dEl || vEl.dataset.vdWired) return;
+    vEl.dataset.vdWired = '1';
+    vEl.addEventListener('change', function() {
+      fneSetDirectorForVertical(vEl.value, dEl);
+    });
+  }
+
   function fneBulkStripAutoCalc(data) {
     if (!data) return data;
-    FNE_BULK_TABLE_COLS.forEach(col => {
+    fneBulkTableCols().forEach(col => {
       if (col.readonly) data[col.key] = '';
     });
     return data;
@@ -2281,7 +2446,7 @@ if (!fneIsAdmin()) {
       const idEl = tr.querySelector('.fne-bulk-id');
       if (idEl && idEl.value) data._id = idEl.value;
     }
-    FNE_BULK_TABLE_COLS.forEach(col => {
+    fneBulkTableCols().forEach(col => {
       const el = tr.querySelector('[data-key="' + col.key + '"]');
       data[col.key] = el ? String(el.value || '').trim() : '';
     });
@@ -2290,7 +2455,7 @@ if (!fneIsAdmin()) {
 
   function fneBulkApplyRowData(tr, data) {
     if (!tr || !data) return;
-    FNE_BULK_TABLE_COLS.forEach(col => {
+    fneBulkTableCols().forEach(col => {
       if (col.readonly) return;
       const el = tr.querySelector('[data-key="' + col.key + '"]');
       if (!el || data[col.key] === undefined) return;
@@ -2314,7 +2479,7 @@ if (!fneIsAdmin()) {
     if (!head) return;
     let html = '<tr><th style="width:36px;">#</th>';
     if (fneBulkIsEdit()) html += '<th style="width:56px;">ID</th>';
-    html += FNE_BULK_TABLE_COLS.map(c =>
+    html += fneBulkTableCols().map(c =>
       c.readonly
         ? '<th>' + c.label + '<span class="fne-bulk-auto-tag">Auto-calculated</span></th>'
         : '<th>' + c.label + '</th>'
@@ -2333,11 +2498,12 @@ if (!fneIsAdmin()) {
       const idVal = data && data._id ? String(data._id) : '';
       html += '<td><input type="text" class="fne-bulk-cell fne-bulk-id" readonly tabindex="-1" value="' + idVal + '"></td>';
     }
-    html += FNE_BULK_TABLE_COLS.map(col => '<td>' + fneBulkCellHtml(col, data ? data[col.key] : '') + '</td>').join('') +
+    html += fneBulkTableCols().map(col => '<td>' + fneBulkCellHtml(col, data ? data[col.key] : '') + '</td>').join('') +
       fneBulkRowActionsHtml(body.rows.length === 0);
     tr.innerHTML = html;
     body.appendChild(tr);
     fneBulkWireRowCalc(tr);
+    fneBulkWireVerticalDirector(tr);
     fneBulkRenumberRows();
     fneBulkUpdateRowCount();
   }
@@ -2413,7 +2579,7 @@ if (!fneIsAdmin()) {
         rec._id = tr.dataset.recordId || tr.querySelector('.fne-bulk-id')?.value || '';
         if (!rec._id) rec._errors.push('Record ID missing');
       }
-      FNE_BULK_TABLE_COLS.forEach(col => {
+      fneBulkTableCols().forEach(col => {
         const el = tr.querySelector('[data-key="' + col.key + '"]');
         const val = el ? String(el.value || '').trim() : '';
         rec[col.key] = val;
@@ -2465,7 +2631,7 @@ if (!fneIsAdmin()) {
       if (!tr) return;
       let colOffset = 0;
       if (fneBulkIsEdit() && cells[0] && /^\d+$/.test(cells[0])) colOffset = 1;
-      FNE_BULK_TABLE_COLS.forEach((col, ci) => {
+      fneBulkTableCols().forEach((col, ci) => {
         if (col.readonly) return;
         const cellIdx = ci + colOffset;
         if (cellIdx >= cells.length) return;
@@ -2678,6 +2844,7 @@ if (!fneIsAdmin()) {
     };
     FNE_IMPORT_COLUMNS.forEach(col => {
       if (col.required) return;
+      if (col.key === 'criticalProjects' && !fneIsPowerUser()) return;
       const raw = rec[col.key];
       if (!String(raw || '').trim()) return;
       if (col.type === 'date') {
@@ -2740,9 +2907,10 @@ if (!fneIsAdmin()) {
     };
 
     const adminUser = fneIsAdmin();
+    const canSelectRows = adminUser || fneIsPowerUser();
     const cols = [];
 
-    if (adminUser) {
+    if (canSelectRows) {
       cols.push({
         colId: 'fne_select',
         headerName: '',
@@ -2834,9 +3002,9 @@ if (!fneIsAdmin()) {
         suppressSizeToFit: false,
         cellStyle: { display: 'flex', alignItems: 'center' },
       },
-      rowSelection: adminUser ? 'multiple' : undefined,
+      rowSelection: canSelectRows ? 'multiple' : undefined,
       suppressRowClickSelection: true,
-      isRowSelectable: () => adminUser,
+      isRowSelectable: () => canSelectRows,
       pagination: true,
       paginationPageSize: 50,
       paginationPageSizeSelector: [25, 50, 100, 250],
@@ -2984,6 +3152,7 @@ if (!fneIsAdmin()) {
   window.fneBulkEditOpen     = fneBulkEditOpen;
   window.fneBulkEditClose    = fneBulkEditClose;
   window.fneBulkEditSaveAll  = fneBulkEditSaveAll;
+  window.fneBulkDeleteSelected = fneBulkDeleteSelected;
   window.showFneView        = showFneView;
   window.fneTcvCalc         = fneTcvCalc;
   window.fneInit            = fneInit;
