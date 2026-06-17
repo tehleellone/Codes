@@ -539,6 +539,48 @@
             padding: 1rem
         }
 
+        /* PSD Assignment — full-bleed layout (edge-to-edge beside sidebar) */
+        .portal-shell.psd-full-shell {
+            max-width: none;
+            width: 100%;
+        }
+
+        .content.psd-full-mode {
+            padding: 0 !important;
+            width: 100%;
+            flex: 1;
+            min-width: 0;
+        }
+
+        #psdView {
+            width: 100%;
+            max-width: none;
+            padding: 0.75rem 1rem 1.25rem;
+            box-sizing: border-box;
+        }
+
+        #psdView #psdContainer,
+        #psdView .psd-root {
+            width: 100%;
+            max-width: none;
+        }
+
+        #psdView .top-stats {
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+        }
+
+        @media (max-width: 1400px) {
+            #psdView .top-stats {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 900px) {
+            #psdView .top-stats {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
         @keyframes fadeSection {
             from {
                 opacity: 0;
@@ -2215,6 +2257,10 @@
                         <div class="nav-icon"><i data-lucide="folder-open"></i></div>
                         <div class="nav-label">Process Documents</div>
                     </div>
+                    <div class="nav-item" id="psdNavItem" data-section="psdView" onclick="switchDashboardSection('psdView'); if(typeof psdInit==='function') psdInit();" style="display:none;">
+                        <div class="nav-icon"><i data-lucide="clipboard-list"></i></div>
+                        <div class="nav-label">PSD Assignment</div>
+                    </div>
 <div class="nav-item" data-section="seMailboxView" onclick="switchDashboardSection('seMailboxView');initSEMailbox();">
     <div class="nav-icon"><i data-lucide="inbox"></i></div>
     <div class="nav-label">SE Mailbox</div>
@@ -2480,6 +2526,14 @@
             </div><!-- dashboard-view -->
             <div id="eta-view" class="dashboard-section" style="display:none; width:100%;"></div>
             <div id="pm-view" class="dashboard-section" style="display:none; width:100%;"></div>
+            <!-- PSD ASSIGNMENT SECTION -->
+            <div class="dashboard-section" style="display:none;" id="psdView">
+                <div id="psdLoading" style="text-align:center;padding:40px;color:var(--t2);">
+                    <i data-lucide="loader-2" style="width:40px;height:40px;animation:spin 1s linear infinite;color:var(--acc);display:inline-block;"></i>
+                    <div style="margin-top:12px;font-weight:600;">Loading PSD Assignment...</div>
+                </div>
+                <div id="psdContent" style="display:none;"><div id="psdContainer"></div></div>
+            </div>
             <!-- PENDING REQUESTS SECTION -->
             <div id="pending-requests" class="dashboard-section" style="display: none;">
                 <div style="width:100%;">
@@ -3744,6 +3798,15 @@ function computeLMRNPS(rnpsGrouped) {
     });
     return result;
 }
+        function parseChoiceField(raw) {
+            if (raw === null || raw === undefined) return '';
+            if (typeof raw === 'object') {
+                if (Array.isArray(raw)) return raw.length ? parseChoiceField(raw[0]) : '';
+                return raw.Label || raw.Value || raw.Title || '';
+            }
+            return String(raw).replace(/\u00a0/g, ' ').trim();
+        }
+
         async function fetchData() {
             // ===== LOCAL DEV MODE: Return fake data =====
             if (LOCAL_DEV_MODE) {
@@ -3760,6 +3823,7 @@ function computeLMRNPS(rnpsGrouped) {
                 "Account_x0020_Manager/Title,Account_x0020_Manager/EMail," +
                 "Account_x0020_Director/Title,Account_x0020_Director/EMail," +
                 "POC_x0020_Name,POC_x0020_Email_x0020_ID,POC_x0020_Contact_x0020_No," +
+                "AccountType,RNPS_Eligibility," +
                 // 2025 months
                 "Oct_x002d_25,Nov_x002d_25,Dec_x002d_25," +
                 // 2026 months
@@ -3826,6 +3890,8 @@ function computeLMRNPS(rnpsGrouped) {
                     pocName: item.POC_x0020_Name || '',
                     pocEmail: item.POC_x0020_Email_x0020_ID || '',
                     pocPhone: item.POC_x0020_Contact_x0020_No || '',
+                    accountType: parseChoiceField(item.AccountType) || '',
+                    rnpsEligibility: parseChoiceField(item.RNPS_Eligibility) || '',
 
                     // [NEW] Store last 3 months values with keys
                     [lastThreeMonths[0].key]: monthRevenues[0] || 0, // e.g., 'oct25'
@@ -4014,6 +4080,37 @@ function computeLMRNPS(rnpsGrouped) {
             isActive: false
         };
         window.USER_CONTEXT = USER_CONTEXT; // expose for external JS modules
+
+        function normalizeSmRole(role) {
+            if (!role) return 'none';
+            var r = String(role).trim();
+            if (r === 'PSD Admin') return 'PSD_Admin';
+            if (r === 'PSD Agent') return 'PSD_Agent';
+            return r;
+        }
+        function isPsdRole(role) {
+            return role === 'PSD_Admin' || role === 'PSD_Agent';
+        }
+        function applyPsdNavRestrictions() {
+            var psdAllowedLabels = [
+                'Newsletter',
+                'Events / TT / Activity',
+                'Project Management',
+                'Synergy 360',
+                'Suggestion Box',
+                'Process Documents',
+                'Contact Us',
+                'PSD Assignment'
+            ];
+            document.querySelectorAll('.nav-item').forEach(function(item) {
+                var labelEl = item.querySelector('.nav-label');
+                var label = labelEl ? labelEl.textContent.trim() : '';
+                item.style.display = (psdAllowedLabels.indexOf(label) >= 0) ? 'flex' : 'none';
+            });
+            document.querySelectorAll('.nav-section-label').forEach(function(lbl) {
+                lbl.style.display = 'none';
+            });
+        }
 
         // ===== VISIT TRACKING =====
         function getVisitCount() {
@@ -4247,9 +4344,7 @@ USER_CONTEXT.isTSMSEViewer = (DEV_USER_PROFILE.role === 'TSM_SE_Viewer');
 
             const url = siteUrl +
                 "/_api/web/lists/getbytitle('" + accessListTitle + "')/items" +
-                "?$select=UserEmailID,Role" +
-                "&$filter=UserEmailID eq '" + userEmail + "'" +
-                "&$top=1";
+                "?$select=UserEmailID,Role&$top=5000";
 
             const xhr = new XMLHttpRequest();
             xhr.open('GET', url, true);
@@ -4258,18 +4353,23 @@ USER_CONTEXT.isTSMSEViewer = (DEV_USER_PROFILE.role === 'TSM_SE_Viewer');
                 if (xhr.readyState !== 4) return;
                 if (xhr.status >= 200 && xhr.status < 300) {
                     const json = JSON.parse(xhr.responseText);
-                    const results = (json.d && json.d.results) ? json.d.results : [];
+                    const allResults = (json.d && json.d.results) ? json.d.results : [];
+                    const emailLower = (userEmail || '').toLowerCase();
+                    const accessRecord = allResults.find(function(r) {
+                        return (r.UserEmailID || '').toLowerCase() === emailLower;
+                    });
 
-                    if (results.length > 0) {
-                        // [OK] Found in Access_Control list (Admin/AM/AD)
-                        const accessRecord = results[0];
-                        USER_CONTEXT.role = accessRecord.Role || 'none';
+                    if (accessRecord) {
+                        // [OK] Found in Access_Control list
+                        USER_CONTEXT.role = normalizeSmRole(accessRecord.Role || 'none');
                         USER_CONTEXT.isAM = (USER_CONTEXT.role === 'Account Manager');
                         USER_CONTEXT.isAD = (USER_CONTEXT.role === 'Account Director');
                         USER_CONTEXT.isAdmin = (USER_CONTEXT.role === 'Admin');
 USER_CONTEXT.isReadOnly = (USER_CONTEXT.role === 'Read Only');
 USER_CONTEXT.isTSMManager = (USER_CONTEXT.role === 'TSM Manager');
 USER_CONTEXT.isTSMSEViewer = (USER_CONTEXT.role === 'TSM_SE_Viewer');
+USER_CONTEXT.isPsdAdmin = (USER_CONTEXT.role === 'PSD_Admin');
+USER_CONTEXT.isPsdAgent = (USER_CONTEXT.role === 'PSD_Agent');
 USER_CONTEXT.isActive = true;
 
                         localStorage.setItem('sm_user_email', userEmail);
@@ -4419,6 +4519,14 @@ USER_CONTEXT.isActive = true;
     roleEl.innerHTML = '<i data-lucide="clipboard-check" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i>Auditor';
     roleEl.style.background = 'linear-gradient(135deg, rgba(20, 184, 166, 0.2), rgba(13, 148, 136, 0.2))';
     roleEl.style.borderColor = 'rgba(20, 184, 166, 0.6)';
+} else if (USER_CONTEXT.role === 'PSD_Admin') {
+    roleEl.innerHTML = '<i data-lucide="clipboard-list" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i>PSD Admin';
+    roleEl.style.background = 'linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(139, 92, 246, 0.2))';
+    roleEl.style.borderColor = 'rgba(124, 58, 237, 0.6)';
+} else if (USER_CONTEXT.role === 'PSD_Agent') {
+    roleEl.innerHTML = '<i data-lucide="inbox" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i>PSD Agent';
+    roleEl.style.background = 'linear-gradient(135deg, rgba(8, 145, 178, 0.2), rgba(6, 182, 212, 0.2))';
+    roleEl.style.borderColor = 'rgba(8, 145, 178, 0.6)';
 }
 else {
     roleEl.innerHTML = '<i data-lucide="user" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle; margin-right: 4px;"></i>Guest User';
@@ -4473,7 +4581,19 @@ else {
         <span class="btn-text">Launch TSM SE Dashboard</span>
         <span class="btn-shine"></span>
     `;
-}
+} else if (USER_CONTEXT.role === 'PSD_Admin') {
+                    dashboardBtn.innerHTML = `
+                        <span class="btn-icon"><i data-lucide="clipboard-list" style="width: 20px; height: 20px;"></i></span>
+                        <span class="btn-text">Launch PSD Assignment</span>
+                        <span class="btn-shine"></span>
+                    `;
+                } else if (USER_CONTEXT.role === 'PSD_Agent') {
+                    dashboardBtn.innerHTML = `
+                        <span class="btn-icon"><i data-lucide="inbox" style="width: 20px; height: 20px;"></i></span>
+                        <span class="btn-text">Launch My PSD Queue</span>
+                        <span class="btn-shine"></span>
+                    `;
+                }
                 else if (USER_CONTEXT.role === 'Account Manager' || USER_CONTEXT.role === 'Account Director') {
                     dashboardBtn.innerHTML = `
                         <span class="btn-icon"><i data-lucide="bar-chart-3" style="width: 20px; height: 20px;"></i></span>
@@ -4488,7 +4608,7 @@ else {
                 `;
 
                 dashboardBtn.onclick = function() {
-       if (USER_CONTEXT.role === 'Admin' || USER_CONTEXT.role === 'Line Manager' || USER_CONTEXT.role === 'Service Manager' || USER_CONTEXT.role === 'Read Only' || USER_CONTEXT.role === 'TSM Manager' || USER_CONTEXT.role === 'Auditor' || USER_CONTEXT.role === 'TSM_SE_Viewer') {
+       if (USER_CONTEXT.role === 'Admin' || USER_CONTEXT.role === 'Line Manager' || USER_CONTEXT.role === 'Service Manager' || USER_CONTEXT.role === 'Read Only' || USER_CONTEXT.role === 'TSM Manager' || USER_CONTEXT.role === 'Auditor' || USER_CONTEXT.role === 'TSM_SE_Viewer' || isPsdRole(USER_CONTEXT.role)) {
     showDashboard();
 }
 
@@ -4566,6 +4686,14 @@ else if (USER_CONTEXT.role === 'Account Manager' || USER_CONTEXT.role === 'Accou
                 }, 150);
             }
 
+            // PSD roles: jump straight to PSD Assignment
+            if (isPsdRole(USER_CONTEXT.role)) {
+                setTimeout(function() {
+                    switchDashboardSection('psdView');
+                    if (typeof psdInit === 'function') psdInit();
+                }, 150);
+            }
+
             const loading = document.getElementById('loading');
             const content = document.getElementById('content');
             if (loading) loading.style.display = 'none';
@@ -4590,6 +4718,26 @@ else if (USER_CONTEXT.role === 'Account Manager' || USER_CONTEXT.role === 'Accou
         function initLandingPage() {
             // Button click handler is now set in populateLandingPage()
             // This function can remain empty or be removed
+        }
+
+        function initPsdShell() {
+            try {
+                setCurrentDate();
+                var loading = document.getElementById('loading');
+                var content = document.getElementById('content');
+                if (loading) loading.style.display = 'none';
+                if (content) content.style.display = 'block';
+
+                var psdNav = document.getElementById('psdNavItem');
+                if (psdNav) psdNav.style.display = 'flex';
+                applyPsdNavRestrictions();
+
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                if (typeof analyticsStartSession === 'function') analyticsStartSession();
+                if (typeof nlCheckOnLoad === 'function') nlCheckOnLoad();
+            } catch (err) {
+                console.error('PSD shell init error:', err);
+            }
         }
 
         async function init() {
@@ -4663,13 +4811,23 @@ applyFilters();
                     if (analyticsNav) analyticsNav.style.display = 'flex';
                     if (analyticsLabel) analyticsLabel.style.display = 'block';
                 }
-         if (USER_CONTEXT.isAdmin || USER_CONTEXT.role === 'Service Director' || USER_CONTEXT.role === 'Auditor' || USER_CONTEXT.isTSMManager) {
+         if (USER_CONTEXT.isAdmin || USER_CONTEXT.role === 'Service Director' || USER_CONTEXT.role === 'Auditor' || USER_CONTEXT.isTSMManager || USER_CONTEXT.role === 'Line Manager' || USER_CONTEXT.role === 'Service Manager') {
     var qaNav = document.getElementById('qaNavItem');
     if (qaNav) qaNav.style.display = 'flex';
 }
 
 var rnpsNav = document.getElementById('rnpsNavItem');
 if (rnpsNav) rnpsNav.style.display = 'flex';
+
+                // PSD Assignment: visible to SM Admin, PSD_Admin and PSD_Agent only
+                if (USER_CONTEXT.isAdmin || USER_CONTEXT.role === 'PSD_Admin' || USER_CONTEXT.role === 'PSD_Agent') {
+                    var psdNav = document.getElementById('psdNavItem');
+                    if (psdNav) psdNav.style.display = 'flex';
+                }
+                // PSD_Admin / PSD_Agent: restrict the sidebar to an allowed set of menus
+                if (isPsdRole(USER_CONTEXT.role)) {
+                    applyPsdNavRestrictions();
+                }
 
                 // Auditor: hide all nav items except allowed ones
                 if (USER_CONTEXT.role === 'Auditor') {
@@ -4750,7 +4908,7 @@ if (role === 'Line Manager') {
                 lmSelect.disabled = true;
             } else {
     // Admin and TSM Manager
-    const sourceData = USER_CONTEXT.isTSMManager 
+    const sourceData = USER_CONTEXT.isTSMManager
         ? ALL_DATA.filter(a => a.team === 'TSM_ME' || a.team === 'TSM_SE')
         : ALL_DATA;
     const lms = [...new Set(sourceData.map(a => a.lm))].filter(Boolean).sort();
@@ -6010,6 +6168,18 @@ if (window.TSM_SE_ACTIVE) {
                     filter: 'agTextColumnFilter',
                     width: 140
                 },
+                {
+                    field: 'accountType',
+                    headerName: 'Account Type',
+                    filter: 'agSetColumnFilter',
+                    width: 150
+                },
+                {
+                    field: 'rnpsEligibility',
+                    headerName: 'RNPS Eligibility',
+                    filter: 'agSetColumnFilter',
+                    width: 150
+                },
                 ...lastThree.map((month, index) => ({
                     field: month.key,
                     headerName: month.label,
@@ -6366,13 +6536,13 @@ ${USER_CONTEXT.userName}`
             let html = '<html><head><meta charset="utf-8"></head><body>';
             html += '<table border="1" cellspacing="0" cellpadding="4">';
 
-            html += '<tr><td colspan="16" style="background-color:#a855f7;color:white;font-size:16px;font-weight:bold;text-align:center;padding:12px;">';
+            html += '<tr><td colspan="18" style="background-color:#a855f7;color:white;font-size:16px;font-weight:bold;text-align:center;padding:12px;">';
             html += 'Service Management Dashboard - Export</td></tr>';
 
-            html += '<tr><td colspan="16" style="background-color:#e9d5ff;font-size:12px;padding:8px;text-align:center;">';
+            html += '<tr><td colspan="18" style="background-color:#e9d5ff;font-size:12px;padding:8px;text-align:center;">';
             html += '<b>Generated:</b> ' + dateStr + ' | <b>Parents:</b> ' + parentAccounts.length + ' | <b>Total (with children):</b> ' + exportData.length + '</td></tr>';
 
-            html += '<tr><td colspan="16" style="height:10px;"></td></tr>';
+            html += '<tr><td colspan="18" style="height:10px;"></td></tr>';
 
             html += '<tr>';
             html += '<th style="background-color:#a855f7;color:white;font-weight:bold;padding:10px;">Account Code</th>';
@@ -6387,6 +6557,8 @@ ${USER_CONTEXT.userName}`
             html += '<th style="background-color:#a855f7;color:white;font-weight:bold;padding:10px;">POC Name</th>';
             html += '<th style="background-color:#a855f7;color:white;font-weight:bold;padding:10px;">POC Email</th>';
             html += '<th style="background-color:#a855f7;color:white;font-weight:bold;padding:10px;">POC Phone</th>';
+            html += '<th style="background-color:#a855f7;color:white;font-weight:bold;padding:10px;">Account Type</th>';
+            html += '<th style="background-color:#a855f7;color:white;font-weight:bold;padding:10px;">RNPS Eligibility</th>';
             lastThree.forEach(month => {
                 html += '<th style="background-color:#a855f7;color:white;font-weight:bold;padding:10px;">' + month.label + '</th>';
             });
@@ -6417,6 +6589,8 @@ ${USER_CONTEXT.userName}`
                 html += '<td style="background-color:' + rowColor + ';padding:8px;">' + a.pocName + '</td>';
                 html += '<td style="background-color:' + rowColor + ';padding:8px;">' + a.pocEmail + '</td>';
                 html += '<td style="background-color:' + rowColor + ';padding:8px;">' + a.pocPhone + '</td>';
+                html += '<td style="background-color:' + rowColor + ';padding:8px;">' + (a.accountType || '') + '</td>';
+                html += '<td style="background-color:' + rowColor + ';padding:8px;">' + (a.rnpsEligibility || '') + '</td>';
                 lastThree.forEach(month => {
                     html += '<td style="background-color:' + rowColor + ';padding:8px;text-align:right;">' + formatCurrency(a[month.key] || 0) + '</td>';
                 });
@@ -6424,7 +6598,7 @@ ${USER_CONTEXT.userName}`
                 html += '</tr>';
             });
 
-            html += '<tr><td colspan="16" style="background-color:#e9d5ff;font-weight:bold;padding:10px;text-align:center;">';
+            html += '<tr><td colspan="18" style="background-color:#e9d5ff;font-weight:bold;padding:10px;text-align:center;">';
             html += 'Parent Accounts: ' + parentAccounts.length + ' | Total Records (with children): ' + exportData.length + '</td></tr>';
             html += '</table></body></html>';
 
@@ -6620,7 +6794,10 @@ ${USER_CONTEXT.userName}`
             var contentDiv = document.querySelector('.content');
             if (contentDiv) {
                 contentDiv.classList.remove('section-mode');
+                contentDiv.classList.remove('psd-full-mode');
             }
+            var portalShell = document.querySelector('.portal-shell');
+            if (portalShell) portalShell.classList.remove('psd-full-shell');
 
             // ── HIDE ALL SECTIONS ─────────────────────────────────────────
             document.querySelectorAll('.dashboard-section').forEach(function(section) {
@@ -6648,6 +6825,10 @@ ${USER_CONTEXT.userName}`
             if (contentDiv) {
                 if (sectionId === 'pending-requests' || sectionId === 'transfer-requests') {
                     contentDiv.classList.add('section-mode');
+                }
+                if (sectionId === 'psdView') {
+                    contentDiv.classList.add('psd-full-mode');
+                    if (portalShell) portalShell.classList.add('psd-full-shell');
                 }
             }
 
@@ -6745,6 +6926,8 @@ else if (sectionId === 'contactUsView') {
         init();
     } else if (USER_CONTEXT.role === 'Account Manager' || USER_CONTEXT.role === 'Account Director') {
         initAMView();
+    } else if (isPsdRole(USER_CONTEXT.role)) {
+        initPsdShell();
     }
     // TSM_SE data loader
     if (typeof tsmSeInit === 'function') tsmSeInit();
@@ -6916,6 +7099,11 @@ async function ownerFetchUserRole(email) {
                         if (qaNav) qaNav.style.display = 'flex';
                     }
 
+                    if (USER_CONTEXT.role === 'Line Manager' || USER_CONTEXT.role === 'Service Manager') {
+                        var qaNavLmSm = document.getElementById('qaNavItem');
+                        if (qaNavLmSm) qaNavLmSm.style.display = 'flex';
+                    }
+
                     var rnpsNav = document.getElementById('rnpsNavItem');
                     if (rnpsNav) rnpsNav.style.display = 'flex';
 
@@ -6989,6 +7177,31 @@ async function ownerFetchUserRole(email) {
             </div>
         `;
                 });
+
+                html += `
+            <div style="padding: 12px; background: rgba(168, 85, 247, 0.1); border-radius: 8px;">
+                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 600;">Account Type</div>
+                <div style="font-size: 14px; font-weight: 600;">${account.accountType || '—'}</div>
+            </div>`;
+
+                if (USER_CONTEXT.isAdmin) {
+                    html += `
+            <div style="padding: 12px; background: rgba(168, 85, 247, 0.1); border-radius: 8px;">
+                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 600;">RNPS Eligibility</div>
+                <select class="filter-select" id="editRnpsEligibility" style="font-size: 14px; padding: 10px; width: 100%;">
+                    <option value="">Select...</option>
+                    <option value="Yes"${account.rnpsEligibility === 'Yes' ? ' selected' : ''}>Yes</option>
+                    <option value="No"${account.rnpsEligibility === 'No' ? ' selected' : ''}>No</option>
+                </select>
+            </div>`;
+                } else {
+                    html += `
+            <div style="padding: 12px; background: rgba(168, 85, 247, 0.1); border-radius: 8px;">
+                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 600;">RNPS Eligibility</div>
+                <div style="font-size: 14px; font-weight: 600;">${account.rnpsEligibility || '—'}</div>
+            </div>`;
+                }
+
                 html += '</div>';
                 // [REVENUE SECTION] Add Monthly Revenue
                 html += '<h3 class="table-title" style="margin: 32px 0 16px; font-size: 18px;"><i data-lucide="bar-chart-3" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Monthly Revenue</h3>';
@@ -7175,8 +7388,15 @@ async function ownerFetchUserRole(email) {
             const amChanged = newAM !== EDIT_ACCOUNT_DATA.am;
             const adChanged = newAD !== EDIT_ACCOUNT_DATA.ad;
             const revenueChanged = newRevenue !== null && newRevenue !== (EDIT_ACCOUNT_DATA.allMonths[revenueField] || 0);
+            let newRnpsEligibility = EDIT_ACCOUNT_DATA.rnpsEligibility || '';
+            let rnpsChanged = false;
+            if (USER_CONTEXT.isAdmin) {
+                const rnpsEl = document.getElementById('editRnpsEligibility');
+                newRnpsEligibility = rnpsEl ? rnpsEl.value : (EDIT_ACCOUNT_DATA.rnpsEligibility || '');
+                rnpsChanged = newRnpsEligibility !== (EDIT_ACCOUNT_DATA.rnpsEligibility || '');
+            }
 
-            if (!amChanged && !adChanged && !revenueChanged && window.EDIT_ALL_MONTHS.length === 0) {
+            if (!amChanged && !adChanged && !revenueChanged && !rnpsChanged && window.EDIT_ALL_MONTHS.length === 0) {
                 alert('No changes detected');
                 return;
             }
@@ -7189,7 +7409,9 @@ async function ownerFetchUserRole(email) {
                 ['Line Manager', EDIT_ACCOUNT_DATA.lm, EDIT_ACCOUNT_DATA.lm],
                 ['Service Manager', EDIT_ACCOUNT_DATA.sm, EDIT_ACCOUNT_DATA.sm],
                 ['Account Manager', EDIT_ACCOUNT_DATA.am, newAM],
-                ['Account Director', EDIT_ACCOUNT_DATA.ad, newAD]
+                ['Account Director', EDIT_ACCOUNT_DATA.ad, newAD],
+                ['Account Type', EDIT_ACCOUNT_DATA.accountType || '—', EDIT_ACCOUNT_DATA.accountType || '—'],
+                ['RNPS Eligibility', EDIT_ACCOUNT_DATA.rnpsEligibility || '—', newRnpsEligibility || '—']
             ];
 
             if (revenueChanged) {
@@ -7279,6 +7501,11 @@ async function ownerFetchUserRole(email) {
 
                 if (window.EDIT_REVENUE_DATA && window.EDIT_REVENUE_DATA.field) {
                     updateData[window.EDIT_REVENUE_DATA.field] = window.EDIT_REVENUE_DATA.value;
+                }
+
+                if (USER_CONTEXT.isAdmin) {
+                    const rnpsEl = document.getElementById('editRnpsEligibility');
+                    if (rnpsEl) updateData.RNPS_Eligibility = rnpsEl.value;
                 }
 
                 // Save all 3 months if revenue enabled
@@ -7937,6 +8164,7 @@ async function ownerFetchUserRole(email) {
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/suggestions.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/processdocs.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/qualityassurance.js"></script>
+    <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/psd-assignment.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/rnps.js"></script>
   <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/semailbox.js"></script>
   <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=4"></script>
