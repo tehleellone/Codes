@@ -42,7 +42,12 @@ var PSD_COLS = [
 var PSD_STATUS = { PENDING: 'Pending', INPROGRESS: 'Inprogress', COMPLETED: 'Completed' };
 
 // ── Roles ─────────────────────────────────────────────────────
-function psdRole()        { return (window.USER_CONTEXT && window.USER_CONTEXT.role) || 'none'; }
+function psdRole() {
+    var r = (window.USER_CONTEXT && window.USER_CONTEXT.role) || 'none';
+    if (r === 'PSD Admin') return 'PSD_Admin';
+    if (r === 'PSD Agent') return 'PSD_Agent';
+    return r;
+}
 function psdUserName()    { return (window.USER_CONTEXT && window.USER_CONTEXT.userName) || ''; }
 function psdUserEmail()   { return (window.USER_CONTEXT && window.USER_CONTEXT.userEmail) || ''; }
 function psdIsSMAdmin()   { return psdRole() === 'Admin'; }
