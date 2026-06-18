@@ -493,7 +493,7 @@ body[data-theme="dark"] .badge-warning,body[data-theme="magenta-dark"] .badge-wa
               </div>
             </div>
             <div class="fb-group">
-              <div class="fb-group-label">Project Type</div>
+              <div class="fb-group-label">Connectivity Type</div>
               <div class="ms-wrap" id="ms-ptype">
                 <div class="ms-trigger" id="mst-ptype" onclick="toggleMsFilter('ptype')"><span id="mstxt-ptype">All</span><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
                 <div class="ms-dropdown" id="msd-ptype"></div>
@@ -528,7 +528,7 @@ body[data-theme="dark"] .badge-warning,body[data-theme="magenta-dark"] .badge-wa
               </div>
             </div>
             <div class="fb-group">
-  <div class="fb-group-label">Sub Request</div>
+  <div class="fb-group-label">Request Type</div>
   <div class="ms-wrap" id="ms-subreq">
     <div class="ms-trigger" id="mst-subreq" onclick="toggleMsFilter('subreq')"><span id="mstxt-subreq">All</span><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
     <div class="ms-dropdown" id="msd-subreq"></div>
@@ -563,11 +563,19 @@ body[data-theme="dark"] .badge-warning,body[data-theme="magenta-dark"] .badge-wa
               </div>
             </div>
             <div class="fb-group">
-              <div class="fb-group-label">Critical Projects</div>
+              <div class="fb-group-label">Critical Project</div>
               <div class="ms-wrap" id="ms-critical">
                 <div class="ms-trigger" id="mst-critical" onclick="toggleMsFilter('critical')"><span id="mstxt-critical">All</span><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
                 <div class="ms-dropdown" id="msd-critical"></div>
               </div>
+            </div>
+            <div class="fb-group" id="fbRfsMigration" style="display:none;">
+              <div class="fb-group-label">Target Migration</div>
+              <select id="dashRfsMigration" class="fb-select" onchange="applyAll()">
+                <option value="">All</option>
+                <option value="approaching">Approaching (≤4 days)</option>
+                <option value="overdue">Overdue (past Expected RFS)</option>
+              </select>
             </div>
           </div>
         </div>
@@ -926,6 +934,8 @@ function launchDashboard(){
     el('dashboardContent').style.flexDirection='column';
  if(isPriv) loadAnalytics();
 fneInit();
+const migFilter = el('fbRfsMigration');
+if (migFilter && typeof fneIsPowerUser === 'function' && fneIsPowerUser()) migFilter.style.display = '';
 logSessionStart();// starts idle tracking internally after logging
   });
 }
@@ -1434,7 +1444,7 @@ el('viewAnalytics').style.display = view==='analytics' ? 'block' : 'none';
 function loadData(onComplete){
   setLoadingStep('Fetching project records...');
   const select=[
-    'Id',F.FES,F.SUB_REQ,F.IMPL_TYPE,F.START_DATE,F.SLA,F.EXP_RFS,
+    'Id',F.SUB_REQ,F.IMPL_TYPE,F.START_DATE,F.SLA,F.EXP_RFS,
     F.BUILD_STATUS,F.CUST_NAME,F.SOF,F.MRC,F.EST_COST,F.VERTICAL,
     F.COMMENTS,F.REQ_STATUS,F.CUST_ADDR,F.ACC_CODE,F.ASSIGNED_BY,
     F.PROJ_TYPE,F.UNIT_NO,F.OTC,F.TCV,F.OSP_REQ,F.OSP_ET,
@@ -1476,7 +1486,6 @@ function mapItem(it){
   const qt = mo ? Math.ceil(mo/3) : null;
   return {
     id:          it.Id,
-    fes:         it[F.FES]||'—',
     subRequest:  it[F.SUB_REQ]||'—',
     implType:    it[F.IMPL_TYPE]||'—',
     startDate:   sd,
@@ -1626,6 +1635,11 @@ function applyAll(){
       if(!sel.has(val) && !sel.has(String(val))) return false;
     }
     if(selStatusTile && item.requestStatus!==selStatusTile) return false;
+    const rfsMig = el('dashRfsMigration') ? el('dashRfsMigration').value : '';
+    if (rfsMig && typeof fneIsApproachingRfs === 'function') {
+      if (rfsMig === 'approaching' && !fneIsApproachingRfs(item)) return false;
+      if (rfsMig === 'overdue' && !fneIsOverdueRfs(item)) return false;
+    }
     return true;
   });
 
@@ -2076,8 +2090,9 @@ function renderProjectType(items,c){destroyChart('projType');const types=[...new
 function renderGrid(){
   if(typeof agGrid==='undefined'){el('myGrid').innerHTML='<div style="padding:20px;color:var(--t3);">AG Grid not loaded.</div>';return;}
   const data=getViewItems();
-  const DASH_MS_FIELDS=new Set(['fneManager','amName','customerName','fes','subRequest','implType','projectType','vertical','accountDirector','requestStatus','projectHealth','buildingStatus','criticalProjects','ospRequired','bidRef','woNumber','gaid','siteRef','fesRef','assignedBy']);
+  const DASH_MS_FIELDS=new Set(['fneManager','amName','customerName','subRequest','implType','projectType','vertical','accountDirector','requestStatus','projectHealth','buildingStatus','criticalProjects','ospRequired','bidRef','woNumber','gaid','siteRef','fesRef','assignedBy']);
   const dashEnhanceCol=function(col){
+    if(typeof fneApplyHeaderSizing==='function') fneApplyHeaderSizing(col);
     if(typeof FneSetColumnFilter!=='undefined'&&DASH_MS_FIELDS.has(col.field))col.filter=FneSetColumnFilter;
     else if(col.type==='numericColumn')col.filter='agNumberColumnFilter';
     else if(['startDate','expectedRFS','rfsBaseline'].includes(col.field))col.filter='agDateColumnFilter';
@@ -2088,41 +2103,55 @@ function renderGrid(){
   const spiRenderer=p=>{const v=num(p.value);const col=v>=1?'#16a34a':v>=0.8?'#d97706':'#dc2626';return`<span style="font-weight:700;color:${col}">${v.toFixed(2)}</span>`;};
   const cols=[
     {field:'fneManager',headerName:'FNE Manager',width:145,pinned:'left'},
-    {field:'amName',headerName:'Account Manager',width:145,pinned:'left'},
-    {field:'customerName',headerName:'Customer',width:170},
-    {field:'fes',headerName:'FES',width:110},
-    {field:'subRequest',headerName:'Sub Request',width:130},
-    {field:'implType',headerName:'Impl. Type',width:130},
-    {field:'projectType',headerName:'Project Type',width:120},
+    {field:'amName',headerName:'Account Manager',width:165,pinned:'left'},
+    {field:'customerName',headerName:'Customer Name',width:180},
+    {field:'subRequest',headerName:'Request Type',width:150},
+    {field:'implType',headerName:'Implementation Type',width:175},
+    {field:'projectType',headerName:'Connectivity Type',width:155},
     {field:'vertical',headerName:'Vertical',width:110},
-    {field:'accountDirector',headerName:'Acct. Director',width:140},
-    {field:'requestStatus',headerName:'Status',width:120,cellRenderer:statusRenderer},
-    {field:'projectHealth',headerName:'Health',width:95,cellRenderer:healthRenderer},
+    {field:'accountDirector',headerName:'Account Director',width:165},
+    {field:'requestStatus',headerName:'Request Status',width:145,cellRenderer:statusRenderer},
+    {field:'projectHealth',headerName:'Project Health',width:135,cellRenderer:healthRenderer},
     {field:'spi',headerName:'SPI',width:90,cellRenderer:spiRenderer,type:'numericColumn'},
-    {field:'sla',headerName:'SLA (days)',width:100,type:'numericColumn'},
+    {field:'sla',headerName:'SLA (days)',width:115,type:'numericColumn'},
     {field:'mrc',headerName:'MRC',width:110,valueFormatter:p=>fmt(p.value),type:'numericColumn'},
     {field:'otc',headerName:'OTC',width:110,valueFormatter:p=>fmt(p.value),type:'numericColumn'},
     {field:'tcv',headerName:'TCV',width:120,valueFormatter:p=>fmt(p.value),type:'numericColumn',cellStyle:{fontWeight:'700'}},
-    {field:'estimatedCost',headerName:'Est. Cost',width:120,valueFormatter:p=>fmt(p.value),type:'numericColumn'},
-    {field:'buildingStatus',headerName:'Building Status',width:140},
+    {field:'estimatedCost',headerName:'Estimated Cost',width:135,valueFormatter:p=>fmt(p.value),type:'numericColumn'},
+    {field:'buildingStatus',headerName:'Building Status',width:145},
     {field:'startDate',headerName:'Start Date',width:120,valueFormatter:p=>fmtDate(p.value)},
-    {field:'expectedRFS',headerName:'Expected RFS',width:130,valueFormatter:p=>fmtDate(p.value)},
-    {field:'rfsBaseline',headerName:'Actual RFS Date',width:140,valueFormatter:p=>fmtDate(p.value)},
-    {field:'criticalProjects',headerName:'Critical Projects',width:130},
-    {field:'contractDuration',headerName:'Duration',width:100,type:'numericColumn'},
-    {field:'ospRequired',headerName:'OSP Required',width:120},
-    {field:'ospCivilET',headerName:'OSP Civil ET',width:120,type:'numericColumn'},
-    {field:'bidRef',headerName:'Bid Ref',width:120},
-    {field:'woNumber',headerName:'WO Number',width:120},
+    {field:'expectedRFS',headerName:'Expected RFS Date',width:155,valueFormatter:p=>fmtDate(p.value)},
+    {field:'rfsBaseline',headerName:'Actual RFS Date',width:150,valueFormatter:p=>fmtDate(p.value)},
+    {field:'criticalProjects',headerName:'Critical Project',width:140},
+    {field:'contractDuration',headerName:'Duration (mo)',width:125,type:'numericColumn'},
+    {field:'ospRequired',headerName:'OSP Required',width:130},
+    {field:'ospCivilET',headerName:'OSP Civil ET (days)',width:155,type:'numericColumn'},
+    {field:'bidRef',headerName:'Bid Reference',width:130},
+    {field:'woNumber',headerName:'WO Number',width:125},
     {field:'gaid',headerName:'GAID',width:120},
-    {field:'siteRef',headerName:'Site Ref',width:130},
-    {field:'fesRef',headerName:'FES Ref',width:130},
-    {field:'assignedBy',headerName:'Assigned By',width:130},
-    {field:'accountCode',headerName:'Account Code',width:120},
-    {field:'customerAddress',headerName:'Address',width:200},
+    {field:'siteRef',headerName:'Site Survey Reference',width:175},
+    {field:'fesRef',headerName:'FES / Shortfall Ref',width:175},
+    {field:'assignedBy',headerName:'Assigned By',width:135},
+    {field:'accountCode',headerName:'Account Code',width:125},
+    {field:'customerAddress',headerName:'Customer Address',width:200},
     {field:'commentsNew',headerName:'Comments',width:200},
   ].map(dashEnhanceCol);
-  const opts={columnDefs:cols,rowData:data,defaultColDef:{sortable:true,filter:true,resizable:true,flex:1,minWidth:90},pagination:true,paginationPageSize:50,paginationPageSizeSelector:[25,50,100,250],rowHeight:44,headerHeight:48,animateRows:true,enableCellTextSelection:true,onGridReady:p=>{GRID_API=p.api;setTimeout(()=>{p.api.sizeColumnsToFit();},100);}};
+  if(typeof fneIsPowerUser==='function'&&fneIsPowerUser()){
+    cols.unshift({
+      colId:'dash_reminder',
+      headerName:'Send Reminder',
+      width:130,
+      minWidth:typeof fneHeaderMinWidth==='function'?fneHeaderMinWidth('Send Reminder'):130,
+      pinned:'left',
+      sortable:false,
+      filter:false,
+      wrapHeaderText:true,
+      autoHeaderHeight:true,
+      cellRenderer:typeof fneReminderCellRenderer==='function'?fneReminderCellRenderer:undefined,
+      cellStyle:{display:'flex',alignItems:'center',justifyContent:'center'},
+    });
+  }
+  const opts={columnDefs:cols,rowData:data,defaultColDef:{sortable:true,filter:true,resizable:true,minWidth:100,wrapHeaderText:true,autoHeaderHeight:true},pagination:true,paginationPageSize:50,paginationPageSizeSelector:[25,50,100,250],rowHeight:44,headerHeight:56,animateRows:true,enableCellTextSelection:true,onGridReady:p=>{GRID_API=p.api;setTimeout(()=>{p.api.sizeColumnsToFit();},100);}};
   if(GRID_API){try{GRID_API.destroy();}catch(e){}GRID_API=null;}
   el('myGrid').innerHTML='';
   agGrid.createGrid(el('myGrid'),opts);
@@ -2141,8 +2170,8 @@ function gridSearch(v){if(GRID_API)GRID_API.setGridOption('quickFilterText',v);}
 // ══════════════════════════════════════════════════════════════════
 function exportExcel(){
   const data=getViewItems();
-  const cols=['fneManager','amName','customerName','fes','subRequest','implType','projectType','vertical','accountDirector','requestStatus','projectHealth','spi','sla','mrc','otc','tcv','estimatedCost','buildingStatus','startDate','expectedRFS','rfsBaseline','criticalProjects','contractDuration','ospRequired','ospCivilET','bidRef','woNumber','gaid','siteRef','fesRef','assignedBy','accountCode','commentsNew'];
-  const headers=['FNE Manager','Account Manager','Customer','FES','Sub Request','Impl. Type','Project Type','Vertical','Acct. Director','Status','Health','SPI','SLA','MRC','OTC','TCV','Est. Cost','Building Status','Start Date','Expected RFS','Actual RFS Date','Critical Projects','Duration','OSP Required','OSP Civil ET','Bid Ref','WO Number','GAID','Site Ref','FES Ref','Assigned By','Account Code','Comments'];
+  const cols=['fneManager','amName','customerName','subRequest','implType','projectType','vertical','accountDirector','requestStatus','projectHealth','spi','sla','mrc','otc','tcv','estimatedCost','buildingStatus','startDate','expectedRFS','rfsBaseline','criticalProjects','contractDuration','ospRequired','ospCivilET','bidRef','woNumber','gaid','siteRef','fesRef','assignedBy','accountCode','commentsNew'];
+  const headers=['FNE Manager','Account Manager','Customer Name','Request Type','Implementation Type','Connectivity Type','Vertical','Account Director','Request Status','Project Health','SPI','SLA (days)','MRC','OTC','TCV','Estimated Cost','Building Status','Start Date','Expected RFS Date','Actual RFS Date','Critical Project','Duration (mo)','OSP Required','OSP Civil ET (days)','Bid Reference','WO Number','GAID','Site Survey Reference','FES / Shortfall Ref','Assigned By','Account Code','Comments'];
   let html='<html><head><meta charset="utf-8"></head><body><table border="1" cellpadding="4" cellspacing="0">';
   html+='<tr>'+headers.map(h=>'<th style="background:#2563eb;color:white;font-weight:bold;padding:10px;">'+h+'</th>').join('')+'</tr>';
   data.forEach((row,i)=>{const bg=i%2===0?'#f0f7ff':'#ffffff';html+='<tr>'+cols.map(c=>{let v=row[c];if(v===undefined||v===null)v='—';if(['startDate','expectedRFS','rfsBaseline'].includes(c))v=fmtDate(v);if(['mrc','otc','tcv','estimatedCost'].includes(c))v=fmt(num(v));return'<td style="background:'+bg+';padding:8px;">'+v+'</td>';}).join('')+'</tr>';});
@@ -2157,6 +2186,7 @@ function exportExcel(){
 // ══════════════════════════════════════════════════════════════════
 function resetAll(){
   selMgr=null; selStatusTile=null;
+  const rfsSel = el('dashRfsMigration'); if (rfsSel) rfsSel.value = '';
   // Clear all multi-select states
   Object.keys(MS_STATE).forEach(k=>{
     MS_STATE[k].clear();
