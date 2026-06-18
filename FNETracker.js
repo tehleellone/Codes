@@ -310,7 +310,20 @@ function fneOpenOutlookMail(to, subject, body, highPriority) {
   href += '?subject=' + encodeURIComponent(subject);
   href += '&body=' + encodeURIComponent(body);
   if (highPriority) href += '&X-Priority=1';
-  window.location.href = href;
+  const link = document.createElement('a');
+  link.href = href;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function fneNormCriticalVal(v) {
+  return String(v || '').trim().toLowerCase();
+}
+
+function fneIsCriticalYes(v) {
+  return fneNormCriticalVal(v) === 'yes';
 }
 
 function fneOpenRfsReminder(row, kind) {
@@ -1790,7 +1803,7 @@ function fneOpenForm(itemId, fromList) {
     set('fne_sof',          clean(item.sof));
     if (fneIsPowerUser()) set('fne_critical_projects', clean(item.criticalProjects));
     else set('fne_critical_projects', clean(item.criticalProjects) || '—');
-    FNE_EDIT_CRITICAL_PREV = clean(item.criticalProjects) || '';
+    FNE_EDIT_CRITICAL_PREV = fneIsCriticalYes(clean(item.criticalProjects)) ? 'Yes' : (clean(item.criticalProjects) || '');
     set('fne_vertical',     clean(item.vertical));
     set('fne_acc_dir',      clean(item.accountDirector));
     set('fne_am_email',     item.amEmail || '');
@@ -2070,6 +2083,18 @@ if (!fneIsAdmin()) {
     const gv = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
     const gn = id => { const v = parseFloat(gv(id)); return isNaN(v) ? null : v; };
 
+    const critSnapshot = fneIsPowerUser() ? gv('fne_critical_projects') : '';
+    const shouldNotifyCritical = fneIsPowerUser() &&
+      fneIsCriticalYes(critSnapshot) &&
+      !fneIsCriticalYes(FNE_EDIT_CRITICAL_PREV);
+    const criticalNotifyRow = shouldNotifyCritical ? {
+      id: FNE_EDIT_ID,
+      fneManager: gv('fne_fne_mgr'),
+      customerName: gv('fne_cust_name'),
+      requestStatus: gv('fne_req_status'),
+      fesRef: gv('fne_fes_ref'),
+    } : null;
+
     const actualRfsVal = gv('fne_rfs_baseline');
     if (actualRfsVal && fneIsFutureDate(actualRfsVal)) {
       fneToast('Actual RFS Date cannot be in the future', 'error');
@@ -2149,19 +2174,12 @@ if (!fneIsAdmin()) {
       if (amUserId) body['Account_x0020_ManagerId'] = amUserId;
   
       const afterSave = (savedId) => {
-        if (fneIsPowerUser()) {
-          const critNow = gv('fne_critical_projects') || '';
-          if (critNow === 'Yes' && FNE_EDIT_CRITICAL_PREV !== 'Yes') {
-            fneNotifyCriticalProjectYes({
-              id: savedId,
-              fneManager: gv('fne_fne_mgr'),
-              customerName: gv('fne_cust_name'),
-              requestStatus: gv('fne_req_status'),
-              fesRef: gv('fne_fes_ref'),
-            });
-          }
-          FNE_EDIT_CRITICAL_PREV = critNow;
+        if (criticalNotifyRow) {
+          criticalNotifyRow.id = savedId || criticalNotifyRow.id;
+          fneNotifyCriticalProjectYes(criticalNotifyRow);
+          fneToast('Critical Project set to Yes — Outlook email opened for the FNE Manager', 'success');
         }
+        if (fneIsPowerUser()) FNE_EDIT_CRITICAL_PREV = critSnapshot;
         fneUploadAttachments(savedId, function() {
           if (saveBtn) saveBtn.textContent = FNE_EDIT_ID ? 'Update Entry' : 'Save Entry';
           if (saveBtnEl) saveBtnEl.disabled = false;
