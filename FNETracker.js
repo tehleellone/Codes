@@ -212,8 +212,44 @@ function fneNormEmail(email) {
   return String(email || '').trim().toLowerCase();
 }
 
+function fneCurrentUser() {
+  return window.USER || (typeof USER !== 'undefined' ? USER : null);
+}
+
 function fneIsPowerUser() {
-  return FNE_POWER_EMAILS.indexOf(fneNormEmail(USER && USER.email)) >= 0;
+  const u = fneCurrentUser();
+  const email = fneNormEmail(u && u.email);
+  if (FNE_POWER_EMAILS.indexOf(email) >= 0) return true;
+  const name = fneNormStr(u && u.name);
+  if (name.indexOf('husham') >= 0 && name.indexOf('salih') >= 0) return true;
+  if (name.indexOf('tehleel') >= 0 && name.indexOf('lone') >= 0) return true;
+  return false;
+}
+
+function fneParseSpDateLocal(val) {
+  if (val === null || val === undefined || val === '') return null;
+  let raw = val;
+  if (typeof raw === 'string' && raw.indexOf('/Date(') >= 0) {
+    const m = raw.match(/\/Date\((-?\d+)\)\//);
+    if (m) raw = new Date(parseInt(m[1], 10)).toISOString();
+  }
+  const d = new Date(raw);
+  if (isNaN(d)) return null;
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
+function fneGetRfsMigrationFilter() {
+  const listEl = document.getElementById('fnel_rfsMigration');
+  if (listEl) return listEl.value || '';
+  const dashEl = document.getElementById('dashRfsMigration');
+  return dashEl ? (dashEl.value || '') : '';
+}
+
+function fneIsActiveRfsStatus(status) {
+  const s = String(status || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return s !== 'completed' && s !== 'cancelled';
 }
 
 function fneHeaderMinWidth(headerName) {
@@ -231,29 +267,24 @@ function fneApplyHeaderSizing(col) {
 }
 
 function fneDaysUntilExpectedRfs(iso) {
-  if (!iso) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const exp = new Date(iso);
-  if (isNaN(exp)) return null;
-  exp.setHours(0, 0, 0, 0);
+  const expStr = fneParseSpDateLocal(iso);
+  if (!expStr) return null;
+  const todayStr = fneTodayDateStr();
+  const exp = new Date(expStr + 'T12:00:00');
+  const today = new Date(todayStr + 'T12:00:00');
   return Math.round((exp - today) / 86400000);
 }
 
 function fneIsApproachingRfs(item) {
-  const d = fneDaysUntilExpectedRfs(item && item.expectedRFS);
-  if (d === null) return false;
-  const st = (item && item.requestStatus) || '';
-  if (FNE_STATUS_COMPLETED.includes(st)) return false;
-  return d >= 0 && d <= 4;
+  if (!item || !fneIsActiveRfsStatus(item.requestStatus)) return false;
+  const d = fneDaysUntilExpectedRfs(item.expectedRFS);
+  return d !== null && d >= 0 && d <= 4;
 }
 
 function fneIsOverdueRfs(item) {
-  const d = fneDaysUntilExpectedRfs(item && item.expectedRFS);
-  if (d === null) return false;
-  const st = (item && item.requestStatus) || '';
-  if (FNE_STATUS_COMPLETED.includes(st)) return false;
-  return d < 0;
+  if (!item || !fneIsActiveRfsStatus(item.requestStatus)) return false;
+  const d = fneDaysUntilExpectedRfs(item.expectedRFS);
+  return d !== null && d < 0;
 }
 
 function fneRfsAlertKind(item) {
@@ -328,19 +359,49 @@ function fneNotifyCriticalProjectYes(row) {
 }
 
 function fneReminderCellRenderer(params) {
-  const kind = fneRfsAlertKind(params.data);
+  if (!params || !params.data) return document.createTextNode('—');
+  const filter = fneGetRfsMigrationFilter();
+  let kind = null;
+  if (filter === 'approaching' || filter === 'overdue') {
+    kind = filter;
+  } else {
+    kind = fneRfsAlertKind(params.data);
+  }
   if (!kind) return document.createTextNode('—');
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'fne-btn fne-btn-secondary';
   btn.style.cssText = 'padding:.22rem .55rem;font-size:.68rem;white-space:nowrap;';
   btn.textContent = 'Send Reminder';
-  btn.title = kind === 'approaching' ? 'Send approaching RFS reminder' : 'Send overdue RFS reminder';
+  btn.title = kind === 'approaching'
+    ? 'Send approaching Expected RFS reminder to FNE Manager'
+    : 'Send overdue Expected RFS reminder to FNE Manager';
   btn.onclick = function(e) {
     e.stopPropagation();
     fneOpenRfsReminder(params.data, kind);
   };
   return btn;
+}
+
+function fneEnsurePowerUserUi() {
+  if (!fneIsPowerUser()) return;
+
+  const dashMig = document.getElementById('fbRfsMigration');
+  if (dashMig) dashMig.style.display = 'block';
+
+  const grid = document.querySelector('#viewFneList .filter-bar-grid');
+  if (grid && !document.getElementById('fnel_rfsMigration')) {
+    const wrap = document.createElement('div');
+    wrap.className = 'fb-group';
+    wrap.innerHTML =
+      '<div class="fb-group-label">Target Migration</div>' +
+      '<select id="fnel_rfsMigration" class="fb-select" onchange="fneListApplyFilter()">' +
+      '<option value="">All</option>' +
+      '<option value="approaching">Approaching (≤4 days)</option>' +
+      '<option value="overdue">Overdue (past Expected RFS)</option>' +
+      '</select>';
+    grid.appendChild(wrap);
+  }
 }
 
 function fneNormStr(s) {
@@ -595,7 +656,7 @@ if (fneIsAdmin()) {
         <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
       </div>
       <div class="nav-label">Tracker List</div>`;
-    navList.onclick = () => { fneLoadList(); showFneView('list', navList); };
+    navList.onclick = () => { fneEnsurePowerUserUi(); fneLoadList(); showFneView('list', navList); };
     navItems.appendChild(navList);
   }
   
@@ -648,6 +709,7 @@ if (fneIsAdmin()) {
     fneLoadSpChoices();
     fneWireVerticalDirector();
     fneApplyCriticalProjectsAccess();
+    fneEnsurePowerUserUi();
   }
   
   // ══════════════════════════════════════════════════════════════════
@@ -2332,8 +2394,8 @@ if (!fneIsAdmin()) {
   }
   
   function fneListApplyFilter() {
-    const rfsMigEl = document.getElementById('fnel_rfsMigration');
-    const rfsMig = rfsMigEl ? rfsMigEl.value : '';
+    fneEnsurePowerUserUi();
+    const rfsMig = fneGetRfsMigrationFilter();
     const filtered = FNE_LIST_DATA.filter(function(item) {
       for (const key in FNE_LIST_MS_CFG) {
         const cfg = FNE_LIST_MS_CFG[key];
@@ -3212,7 +3274,13 @@ if (!fneIsAdmin()) {
     if (typeof agGrid === 'undefined') return;
   
     const countEl = document.getElementById('fneListCount');
-    if (countEl) countEl.textContent = data.length + ' record' + (data.length !== 1 ? 's' : '');
+    const rfsMigHint = fneGetRfsMigrationFilter();
+    if (countEl) {
+      let txt = data.length + ' record' + (data.length !== 1 ? 's' : '');
+      if (rfsMigHint === 'approaching') txt += ' · Target Migration: Approaching';
+      else if (rfsMigHint === 'overdue') txt += ' · Target Migration: Overdue';
+      countEl.textContent = txt;
+    }
   
     const fmt2  = v => { const n = parseFloat(v); if (isNaN(n)) return '—'; if (n >= 1e6) return (n/1e6).toFixed(2)+'M'; if (n >= 1e3) return (n/1e3).toFixed(1)+'K'; return n.toFixed(0); };
     const fmtD  = iso => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleDateString('en-GB'); };
@@ -3528,6 +3596,8 @@ if (!fneIsAdmin()) {
   window.fneTcvCalc         = fneTcvCalc;
   window.fneInit            = fneInit;
   window.fneIsPowerUser     = fneIsPowerUser;
+  window.fneEnsurePowerUserUi = fneEnsurePowerUserUi;
+  window.fneGetRfsMigrationFilter = fneGetRfsMigrationFilter;
   window.fneOpenRfsReminder = fneOpenRfsReminder;
   window.fneRfsAlertKind    = fneRfsAlertKind;
   window.fneIsApproachingRfs = fneIsApproachingRfs;
