@@ -934,8 +934,11 @@ function launchDashboard(){
     el('dashboardContent').style.flexDirection='column';
  if(isPriv) loadAnalytics();
 fneInit();
-const migFilter = el('fbRfsMigration');
-if (migFilter && typeof fneIsPowerUser === 'function' && fneIsPowerUser()) migFilter.style.display = '';
+if (typeof fneEnsurePowerUserUi === 'function') fneEnsurePowerUserUi();
+else {
+  const migFilter = el('fbRfsMigration');
+  if (migFilter && dashIsPowerUser()) migFilter.style.display = 'block';
+}
 logSessionStart();// starts idle tracking internally after logging
   });
 }
@@ -1623,6 +1626,55 @@ document.addEventListener('click',function(e){
 
 function getRefDate(item){return item.startDate||item.expectedRFS;}
 
+function dashTodayStr(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function dashParseDateLocal(val){
+  if(val===null||val===undefined||val==='')return null;
+  let raw=val;
+  if(typeof raw==='string'&&raw.indexOf('/Date(')>=0){
+    const m=raw.match(/\/Date\((-?\d+)\)\//);
+    if(m) raw=new Date(parseInt(m[1],10)).toISOString();
+  }
+  const d=new Date(raw);
+  if(isNaN(d))return null;
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function dashDaysUntilExp(iso){
+  const exp=dashParseDateLocal(iso);
+  if(!exp)return null;
+  const a=new Date(exp+'T12:00:00'), b=new Date(dashTodayStr()+'T12:00:00');
+  return Math.round((a-b)/86400000);
+}
+function dashIsActiveRfsStatus(status){
+  const s=String(status||'').trim().toLowerCase().replace(/\s+/g,' ');
+  return s!=='completed'&&s!=='cancelled';
+}
+function dashIsApproachingRfs(item){
+  if(!item||!dashIsActiveRfsStatus(item.requestStatus))return false;
+  const d=dashDaysUntilExp(item.expectedRFS);
+  return d!==null&&d>=0&&d<=4;
+}
+function dashIsOverdueRfs(item){
+  if(!item||!dashIsActiveRfsStatus(item.requestStatus))return false;
+  const d=dashDaysUntilExp(item.expectedRFS);
+  return d!==null&&d<0;
+}
+function dashIsPowerUser(){
+  if(typeof fneIsPowerUser==='function') return fneIsPowerUser();
+  const email=String((USER&&USER.email)||'').trim().toLowerCase();
+  if(['husham.salih@du.ae','tehleel.lone@du.ae'].indexOf(email)>=0) return true;
+  const name=String((USER&&USER.name)||'').toLowerCase();
+  return (name.indexOf('husham')>=0&&name.indexOf('salih')>=0)||(name.indexOf('tehleel')>=0&&name.indexOf('lone')>=0);
+}
+function dashGetRfsMigrationFilter(){
+  const dashEl=el('dashRfsMigration');
+  if(dashEl) return dashEl.value||'';
+  const listEl=el('fnel_rfsMigration');
+  return listEl?(listEl.value||''):'';
+}
+
 // ══════════════════════════════════════════════════════════════════
 //  APPLY ALL — filter + render
 // ══════════════════════════════════════════════════════════════════
@@ -1635,11 +1687,9 @@ function applyAll(){
       if(!sel.has(val) && !sel.has(String(val))) return false;
     }
     if(selStatusTile && item.requestStatus!==selStatusTile) return false;
-    const rfsMig = el('dashRfsMigration') ? el('dashRfsMigration').value : '';
-    if (rfsMig && typeof fneIsApproachingRfs === 'function') {
-      if (rfsMig === 'approaching' && !fneIsApproachingRfs(item)) return false;
-      if (rfsMig === 'overdue' && !fneIsOverdueRfs(item)) return false;
-    }
+    const rfsMig = dashGetRfsMigrationFilter();
+    if (rfsMig === 'approaching' && !dashIsApproachingRfs(item)) return false;
+    if (rfsMig === 'overdue' && !dashIsOverdueRfs(item)) return false;
     return true;
   });
 
@@ -2136,18 +2186,37 @@ function renderGrid(){
     {field:'customerAddress',headerName:'Customer Address',width:200},
     {field:'commentsNew',headerName:'Comments',width:200},
   ].map(dashEnhanceCol);
-  if(typeof fneIsPowerUser==='function'&&fneIsPowerUser()){
+  if(dashIsPowerUser()){
     cols.unshift({
       colId:'dash_reminder',
       headerName:'Send Reminder',
       width:130,
-      minWidth:typeof fneHeaderMinWidth==='function'?fneHeaderMinWidth('Send Reminder'):130,
+      minWidth:130,
       pinned:'left',
       sortable:false,
       filter:false,
       wrapHeaderText:true,
       autoHeaderHeight:true,
-      cellRenderer:typeof fneReminderCellRenderer==='function'?fneReminderCellRenderer:undefined,
+      cellRenderer:function(p){
+        if(!p.data) return '—';
+        const filter=dashGetRfsMigrationFilter();
+        let kind=null;
+        if(filter==='approaching'||filter==='overdue') kind=filter;
+        else if(typeof fneRfsAlertKind==='function') kind=fneRfsAlertKind(p.data);
+        else if(dashIsOverdueRfs(p.data)) kind='overdue';
+        else if(dashIsApproachingRfs(p.data)) kind='approaching';
+        if(!kind) return '—';
+        const btn=document.createElement('button');
+        btn.type='button';
+        btn.className='fne-btn fne-btn-secondary';
+        btn.style.cssText='padding:.22rem .55rem;font-size:.68rem;white-space:nowrap;';
+        btn.textContent='Send Reminder';
+        btn.onclick=function(e){
+          e.stopPropagation();
+          if(typeof fneOpenRfsReminder==='function') fneOpenRfsReminder(p.data, kind);
+        };
+        return btn;
+      },
       cellStyle:{display:'flex',alignItems:'center',justifyContent:'center'},
     });
   }
@@ -2220,6 +2289,6 @@ window.addEventListener('load',function(){
   initAccess();
 });
 </script>
- <script src="/sites/FGKA/SiteAssets/fnetracker.js"></script>
+ <script src="/sites/FGKA/SiteAssets/fnetracker.js?v=20260616b"></script>
 </body>
 </html>
