@@ -4145,6 +4145,56 @@ function populateWeeks() {
             }
         }
 
+        async function _pdfAddOverviewBlock(pdf, y, margin, contentW, pageH, statsEl) {
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = 'position:fixed;left:-10000px;top:0;width:' +
+                Math.min(document.getElementById('mainDashboard').offsetWidth, 1400) +
+                'px;background:transparent;padding:0;margin:0;z-index:-1;';
+
+            function appendBlock(el, label) {
+                if (!el || el.offsetHeight < 5 || getComputedStyle(el).display === 'none') return;
+                if (label) {
+                    const heading = document.createElement('div');
+                    heading.textContent = label;
+                    heading.style.cssText = 'font-size:12px;font-weight:800;color:#7c3aed;margin:12px 0 8px;text-transform:uppercase;letter-spacing:0.04em;';
+                    wrapper.appendChild(heading);
+                }
+                const clone = el.cloneNode(true);
+                clone.style.marginBottom = '12px';
+                wrapper.appendChild(clone);
+            }
+
+            appendBlock(statsEl, 'Key Metrics');
+            appendBlock(document.querySelector('.team-blue-section'), null);
+            appendBlock(document.querySelector('.team-purple-section'), null);
+
+            if (!wrapper.childNodes.length) return y;
+
+            document.body.appendChild(wrapper);
+            const bodyBg = getComputedStyle(document.body).backgroundColor;
+            const captureBg = (bodyBg && bodyBg !== 'rgba(0, 0, 0, 0)') ? bodyBg : '#ffffff';
+            const snap = await html2canvas(wrapper, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: captureBg,
+                logging: false,
+                allowTaint: true
+            });
+            document.body.removeChild(wrapper);
+
+            let imgW = contentW;
+            let imgH = (snap.height / snap.width) * imgW;
+            const availH = pageH - y - 15;
+            if (imgH > availH) {
+                const scale = availH / imgH;
+                imgH = availH;
+                imgW = imgW * scale;
+            }
+
+            pdf.addImage(snap.toDataURL('image/jpeg', 0.95), 'JPEG', margin, y, imgW, imgH);
+            return y + imgH + 4;
+        }
+
         async function _pdfAddSnapshot(pdf, el, y, margin, contentW, pageH, label, accent, forceNewPage) {
             if (!el || el.offsetHeight < 5 || getComputedStyle(el).display === 'none') return y;
             if (forceNewPage && y > 20) {
@@ -4294,7 +4344,6 @@ function populateWeeks() {
 
                 _getFiltersDescription().forEach(function(f) {
                     pdf.splitTextToSize('• ' + f, contentW - 4).forEach(function(line) {
-                        y = _pdfEnsurePage(pdf, y, 5, pageH);
                         pdf.text(line, margin + 2, y);
                         y += 4.8;
                     });
@@ -4304,10 +4353,7 @@ function populateWeeks() {
                 const statsEl = viewMode === 'assignment'
                     ? document.getElementById('assignmentStatsSection')
                     : document.querySelector('.top-stats');
-                y = await _pdfAddSnapshot(pdf, statsEl, y, margin, contentW, pageH, 'Key Metrics', accent);
-
-                y = await _pdfAddSnapshot(pdf, document.querySelector('.team-blue-section'), y, margin, contentW, pageH, 'Team Blue — Solution Architects', accent, true);
-                y = await _pdfAddSnapshot(pdf, document.querySelector('.team-purple-section'), y, margin, contentW, pageH, 'Team Purple — Solution Architects', accent, true);
+                y = await _pdfAddOverviewBlock(pdf, y, margin, contentW, pageH, statsEl);
 
                 Object.values(chartInstances).forEach(function(c) {
                     if (c && typeof c.update === 'function') {
@@ -4318,10 +4364,8 @@ function populateWeeks() {
 
                 const chartsSection = document.querySelector('.charts-section');
                 if (chartsSection && chartsSection.offsetHeight > 5 && getComputedStyle(chartsSection).display !== 'none') {
-                    if (y > 20) {
-                        pdf.addPage();
-                        y = 15;
-                    }
+                    pdf.addPage();
+                    y = 15;
                     y = _pdfSectionTitle(pdf, 'Charts & Analytics', y, margin, contentW, accent);
                     y = _pdfAddChartPairRow(pdf,
                         { chart: chartInstances.openClosed, title: 'Won vs In Progress vs Lost by Manager' },
