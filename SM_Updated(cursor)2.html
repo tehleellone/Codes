@@ -7609,6 +7609,8 @@ async function ownerFetchUserRole(email) {
             'Technical_x0020_POC_x0020_Contac': 'Technical POC Contact',
             'AccountType': 'Account Type',
             'RNPS_Eligibility': 'RNPS Eligibility',
+            'Service_Required': 'Service Required',
+            'Parent_x0020_Code': 'Parent Code',
             'Request_x0020_Status': 'Request Status',
             'Request_x0020_Type': 'Request Type',
             'Proposed_x0020_Team': 'Proposed Team',
@@ -7691,71 +7693,86 @@ async function ownerFetchUserRole(email) {
             return res.text();
         }
 
-        function smParseInlineVersionChange(text, changes) {
-            const trimmed = String(text || '').trim();
-            if (!trimmed) return;
-            const known = Object.keys(SM_HISTORY_FIELDS);
-            let matched = false;
-            known.forEach(function (key) {
-                const label = SM_HISTORY_FIELDS[key];
-                if (trimmed.indexOf(key) === 0) {
-                    changes.push({ label: label, oldVal: '—', newVal: trimmed.slice(key.length).trim() || '—' });
-                    matched = true;
-                } else if (trimmed.indexOf(label) === 0) {
-                    changes.push({ label: label, oldVal: '—', newVal: trimmed.slice(label.length).trim() || '—' });
-                    matched = true;
-                }
-            });
-            if (!matched) {
-                const parts = trimmed.split(/\s+/);
-                if (parts.length >= 2) {
-                    changes.push({ label: parts[0], oldVal: '—', newVal: parts.slice(1).join(' ') });
-                } else {
-                    changes.push({ label: trimmed, oldVal: '—', newVal: '—' });
-                }
-            }
+        function smHistoryFieldLabel(raw) {
+            var key = String(raw || '').trim();
+            if (!key) return key;
+            if (SM_HISTORY_FIELDS[key]) return SM_HISTORY_FIELDS[key];
+            if (SM_HISTORY_LABEL_LOOKUP[key]) return SM_HISTORY_LABEL_LOOKUP[key];
+            return key.replace(/_x0020_/g, ' ').replace(/_x002d_/g, '-').replace(/_/g, ' ').trim();
+        }
+
+        var SM_HISTORY_LABEL_LOOKUP = {};
+        Object.keys(SM_HISTORY_FIELDS).forEach(function (k) {
+            SM_HISTORY_LABEL_LOOKUP[SM_HISTORY_FIELDS[k]] = SM_HISTORY_FIELDS[k];
+            SM_HISTORY_LABEL_LOOKUP[k] = SM_HISTORY_FIELDS[k];
+        });
+        ['Service_Required', 'Parent Code', 'Parent_x0020_Code', 'Customer Name'].forEach(function (k) {
+            if (!SM_HISTORY_LABEL_LOOKUP[k]) SM_HISTORY_LABEL_LOOKUP[k] = smHistoryFieldLabel(k);
+        });
+
+        function smLooksLikeDate(text) {
+            return /^\d{1,2}\/\d{1,2}\/\d{4}/.test(String(text || '').trim()) ||
+                /^\d{1,2}\s+[A-Za-z]{3}\s+\d{4}/.test(String(text || '').trim());
+        }
+
+        function smStripHtml(html) {
+            var tmp = document.createElement('div');
+            tmp.innerHTML = html || '';
+            return (tmp.textContent || tmp.innerText || '').replace(/\s+/g, ' ').trim();
+        }
+
+        function smCellTextNoNestedTables(cell) {
+            if (!cell) return '';
+            var clone = cell.cloneNode(true);
+            clone.querySelectorAll('table').forEach(function (t) { t.remove(); });
+            return smStripHtml(clone.innerHTML);
         }
 
         function smParseVersionsPageHtml(html) {
             const doc = new DOMParser().parseFromString(html, 'text/html');
             const entries = [];
-            const rows = doc.querySelectorAll('tr');
+            const versionTable = doc.querySelector('table.ms-settingsframe') ||
+                doc.querySelector('table[id*="versions"]') ||
+                doc.querySelector('table.ms-formtable');
 
+            if (!versionTable) {
+                console.warn('[smParseVersionsPageHtml] ms-settingsframe not found, using fallback scan');
+                return smParseVersionsPageHtmlFallback(doc);
+            }
+
+            const rows = versionTable.querySelectorAll('tbody > tr, tr');
             for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                const cells = row.querySelectorAll('td');
-                if (cells.length < 3) continue;
+                const verRow = rows[i];
+                const verCells = verRow.querySelectorAll(':scope > td');
+                if (verCells.length < 2) continue;
 
-                const firstText = (cells[0].textContent || '').replace(/\s+/g, ' ').trim();
-                const verMatch = firstText.match(/^(\d+\.\d+)/);
+                const versionRaw = smStripHtml(verCells[0].innerHTML).replace(/\s*View\s*$/i, '').trim();
+                const verMatch = versionRaw.match(/^(\d+\.\d+)/);
                 if (!verMatch) continue;
 
                 const versionLabel = verMatch[1];
-                const modified = (cells[1].textContent || '').replace(/\s+/g, ' ').trim();
-                const editor = (cells[2].textContent || '').replace(/\s+/g, ' ').trim();
+                let modified = '';
+                let editor = '';
+
+                const dateEl = verRow.querySelector('table[ctxname="ctxVer"] a, table[ctxname="ctxVer"] td, .ms-vb-time');
+                if (dateEl) modified = smStripHtml(dateEl.innerHTML);
+
+                const userEl = verRow.querySelector('.ms-imnSpan a:nth-child(2), .ms-imnSpan a, .ms-subtleLink');
+                if (userEl) editor = smStripHtml(userEl.innerHTML);
+
+                if (!modified && verCells[1]) modified = smCellTextNoNestedTables(verCells[1]);
+                if (!editor && verCells[2]) editor = smCellTextNoNestedTables(verCells[2]);
+                if (!editor && verCells[1] && !smLooksLikeDate(smCellTextNoNestedTables(verCells[1]))) {
+                    editor = smCellTextNoNestedTables(verCells[1]);
+                }
+                if (!modified && verCells[2] && smLooksLikeDate(smCellTextNoNestedTables(verCells[2]))) {
+                    modified = smCellTextNoNestedTables(verCells[2]);
+                }
+
+                const propsRow = rows[i + 1];
                 const changes = [];
-
-                row.querySelectorAll('table tr').forEach(function (cr) {
-                    const chCells = cr.querySelectorAll('td');
-                    if (chCells.length >= 2) {
-                        const label = (chCells[0].textContent || '').trim();
-                        const newVal = (chCells[1].textContent || '').trim();
-                        if (label) changes.push({ label: label, oldVal: '—', newVal: newVal || '—' });
-                    }
-                });
-
-                const nextRow = rows[i + 1];
-                if (nextRow && nextRow.querySelector('table')) {
-                    nextRow.querySelectorAll('table tr').forEach(function (cr) {
-                        const chCells = cr.querySelectorAll('td');
-                        if (chCells.length >= 2) {
-                            const label = (chCells[0].textContent || '').trim();
-                            const newVal = (chCells[1].textContent || '').trim();
-                            if (label) changes.push({ label: label, oldVal: '—', newVal: newVal || '—' });
-                        } else if (chCells.length === 1) {
-                            smParseInlineVersionChange(chCells[0].textContent, changes);
-                        }
-                    });
+                if (propsRow) {
+                    smParseVersionPropertiesRow(propsRow, changes);
                     i++;
                 }
 
@@ -7770,6 +7787,84 @@ async function ownerFetchUserRole(email) {
             entries.sort(function (a, b) {
                 return parseFloat(b.versionLabel) - parseFloat(a.versionLabel);
             });
+            entries.forEach(function (e, idx) { e.isCurrent = idx === 0; });
+            return entries;
+        }
+
+        function smParseVersionPropertiesRow(propsRow, changes) {
+            const propRows = propsRow.querySelectorAll('table[role="presentation"] tr, table tr');
+            const seen = {};
+
+            propRows.forEach(function (tr) {
+                if (tr.closest('table[ctxname="ctxVer"]')) return;
+                const tds = tr.querySelectorAll('td');
+                if (tds.length < 2) return;
+
+                let label = '';
+                const rowId = tr.getAttribute('id') || '';
+                const idMatch = rowId.match(/SPField(?:Text|Note|Choice|Number|Boolean|User|Lookup|Currency|DateTime)?_(.+)$/i);
+                if (idMatch) {
+                    label = smHistoryFieldLabel(idMatch[1]);
+                } else {
+                    label = smHistoryFieldLabel(smStripHtml(tds[0].innerHTML));
+                }
+                let newVal = smStripHtml(tds[1].innerHTML);
+                if (!label || smLooksLikeDate(label)) return;
+                if (/^no\.?$/i.test(label) || /^modified$/i.test(label)) return;
+
+                if (seen[label]) return;
+                seen[label] = true;
+
+                changes.push({
+                    label: label,
+                    oldVal: '—',
+                    newVal: newVal || '—'
+                });
+            });
+
+            if (changes.length) return;
+
+            const singleCell = propsRow.querySelector(':scope > td[colspan], :scope > td');
+            if (!singleCell) return;
+
+            singleCell.querySelectorAll('table tr').forEach(function (tr) {
+                const tds = tr.querySelectorAll('td');
+                if (tds.length >= 2) {
+                    const label = smHistoryFieldLabel(smStripHtml(tds[0].innerHTML));
+                    const newVal = smStripHtml(tds[1].innerHTML);
+                    if (label && !smLooksLikeDate(label) && !seen[label]) {
+                        seen[label] = true;
+                        changes.push({ label: label, oldVal: '—', newVal: newVal || '—' });
+                    }
+                }
+            });
+        }
+
+        function smParseVersionsPageHtmlFallback(doc) {
+            const entries = [];
+            const rows = doc.querySelectorAll('tr');
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const cells = row.querySelectorAll(':scope > td');
+                if (cells.length < 3) continue;
+                const firstText = smStripHtml(cells[0].innerHTML).replace(/\s*View\s*$/i, '').trim();
+                const verMatch = firstText.match(/^(\d+\.\d+)/);
+                if (!verMatch || /^no\.?$/i.test(firstText)) continue;
+
+                const changes = [];
+                const nextRow = rows[i + 1];
+                if (nextRow) {
+                    smParseVersionPropertiesRow(nextRow, changes);
+                    i++;
+                }
+                entries.push({
+                    versionLabel: verMatch[1],
+                    created: smStripHtml(cells[1].innerHTML),
+                    editor: smStripHtml(cells[2].innerHTML),
+                    changes: changes
+                });
+            }
+            entries.sort(function (a, b) { return parseFloat(b.versionLabel) - parseFloat(a.versionLabel); });
             entries.forEach(function (e, idx) { e.isCurrent = idx === 0; });
             return entries;
         }
@@ -7866,17 +7961,26 @@ async function ownerFetchUserRole(email) {
                 html += '</div>';
 
                 if (hasChanges) {
-                    html += '<table class="sm-history-changes-table"><thead><tr>' +
-                        '<th style="width:28%;">Field</th><th style="width:36%;">Previous</th><th style="width:36%;">New value</th>' +
-                        '</tr></thead><tbody>';
+                    const showValueOnly = entry.changes.every(function (ch) { return ch.oldVal === '—' || !ch.oldVal; });
+                    html += '<table class="sm-history-changes-table"><thead><tr>';
+                    if (showValueOnly) {
+                        html += '<th style="width:40%;">Field</th><th style="width:60%;">Value</th>';
+                    } else {
+                        html += '<th style="width:28%;">Field</th><th style="width:36%;">Previous</th><th style="width:36%;">New value</th>';
+                    }
+                    html += '</tr></thead><tbody>';
                     entry.changes.forEach(function (ch) {
-                        html += '<tr><td style="font-weight:700;color:var(--t1);">' + ch.label + '</td>' +
-                            '<td><span class="sm-history-old">' + ch.oldVal + '</span></td>' +
-                            '<td><span class="sm-history-new">' + ch.newVal + '</span></td></tr>';
+                        html += '<tr><td style="font-weight:700;color:var(--t1);">' + ch.label + '</td>';
+                        if (showValueOnly) {
+                            html += '<td><span class="sm-history-new">' + ch.newVal + '</span></td></tr>';
+                        } else {
+                            html += '<td><span class="sm-history-old">' + ch.oldVal + '</span></td>' +
+                                '<td><span class="sm-history-new">' + ch.newVal + '</span></td></tr>';
+                        }
                     });
                     html += '</tbody></table>';
                 } else if (idx === entries.length - 1) {
-                    html += '<div style="padding:14px 16px;font-size:13px;color:var(--t3);">Initial item creation — no prior version to compare.</div>';
+                    html += '<div style="padding:14px 16px;font-size:13px;color:var(--t3);">Initial item creation — no field details captured.</div>';
                 } else {
                     html += '<div style="padding:14px 16px;font-size:13px;color:var(--t3);">No tracked field changes in this version.</div>';
                 }
@@ -7889,6 +7993,11 @@ async function ownerFetchUserRole(email) {
         }
 
         async function smBuildItemHistoryEntries(itemId) {
+            try {
+                return await smBuildItemHistoryFromVersionsPage(itemId);
+            } catch (pageErr) {
+                console.warn('[smBuildItemHistoryEntries] Versions.aspx parse failed, trying REST', pageErr);
+            }
             try {
                 const versions = await smFetchItemVersions(itemId);
                 if (!versions.length) return [];
@@ -7913,9 +8022,7 @@ async function ownerFetchUserRole(email) {
                     };
                 });
             } catch (restErr) {
-                if (String(restErr.message).indexOf('404') < 0) throw restErr;
-                console.warn('[smBuildItemHistoryEntries] REST /versions unavailable on-prem — using Versions.aspx');
-                return smBuildItemHistoryFromVersionsPage(itemId);
+                throw new Error('Could not load version history from SharePoint');
             }
         }
 
