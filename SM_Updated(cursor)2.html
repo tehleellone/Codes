@@ -7741,7 +7741,16 @@ async function ownerFetchUserRole(email) {
             }
 
             const rows = versionTable.querySelectorAll('tbody > tr, tr');
-            for (let i = 0; i < rows.length; i++) {
+            var dataStart = 1;
+            for (var h = 0; h < Math.min(rows.length, 4); h++) {
+                var ht = (rows[h].textContent || '').toLowerCase();
+                if (ht.indexOf('modified') >= 0 && (ht.indexOf('no') >= 0 || ht.indexOf('version') >= 0)) {
+                    dataStart = h + 1;
+                    break;
+                }
+            }
+
+            for (let i = dataStart; i < rows.length; i++) {
                 const verRow = rows[i];
                 const verCells = verRow.querySelectorAll(':scope > td');
                 if (verCells.length < 2) continue;
@@ -7769,15 +7778,23 @@ async function ownerFetchUserRole(email) {
                     modified = smCellTextNoNestedTables(verCells[2]);
                 }
 
-                const propsRow = rows[i + 1];
                 const changes = [];
+                const seen = {};
+                smCollectVersionChanges(verRow, changes, seen);
+
+                const propsRow = rows[i + 1];
                 if (propsRow) {
-                    smParseVersionPropertiesRow(propsRow, changes);
-                    i++;
+                    var propCells = propsRow.querySelectorAll(':scope > td');
+                    if (propCells.length === 1 || propCells[0].getAttribute('colspan')) {
+                        smCollectVersionChanges(propsRow, changes, seen);
+                        i++;
+                    }
                 }
 
                 entries.push({
                     versionLabel: versionLabel,
+                    versionNo: smExtractVersionNoFromRow(verRow) || smVersionLabelToNo(versionLabel),
+                    viewUrl: smExtractVersionViewUrl(verRow),
                     created: modified,
                     editor: editor,
                     changes: changes
@@ -7791,53 +7808,189 @@ async function ownerFetchUserRole(email) {
             return entries;
         }
 
-        function smParseVersionPropertiesRow(propsRow, changes) {
-            const propRows = propsRow.querySelectorAll('table[role="presentation"] tr, table tr');
-            const seen = {};
+        function smVersionLabelToNo(label) {
+            return Math.round(parseFloat(String(label)) * 512);
+        }
 
-            propRows.forEach(function (tr) {
-                if (tr.closest('table[ctxname="ctxVer"]')) return;
-                const tds = tr.querySelectorAll('td');
-                if (tds.length < 2) return;
+        function smExtractVersionNoFromRow(verRow) {
+            if (!verRow) return null;
+            const html = verRow.innerHTML || '';
+            var m = html.match(/VersionNo=(\d+)/i);
+            if (m) return parseInt(m[1], 10);
+            m = html.match(/VersionNo['"%3D\s:=]+(\d{3,6})/i);
+            if (m) return parseInt(m[1], 10);
+            return null;
+        }
 
-                let label = '';
-                const rowId = tr.getAttribute('id') || '';
-                const idMatch = rowId.match(/SPField(?:Text|Note|Choice|Number|Boolean|User|Lookup|Currency|DateTime)?_(.+)$/i);
-                if (idMatch) {
-                    label = smHistoryFieldLabel(idMatch[1]);
-                } else {
-                    label = smHistoryFieldLabel(smStripHtml(tds[0].innerHTML));
+        function smResolveSpUrl(href) {
+            if (!href) return null;
+            if (href.indexOf('http') === 0) return href;
+            try {
+                return new URL(href, SP_URL + '/').href;
+            } catch (e) {
+                return SP_URL + (href.charAt(0) === '/' ? href : '/' + href);
+            }
+        }
+
+        function smExtractVersionViewUrl(verRow) {
+            if (!verRow) return null;
+            var links = verRow.querySelectorAll('a[href]');
+            for (var i = 0; i < links.length; i++) {
+                var href = links[i].getAttribute('href') || '';
+                if (/VersionNo=|listform\.aspx|DispForm\.aspx|displayifs\.aspx/i.test(href)) {
+                    return smResolveSpUrl(href);
                 }
-                let newVal = smStripHtml(tds[1].innerHTML);
-                if (!label || smLooksLikeDate(label)) return;
-                if (/^no\.?$/i.test(label) || /^modified$/i.test(label)) return;
+            }
+            return null;
+        }
 
+        function smCollectVersionChanges(root, changes, seen) {
+            if (!root) return;
+            seen = seen || {};
+
+            root.querySelectorAll('tr[id^="SPField"]').forEach(function (tr) {
+                if (tr.closest('table[ctxname="ctxVer"]')) return;
+                var rowId = tr.getAttribute('id') || '';
+                var idMatch = rowId.match(/SPField(?:\w+?)_(.+)$/i);
+                var label = idMatch ? smHistoryFieldLabel(idMatch[1]) : '';
+                var body = tr.querySelector('.ms-formbody');
+                var tds = tr.querySelectorAll('td');
+                var newVal = '';
+                if (body) newVal = smStripHtml(body.innerHTML);
+                else if (tds.length >= 2) newVal = smStripHtml(tds[tds.length - 1].innerHTML);
+                else if (tds.length === 1) newVal = smStripHtml(tds[0].innerHTML);
+                if (!label && tds.length >= 1) label = smHistoryFieldLabel(smStripHtml(tds[0].innerHTML));
+                if (!label || smLooksLikeDate(label) || seen[label]) return;
+                seen[label] = true;
+                changes.push({ label: label, oldVal: '—', newVal: newVal || '—' });
+            });
+
+            root.querySelectorAll('.ms-formlabel').forEach(function (lab) {
+                var tr = lab.closest('tr');
+                if (!tr || tr.closest('table[ctxname="ctxVer"]')) return;
+                var body = tr.querySelector('.ms-formbody');
+                if (!body) return;
+                var label = smHistoryFieldLabel(smStripHtml(lab.innerHTML));
+                var newVal = smStripHtml(body.innerHTML);
+                if (!label || smLooksLikeDate(label) || seen[label]) return;
+                seen[label] = true;
+                changes.push({ label: label, oldVal: '—', newVal: newVal || '—' });
+            });
+
+            root.querySelectorAll('tr').forEach(function (tr) {
+                if (tr.id && tr.id.indexOf('SPField') === 0) return;
+                if (tr.closest('table[ctxname="ctxVer"]')) return;
+                var tds = tr.querySelectorAll(':scope > td');
+                if (tds.length < 2) return;
+                var label = smHistoryFieldLabel(smStripHtml(tds[0].innerHTML));
+                var newVal = smStripHtml(tds[1].innerHTML);
+                if (!label || smLooksLikeDate(label) || /^no\.?$/i.test(label) || /^modified/i.test(label)) return;
                 if (seen[label]) return;
                 seen[label] = true;
-
-                changes.push({
-                    label: label,
-                    oldVal: '—',
-                    newVal: newVal || '—'
-                });
+                changes.push({ label: label, oldVal: '—', newVal: newVal || '—' });
             });
 
-            if (changes.length) return;
+            root.querySelectorAll('td[colspan]').forEach(function (td) {
+                if (td.querySelector('table')) return;
+                smParsePlainVersionChangeText(smStripHtml(td.innerHTML), changes, seen);
+            });
+        }
 
-            const singleCell = propsRow.querySelector(':scope > td[colspan], :scope > td');
-            if (!singleCell) return;
-
-            singleCell.querySelectorAll('table tr').forEach(function (tr) {
-                const tds = tr.querySelectorAll('td');
-                if (tds.length >= 2) {
-                    const label = smHistoryFieldLabel(smStripHtml(tds[0].innerHTML));
-                    const newVal = smStripHtml(tds[1].innerHTML);
-                    if (label && !smLooksLikeDate(label) && !seen[label]) {
-                        seen[label] = true;
-                        changes.push({ label: label, oldVal: '—', newVal: newVal || '—' });
-                    }
+        function smParsePlainVersionChangeText(text, changes, seen) {
+            if (!text) return;
+            seen = seen || {};
+            Object.keys(SM_HISTORY_FIELDS).forEach(function (key) {
+                if (text.indexOf(key) === 0) {
+                    var label = SM_HISTORY_FIELDS[key];
+                    if (seen[label]) return;
+                    seen[label] = true;
+                    changes.push({
+                        label: label,
+                        oldVal: '—',
+                        newVal: text.slice(key.length).trim() || '—'
+                    });
                 }
             });
+            var monthMatch = text.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-\d{2}\s+(.+)$/i);
+            if (monthMatch && !seen[monthMatch[0].split(/\s/)[0]]) {
+                var mLabel = monthMatch[0].split(/\s/)[0];
+                seen[mLabel] = true;
+                changes.push({ label: mLabel, oldVal: '—', newVal: monthMatch[2].trim() });
+            }
+        }
+
+        function smParseDispFormFields(html) {
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const fields = {};
+            doc.querySelectorAll('tr[id^="SPField"]').forEach(function (tr) {
+                var idMatch = (tr.getAttribute('id') || '').match(/SPField(?:\w+?)_(.+)$/i);
+                if (!idMatch) return;
+                var key = idMatch[1];
+                var body = tr.querySelector('.ms-formbody');
+                var tds = tr.querySelectorAll('td');
+                var val = body ? smStripHtml(body.innerHTML) :
+                    (tds.length >= 2 ? smStripHtml(tds[tds.length - 1].innerHTML) : smStripHtml(tds[0].innerHTML));
+                fields[key] = val;
+            });
+            return fields;
+        }
+
+        async function smFetchItemFieldsAtVersion(itemId, listGuid, versionNo, viewUrl) {
+            const urls = [];
+            if (viewUrl) urls.push(viewUrl);
+            urls.push(
+                SP_URL + '/_layouts/15/listform.aspx?PageType=3&ListId=' + encodeURIComponent(listGuid) +
+                    '&ID=' + itemId + '&VersionNo=' + versionNo,
+                SP_URL + '/Lists/' + encodeURIComponent(SP_LIST) + '/DispForm.aspx?ID=' + itemId + '&VersionNo=' + versionNo
+            );
+            for (var u = 0; u < urls.length; u++) {
+                try {
+                    const res = await fetch(urls[u], { credentials: 'include' });
+                    if (!res.ok) continue;
+                    const html = await res.text();
+                    const fields = smParseDispFormFields(html);
+                    if (Object.keys(fields).length) return fields;
+                } catch (e) {
+                    console.warn('[smFetchItemFieldsAtVersion]', urls[u], e);
+                }
+            }
+            return {};
+        }
+
+        function smInitialVersionChanges(fields) {
+            const changes = [];
+            const seen = {};
+            Object.keys(fields || {}).forEach(function (key) {
+                if (!key || key.indexOf('__') === 0) return;
+                const val = smCleanSpValue(fields[key]);
+                if (!val) return;
+                const label = SM_HISTORY_FIELDS[key] || smHistoryFieldLabel(key);
+                if (seen[label]) return;
+                seen[label] = true;
+                changes.push({ label: label, oldVal: '—', newVal: val });
+            });
+            return changes;
+        }
+
+        async function smEnrichVersionEntriesByCompare(itemId, entries) {
+            const listGuid = await smGetListGuid();
+            const snapshots = [];
+            for (var i = 0; i < entries.length; i++) {
+                var e = entries[i];
+                var versionNo = e.versionNo || smVersionLabelToNo(e.versionLabel);
+                snapshots.push(await smFetchItemFieldsAtVersion(itemId, listGuid, versionNo, e.viewUrl));
+            }
+
+            return entries.map(function (e, idx) {
+                var newer = snapshots[idx] || {};
+                var older = idx < snapshots.length - 1 ? snapshots[idx + 1] : null;
+                var changes = older ? smCompareVersionFields(newer, older) : smInitialVersionChanges(newer);
+                return Object.assign({}, e, { changes: changes });
+            });
+        }
+
+        function smParseVersionPropertiesRow(propsRow, changes) {
+            smCollectVersionChanges(propsRow, changes, {});
         }
 
         function smParseVersionsPageHtmlFallback(doc) {
@@ -7871,8 +8024,9 @@ async function ownerFetchUserRole(email) {
 
         async function smBuildItemHistoryFromVersionsPage(itemId) {
             const html = await smFetchVersionsPageHtml(itemId);
-            const entries = smParseVersionsPageHtml(html);
+            let entries = smParseVersionsPageHtml(html);
             if (!entries.length) throw new Error('No version history found');
+            entries = await smEnrichVersionEntriesByCompare(itemId, entries);
             return entries;
         }
 
@@ -7912,17 +8066,22 @@ async function ownerFetchUserRole(email) {
 
         function smCompareVersionFields(newerFields, olderFields) {
             const changes = [];
-            Object.keys(SM_HISTORY_FIELDS).forEach(function (key) {
-                const oldVal = smCleanSpValue(smGetHistoryFieldVal(olderFields, key));
-                const newVal = smCleanSpValue(smGetHistoryFieldVal(newerFields, key));
-                if (oldVal !== newVal) {
-                    changes.push({
-                        label: SM_HISTORY_FIELDS[key],
-                        oldVal: oldVal || '—',
-                        newVal: newVal || '—'
-                    });
-                }
-            });
+            const checked = {};
+            function pushChange(key) {
+                if (checked[key] || !key || key.indexOf('__') === 0) return;
+                checked[key] = true;
+                const oldVal = smCleanSpValue((olderFields || {})[key]);
+                const newVal = smCleanSpValue((newerFields || {})[key]);
+                if (oldVal === newVal) return;
+                changes.push({
+                    label: SM_HISTORY_FIELDS[key] || smHistoryFieldLabel(key),
+                    oldVal: oldVal || '—',
+                    newVal: newVal || '—'
+                });
+            }
+            Object.keys(SM_HISTORY_FIELDS).forEach(pushChange);
+            Object.keys(newerFields || {}).forEach(pushChange);
+            Object.keys(olderFields || {}).forEach(pushChange);
             return changes;
         }
 
@@ -8050,7 +8209,7 @@ async function ownerFetchUserRole(email) {
             if (!modal || !body) return;
 
             title.textContent = code + (account.customer ? ' · ' + account.customer : '');
-            body.innerHTML = '<div style="text-align:center;padding:40px;"><i data-lucide="loader" style="width:24px;height:24px;animation:spin 1s linear infinite;"></i><div style="margin-top:12px;font-size:13px;color:var(--t3);">Loading version history...</div></div>';
+            body.innerHTML = '<div style="text-align:center;padding:40px;"><i data-lucide="loader" style="width:24px;height:24px;animation:spin 1s linear infinite;"></i><div style="margin-top:12px;font-size:13px;color:var(--t3);">Loading version history...</div><div style="font-size:11px;color:var(--t3);margin-top:6px;">Fetching each version snapshot from SharePoint…</div></div>';
             modal.style.display = 'flex';
             if (typeof lucide !== 'undefined') lucide.createIcons();
 
