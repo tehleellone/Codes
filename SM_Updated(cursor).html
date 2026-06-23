@@ -2282,31 +2282,60 @@
                         <div class="filters-section">
                             <div class="filters-grid">
                                 <div class="filter-group">
-                                    <label class="filter-label">Line Manager <span style="font-size:10px;color:var(--t3);font-weight:500;">(Ctrl/Cmd+click)</span></label>
-                                    <select class="filter-select" id="filterLM" multiple size="4" onchange="applyFilters()"></select>
+                                    <label class="filter-label">Line Manager</label>
+                                    <div class="custom-multiselect">
+                                        <div class="multiselect-selected" onclick="smToggleMsDropdown('filterLMDropdown')">
+                                            <span id="filterLMSelectedText">All Line Managers</span>
+                                            <i data-lucide="chevron-down" style="width:16px;height:16px;opacity:.6;"></i>
+                                        </div>
+                                        <div class="multiselect-dropdown" id="filterLMDropdown" style="display:none;"></div>
+                                    </div>
                                 </div>
                                 <div class="filter-group">
-                                    <label class="filter-label">Service Manager <span style="font-size:10px;color:var(--t3);font-weight:500;">(Ctrl/Cmd+click)</span></label>
-                                    <select class="filter-select" id="filterSM" multiple size="4" onchange="applyFilters()"></select>
+                                    <label class="filter-label">Service Manager</label>
+                                    <div class="custom-multiselect">
+                                        <div class="multiselect-selected" onclick="smToggleMsDropdown('filterSMDropdown')">
+                                            <span id="filterSMSelectedText">All Service Managers</span>
+                                            <i data-lucide="chevron-down" style="width:16px;height:16px;opacity:.6;"></i>
+                                        </div>
+                                        <div class="multiselect-dropdown" id="filterSMDropdown" style="display:none;"></div>
+                                    </div>
                                 </div>
                                 <div class="filter-group">
-                                    <label class="filter-label">Team <span style="font-size:10px;color:var(--t3);font-weight:500;">(Ctrl/Cmd+click)</span></label>
-                                    <select class="filter-select" id="filterTeam" multiple size="4" onchange="onTeamFilterChanged()"></select>
+                                    <label class="filter-label">Team</label>
+                                    <div class="custom-multiselect">
+                                        <div class="multiselect-selected" onclick="smToggleMsDropdown('filterTeamDropdown')">
+                                            <span id="filterTeamSelectedText">All Teams</span>
+                                            <i data-lucide="chevron-down" style="width:16px;height:16px;opacity:.6;"></i>
+                                        </div>
+                                        <div class="multiselect-dropdown" id="filterTeamDropdown" style="display:none;"></div>
+                                    </div>
                                 </div>
-
                                 <div class="filter-group">
                                     <label class="filter-label">Revenue Status</label>
-                                    <select class="filter-select" id="filterRevDrop" multiple size="3" onchange="applyFilters()">
-                                        <option value="drop">⚠ Revenue Drop Alerts</option>
-                                        <option value="upgrade">✓ Revenue Upgrade Alerts</option>
-                                    </select>
+                                    <div class="custom-multiselect">
+                                        <div class="multiselect-selected" onclick="smToggleMsDropdown('filterRevDropDropdown')">
+                                            <span id="filterRevDropSelectedText">All Accounts</span>
+                                            <i data-lucide="chevron-down" style="width:16px;height:16px;opacity:.6;"></i>
+                                        </div>
+                                        <div class="multiselect-dropdown" id="filterRevDropDropdown" style="display:none;">
+                                            <div class="multiselect-option"><input type="checkbox" id="revDrop_drop" value="drop" onchange="smOnMsFilterChange('RevDrop','Revenue Status',true)"><label for="revDrop_drop">⚠ Revenue Drop Alerts</label></div>
+                                            <div class="multiselect-option"><input type="checkbox" id="revDrop_upgrade" value="upgrade" onchange="smOnMsFilterChange('RevDrop','Revenue Status',true)"><label for="revDrop_upgrade">✓ Revenue Upgrade Alerts</label></div>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="filter-group">
                                     <label class="filter-label">Account Structure</label>
-                                    <select class="filter-select" id="filterStructure" multiple size="3" onchange="applyFilters()">
-                                        <option value="with-children">📊 Groups with Children</option>
-                                        <option value="standalone">📄 Standalone Groups</option>
-                                    </select>
+                                    <div class="custom-multiselect">
+                                        <div class="multiselect-selected" onclick="smToggleMsDropdown('filterStructureDropdown')">
+                                            <span id="filterStructureSelectedText">All Accounts</span>
+                                            <i data-lucide="chevron-down" style="width:16px;height:16px;opacity:.6;"></i>
+                                        </div>
+                                        <div class="multiselect-dropdown" id="filterStructureDropdown" style="display:none;">
+                                            <div class="multiselect-option"><input type="checkbox" id="struct_with" value="with-children" onchange="smOnMsFilterChange('Structure','Account Structure',true)"><label for="struct_with">📊 Groups with Children</label></div>
+                                            <div class="multiselect-option"><input type="checkbox" id="struct_standalone" value="standalone" onchange="smOnMsFilterChange('Structure','Account Structure',true)"><label for="struct_standalone">📄 Standalone Groups</label></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="filter-actions">
@@ -2543,6 +2572,56 @@
                             </div>
                             </div>
                             <div id="pendingRequestsGrid" class="ag-theme-alpine" style="height:600px;width:100%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- EDIT ACCOUNT SECTION -->
+            <div id="editRequestView" class="dashboard-section" style="display:none;">
+                <div style="width:100%;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:1.25rem;">
+                        <h2 style="font-size:1rem;font-weight:800;color:var(--t1);margin:0!important;display:flex;align-items:center;gap:.5rem;">
+                            <i data-lucide="edit-3" style="width:22px;height:22px;"></i> Edit Account Details
+                        </h2>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                            <button type="button" class="export-btn" id="editViewHistoryBtn" onclick="smShowItemHistory()" style="display:none;">
+                                <i data-lucide="history" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>View History
+                            </button>
+                            <button type="button" class="reset-btn" onclick="backFromEditRequest()">
+                                <i data-lucide="arrow-left" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Back
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-section">
+                        <h3 class="table-title" style="margin-bottom: 24px;"><i data-lucide="clipboard-list" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Current Account Information</h3>
+                        <div id="editCurrentInfo"></div>
+
+                        <h3 class="table-title" style="margin: 32px 0 24px;"><i data-lucide="edit" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Update Account Assignment</h3>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div class="filter-group">
+                                <label class="filter-label">Account Manager *</label>
+                                <select class="filter-select" id="editAM"></select>
+                            </div>
+                            <div class="filter-group">
+                                <label class="filter-label">Account Director *</label>
+                                <select class="filter-select" id="editAD"></select>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 16px; margin-top: 32px;">
+                            <button type="button" class="export-btn" onclick="reviewEditRequest()" style="flex: 1; font-size: 14px; padding: 14px; white-space: nowrap;"><i data-lucide="eye" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Review Changes</button>
+                            <button type="button" class="reset-btn" onclick="backFromEditRequest()" style="font-size: 14px; padding: 14px 24px; white-space: nowrap;"><i data-lucide="x" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Cancel</button>
+                        </div>
+
+                        <div class="table-section" id="editReviewSection" style="display: none; margin-top: 24px;">
+                            <h3 class="table-title" style="margin-bottom: 24px;"><i data-lucide="check-circle" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Review Changes</h3>
+                            <div id="editReviewContent"></div>
+                            <div style="display: flex; gap: 16px; margin-top: 24px;">
+                                <button type="button" class="export-btn" onclick="submitEditRequest()" style="flex: 1; font-size: 14px; padding: 14px; white-space: nowrap;"><i data-lucide="check" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Submit Changes</button>
+                                <button type="button" class="reset-btn" onclick="document.getElementById('editReviewSection').style.display='none'" style="font-size: 14px; padding: 14px 24px; white-space: nowrap;"><i data-lucide="pencil" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Edit Again</button>
+                            </div>
+                            <div id="editSubmitMessage" style="margin-top: 16px; text-align: center; font-weight: 600;"></div>
                         </div>
                     </div>
                 </div>
@@ -2808,21 +2887,23 @@
             min-width: 150px;
         }
 
-        /* multi-select styling to match theme */
-        select[multiple].filter-select {
-            padding: .3rem .5rem;
-            height: auto;
+        /* custom checkbox multiselect (dashboard filters) */
+        .custom-multiselect { position: relative; z-index: 101; }
+        .multiselect-selected {
+            padding: .65rem .9rem; background: var(--bg-card); border: 1.5px solid var(--border-color);
+            border-radius: 12px; color: var(--text-primary); font-size: 14px; font-weight: 500;
+            cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px;
         }
-
-        select[multiple].filter-select option {
-            padding: .25rem .4rem;
-            border-radius: 4px;
+        .multiselect-selected:hover { border-color: var(--accent); }
+        .multiselect-dropdown {
+            position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
+            background: var(--bg-card); border: 1.5px solid var(--border-color); border-radius: 12px;
+            box-shadow: var(--card-shadow, var(--cs)); max-height: 250px; overflow-y: auto; z-index: 9999;
         }
-
-        select[multiple].filter-select option:checked {
-            background: var(--acc) !important;
-            color: #fff !important;
-        }
+        .multiselect-option { padding: 8px 14px; display: flex; align-items: center; cursor: pointer; }
+        .multiselect-option:hover { background: rgba(168, 85, 247, 0.1); }
+        .multiselect-option input[type="checkbox"] { margin-right: 10px; width: 16px; height: 16px; cursor: pointer; }
+        .multiselect-option label { cursor: pointer; flex: 1; font-size: 13px; color: var(--text-primary); margin: 0; }
 
         #pending-requests {
             width: 100%;
@@ -3221,61 +3302,6 @@
             </div>
         </div>
     </div>
-    <!-- ===== EDIT REQUEST VIEW ===== -->
-    <div class="dashboard" style="display:none;" id="editRequestView">
-        <div class="header">
-            <div class="header-left">
-                <h1><i data-lucide="edit-3" style="width: 28px; height: 28px; display: inline-block; vertical-align: middle; margin-right: 10px;"></i>Edit Account Details</h1>
-                <p>Update account information and submit for approval</p>
-            </div>
-            <div class="header-actions">
-                <button type="button" class="export-btn" id="editViewHistoryBtn" onclick="smShowItemHistory()" style="padding: 10px 20px; display: none;">
-                    <i data-lucide="history" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>View History
-                </button>
-                <button type="button" class="theme-btn" onclick="backFromEditRequest()" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; padding: 10px 20px; border-radius: 12px; border: none; cursor: pointer; font-weight: 600;">
-                    <i data-lucide="arrow-left" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Back
-                </button>
-            </div>
-        </div>
-
-        <div style="max-width: 1200px; margin: 0 auto;">
-            <div class="table-section">
-                <h3 class="table-title" style="margin-bottom: 24px;"><i data-lucide="clipboard-list" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Current Account Information</h3>
-                <div id="editCurrentInfo"></div>
-
-
-
-                <h3 class="table-title" style="margin: 32px 0 24px;"><i data-lucide="edit" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Update Account Assignment</h3>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                    <div class="filter-group">
-                        <label class="filter-label">Account Manager *</label>
-                        <select class="filter-select" id="editAM"></select>
-                    </div>
-                    <div class="filter-group">
-                        <label class="filter-label">Account Director *</label>
-                        <select class="filter-select" id="editAD"></select>
-                    </div>
-                </div>
-
-                <div style="display: flex; gap: 16px; margin-top: 32px;">
-                    <button type="button" class="export-btn" onclick="reviewEditRequest()" style="flex: 1; font-size: 14px; padding: 14px; white-space: nowrap;"><i data-lucide="eye" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Review Changes</button>
-                    <button type="button" class="reset-btn" onclick="backFromEditRequest()" style="font-size: 14px; padding: 14px 24px; white-space: nowrap;"><i data-lucide="x" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Cancel</button>
-                </div>
-
-                <div class="table-section" id="editReviewSection" style="display: none; margin-top: 24px;">
-                    <h3 class="table-title" style="margin-bottom: 24px;"><i data-lucide="check-circle" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Review Changes</h3>
-                    <div id="editReviewContent"></div>
-                    <div style="display: flex; gap: 16px; margin-top: 24px;">
-                        <button type="button" class="export-btn" onclick="submitEditRequest()" style="flex: 1; font-size: 14px; padding: 14px; white-space: nowrap;"><i data-lucide="check" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Submit Changes</button>
-                        <button type="button" class="reset-btn" onclick="document.getElementById('editReviewSection').style.display='none'" style="font-size: 14px; padding: 14px 24px; white-space: nowrap;"><i data-lucide="pencil" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Edit Again</button>
-                    </div>
-                    <div id="editSubmitMessage" style="margin-top: 16px; text-align: center; font-weight: 600;"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Edit-mode SharePoint item version history (Service Manager Request list) -->
     <div id="editHistoryModal" style="display:none;position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:24px;">
         <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:18px;max-width:760px;width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.35);overflow:hidden;">
@@ -3823,7 +3849,7 @@ function computeLMRNPS(rnpsGrouped) {
 
             // ===== EXISTING SHAREPOINT DATA FETCH =====
             const url = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items?" +
-                "$select=Title,Parent_x0020_Code,Customer_x0020_Name,Team," +
+                "$select=ID,Title,Parent_x0020_Code,Customer_x0020_Name,Team," +
                 "Proposed_x0020_Team,Transfer_Request_Date," +
                 "Line_x0020_Manager/Title,Line_x0020_Manager/EMail," +
                 "Service_x0020_Manager/Title,Service_x0020_Manager/EMail," +
@@ -3882,6 +3908,7 @@ function computeLMRNPS(rnpsGrouped) {
                     // Placeholder - real check done in recalculateRevFlags() after full load
                 }
                 const result = {
+                    spItemId: item.ID || item.Id || null,
                     code: item.Title || '',
                     parent: item.Parent_x0020_Code || null,
                     customer: item.Customer_x0020_Name || '',
@@ -4249,6 +4276,7 @@ function computeLMRNPS(rnpsGrouped) {
                 }
 
                 fakeAccounts.push({
+                    spItemId: 1000 + i,
                     code,
                     parent: parentCode,
                     customer: customers[i % customers.length],
@@ -4794,6 +4822,17 @@ recalculateRevFlags();
 populateFilters({ preserve: false });
 updateServiceManagerFilter();
 applyFilters();
+if (!window._smMsDropdownClickBound) {
+    window._smMsDropdownClickBound = true;
+    document.addEventListener('click', function (event) {
+        document.querySelectorAll('.custom-multiselect').forEach(function (ms) {
+            if (!ms.contains(event.target)) {
+                var dd = ms.querySelector('.multiselect-dropdown');
+                if (dd) dd.style.display = 'none';
+            }
+        });
+    });
+}
 // Check for overdue transfers (Admin only, runs once on load)
 
                 document.getElementById('loading').style.display = 'none';
@@ -4886,44 +4925,98 @@ if (rnpsNav) rnpsNav.style.display = 'flex';
 
         }
 
-  function getMsFilterValues(selectId) {
-            const el = document.getElementById(selectId);
-            if (!el) return [];
-            if (el.multiple) return Array.from(el.selectedOptions).map(o => o.value).filter(Boolean);
-            return el.value ? [el.value] : [];
+  const SM_MS_FILTER_CFG = {
+            LM: { dropdown: 'filterLMDropdown', text: 'filterLMSelectedText', label: 'Line Managers' },
+            SM: { dropdown: 'filterSMDropdown', text: 'filterSMSelectedText', label: 'Service Managers' },
+            Team: { dropdown: 'filterTeamDropdown', text: 'filterTeamSelectedText', label: 'Teams' },
+            RevDrop: { dropdown: 'filterRevDropDropdown', text: 'filterRevDropSelectedText', label: 'Accounts' },
+            Structure: { dropdown: 'filterStructureDropdown', text: 'filterStructureSelectedText', label: 'Accounts' }
+        };
+
+        function smGetMsFilterValues(key) {
+            const cfg = SM_MS_FILTER_CFG[key];
+            if (!cfg) return [];
+            return Array.from(document.querySelectorAll('#' + cfg.dropdown + ' input[type="checkbox"]:checked')).map(function (cb) { return cb.value; });
         }
 
-        function restoreMsSelection(selectId, values) {
-            const el = document.getElementById(selectId);
-            if (!el || !values || !values.length) return;
-            Array.from(el.options).forEach(opt => {
-                opt.selected = values.includes(opt.value);
+        function smToggleMsDropdown(dropdownId) {
+            document.querySelectorAll('.multiselect-dropdown').forEach(function (d) {
+                if (d.id !== dropdownId) d.style.display = 'none';
             });
+            const dropdown = document.getElementById(dropdownId);
+            if (dropdown) dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+        window.smToggleMsDropdown = smToggleMsDropdown;
+
+        function smUpdateMsFilterDisplay(key, label) {
+            const cfg = SM_MS_FILTER_CFG[key];
+            if (!cfg) return;
+            const selected = smGetMsFilterValues(key);
+            const displayText = selected.length === 0 ? 'All ' + label :
+                selected.length === 1 ? selected[0] :
+                selected.length + ' selected';
+            const textEl = document.getElementById(cfg.text);
+            if (textEl) textEl.textContent = displayText;
         }
 
-        function clearMsSelection(selectId) {
-            const el = document.getElementById(selectId);
-            if (!el) return;
-            Array.from(el.options).forEach(opt => { opt.selected = false; });
+        function smOnMsFilterChange(key, label, applyNow) {
+            smUpdateMsFilterDisplay(key, label);
+            if (key === 'Team') {
+                selectedLM = null;
+                selectedSM = null;
+                var perfSec = document.getElementById('smPerformanceSection');
+                if (perfSec) perfSec.style.display = 'none';
+            }
+            if (applyNow !== false) applyFilters();
         }
+        window.smOnMsFilterChange = smOnMsFilterChange;
 
-        function fillMsSelect(selectEl, items, savedValues) {
-            selectEl.innerHTML = '';
-            items.forEach(val => {
-                const opt = document.createElement('option');
-                opt.value = val;
-                opt.textContent = val;
-                if (savedValues && savedValues.includes(val)) opt.selected = true;
-                selectEl.appendChild(opt);
+        function smBuildMsDropdown(key, values, savedValues) {
+            const cfg = SM_MS_FILTER_CFG[key];
+            if (!cfg) return;
+            const dropdown = document.getElementById(cfg.dropdown);
+            if (!dropdown) return;
+            dropdown.innerHTML = '';
+            values.forEach(function (val) {
+                const div = document.createElement('div');
+                div.className = 'multiselect-option';
+                const safeId = key + '_' + String(val).replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+                const checked = savedValues && savedValues.includes(val) ? ' checked' : '';
+                div.innerHTML = '<input type="checkbox" id="' + safeId + '" value="' + String(val).replace(/"/g, '&quot;') + '"' + checked + ' onchange="smOnMsFilterChange(\'' + key + '\',\'' + cfg.label + '\',true)">' +
+                    '<label for="' + safeId + '">' + val + '</label>';
+                dropdown.appendChild(div);
             });
+            smUpdateMsFilterDisplay(key, cfg.label);
+        }
+
+        function smClearMsDropdown(key) {
+            const cfg = SM_MS_FILTER_CFG[key];
+            if (!cfg) return;
+            document.querySelectorAll('#' + cfg.dropdown + ' input[type="checkbox"]').forEach(function (cb) { cb.checked = false; });
+            smUpdateMsFilterDisplay(key, cfg.label);
+        }
+
+        function smSetMsDropdownDisabled(key, disabled) {
+            const cfg = SM_MS_FILTER_CFG[key];
+            if (!cfg) return;
+            document.querySelectorAll('#' + cfg.dropdown + ' input[type="checkbox"]').forEach(function (cb) { cb.disabled = disabled; });
+            const wrap = document.getElementById(cfg.dropdown);
+            if (wrap && wrap.parentElement) {
+                const sel = wrap.parentElement.querySelector('.multiselect-selected');
+                if (sel) {
+                    sel.style.opacity = disabled ? '0.6' : '1';
+                    sel.style.pointerEvents = disabled ? 'none' : 'auto';
+                }
+            }
         }
 
   function populateFilters(options) {
     options = options || {};
     const preserve = options.preserve !== false;
-    const savedLM = preserve ? getMsFilterValues('filterLM') : [];
-    const savedSM = preserve ? getMsFilterValues('filterSM') : [];
-    const savedTeam = preserve ? getMsFilterValues('filterTeam') : [];
+    const savedLM = preserve ? smGetMsFilterValues('LM') : [];
+    const savedSM = preserve ? smGetMsFilterValues('SM') : [];
+    const savedTeam = preserve ? smGetMsFilterValues('Team') : [];
 console.log('[populateFilters] role:', USER_CONTEXT.role, '| isTSMManager:', USER_CONTEXT.isTSMManager);
     const role = USER_CONTEXT.role;
             const userName = USER_CONTEXT.userName;
@@ -4938,68 +5031,59 @@ if (role === 'Line Manager') {
 } else if (USER_CONTEXT.isTSMManager) {
     filteredData = ALL_DATA.filter(a => a.team === 'TSM_ME' || a.team === 'TSM_SE');
 }
-            // Populate Line Manager filter
-            const lmSelect = document.getElementById('filterLM');
-
             if (role === 'Line Manager') {
-                fillMsSelect(lmSelect, [userName], [userName]);
-                lmSelect.disabled = true;
+                smBuildMsDropdown('LM', [userName], [userName]);
+                smSetMsDropdownDisabled('LM', true);
             } else if (role === 'Service Manager') {
                 const myLM = ALL_DATA.find(a => a.sm === userName)?.lm;
-                fillMsSelect(lmSelect, myLM ? [myLM] : [], myLM ? [myLM] : []);
-                lmSelect.disabled = true;
+                smBuildMsDropdown('LM', myLM ? [myLM] : [], myLM ? [myLM] : []);
+                smSetMsDropdownDisabled('LM', true);
             } else {
     const sourceData = USER_CONTEXT.isTSMManager
         ? ALL_DATA.filter(a => a.team === 'TSM_ME' || a.team === 'TSM_SE')
         : ALL_DATA;
     const lms = [...new Set(sourceData.map(a => a.lm))].filter(Boolean).sort();
-    fillMsSelect(lmSelect, lms, preserve ? savedLM.filter(v => lms.includes(v)) : []);
-    lmSelect.disabled = false;
+    smBuildMsDropdown('LM', lms, preserve ? savedLM.filter(v => lms.includes(v)) : []);
+    smSetMsDropdownDisabled('LM', false);
 }
-            // Populate Service Manager filter
-            const smSelect = document.getElementById('filterSM');
 
             if (role === 'Service Manager') {
-                fillMsSelect(smSelect, [userName], [userName]);
-                smSelect.disabled = true;
+                smBuildMsDropdown('SM', [userName], [userName]);
+                smSetMsDropdownDisabled('SM', true);
             } else if (role === 'Line Manager') {
                 const mySMs = [...new Set(filteredData.map(a => a.sm))].filter(Boolean).sort();
-                fillMsSelect(smSelect, mySMs, preserve ? savedSM.filter(v => mySMs.includes(v)) : []);
-                smSelect.disabled = false;
+                smBuildMsDropdown('SM', mySMs, preserve ? savedSM.filter(v => mySMs.includes(v)) : []);
+                smSetMsDropdownDisabled('SM', false);
             } else {
     const sourceData = USER_CONTEXT.isTSMManager
         ? ALL_DATA.filter(a => a.team === 'TSM_ME' || a.team === 'TSM_SE')
         : ALL_DATA;
     const sms = [...new Set(sourceData.map(a => a.sm))].filter(Boolean).sort();
-    fillMsSelect(smSelect, sms, preserve ? savedSM.filter(v => sms.includes(v)) : []);
-    smSelect.disabled = false;
+    smBuildMsDropdown('SM', sms, preserve ? savedSM.filter(v => sms.includes(v)) : []);
+    smSetMsDropdownDisabled('SM', false);
 }
-            // Populate Team filter (based on filtered data)
             const teams = [...new Set(filteredData.map(a => a.team))].filter(Boolean).sort();
-const teamSelect = document.getElementById('filterTeam');
-fillMsSelect(teamSelect, teams, preserve ? savedTeam.filter(v => teams.includes(v)) : []);
+            smBuildMsDropdown('Team', teams, preserve ? savedTeam.filter(v => teams.includes(v)) : []);
+            smSetMsDropdownDisabled('Team', false);
         }
 
         function updateServiceManagerFilter() {
             const role = USER_CONTEXT.role;
             const userName = USER_CONTEXT.userName;
 
-            // Skip update for LM/SM roles as their dropdowns are fixed
             if (role === 'Line Manager' || role === 'Service Manager') {
                 return;
             }
 
-            const lmFilter = getMsFilterValues('filterLM');
-            const teamFilter = getMsFilterValues('filterTeam');
+            const lmFilter = smGetMsFilterValues('LM');
+            const teamFilter = smGetMsFilterValues('Team');
             let sms, lms;
 
             if (teamFilter.length) {
                 const teamData = ALL_DATA.filter(a => teamFilter.includes(a.team));
                 lms = [...new Set(teamData.map(a => a.lm))].filter(Boolean).sort();
 
-                if (selectedLM) {
-                    sms = [...new Set(teamData.filter(a => a.lm === selectedLM).map(a => a.sm))].filter(Boolean).sort();
-                } else if (lmFilter.length) {
+                if (lmFilter.length) {
                     sms = [...new Set(teamData.filter(a => lmFilter.includes(a.lm)).map(a => a.sm))].filter(Boolean).sort();
                 } else {
                     sms = [...new Set(teamData.map(a => a.sm))].filter(Boolean).sort();
@@ -5011,59 +5095,51 @@ fillMsSelect(teamSelect, teams, preserve ? savedTeam.filter(v => teams.includes(
 
     lms = [...new Set(baseData.map(a => a.lm))].filter(Boolean).sort();
 
-    if (selectedLM) {
-        sms = [...new Set(baseData.filter(a => a.lm === selectedLM).map(a => a.sm))].filter(Boolean).sort();
-    } else if (lmFilter.length) {
+    if (lmFilter.length) {
         sms = [...new Set(baseData.filter(a => lmFilter.includes(a.lm)).map(a => a.sm))].filter(Boolean).sort();
     } else {
         sms = [...new Set(baseData.map(a => a.sm))].filter(Boolean).sort();
     }
 }
 
-            const lmSelect = document.getElementById('filterLM');
-            const currentLM = getMsFilterValues('filterLM');
-            if (!lmSelect.disabled) {
-                fillMsSelect(lmSelect, lms, currentLM.filter(v => lms.includes(v)));
+            const currentLM = smGetMsFilterValues('LM');
+            if (!document.querySelector('#filterLMDropdown input[disabled]')) {
+                smBuildMsDropdown('LM', lms, currentLM.filter(v => lms.includes(v)));
             }
 
-            const smSelect = document.getElementById('filterSM');
-            const currentSM = getMsFilterValues('filterSM');
-            if (!smSelect.disabled) {
-                fillMsSelect(smSelect, sms, currentSM.filter(v => sms.includes(v)));
+            const currentSM = smGetMsFilterValues('SM');
+            if (!document.querySelector('#filterSMDropdown input[disabled]')) {
+                smBuildMsDropdown('SM', sms, currentSM.filter(v => sms.includes(v)));
             }
         }
 
         function onTeamFilterChanged() {
-            selectedLM = null;
-            selectedSM = null;
-            var perfSec = document.getElementById('smPerformanceSection');
-            if (perfSec) perfSec.style.display = 'none';
-            applyFilters();
+            smOnMsFilterChange('Team', 'Teams', true);
         }
 
         function resetFilters() {
-            clearMsSelection('filterLM');
-            clearMsSelection('filterSM');
-            clearMsSelection('filterTeam');
-            clearMsSelection('filterRevDrop');
-            clearMsSelection('filterStructure');
+            smClearMsDropdown('LM');
+            smClearMsDropdown('SM');
+            smClearMsDropdown('Team');
+            smClearMsDropdown('RevDrop');
+            smClearMsDropdown('Structure');
             var tfEl = document.getElementById('transferStatusFilterMain');
             if (tfEl) tfEl.value = '';
             window._TRANSFER_FILTER_VAL = '';
             selectedLM = null;
             selectedSM = null;
             document.getElementById('smPerformanceSection').style.display = 'none';
-            updateServiceManagerFilter();
+            populateFilters({ preserve: false });
             applyFilters();
         }
 
         function applyFilters() {
             updateServiceManagerFilter();
-            const lmSel = getMsFilterValues('filterLM');
-            const smSel = getMsFilterValues('filterSM');
-            const teamSel = getMsFilterValues('filterTeam');
-            const revDropSel = getMsFilterValues('filterRevDrop');
-            const structureSel = getMsFilterValues('filterStructure');
+            const lmSel = smGetMsFilterValues('LM');
+            const smSel = smGetMsFilterValues('SM');
+            const teamSel = smGetMsFilterValues('Team');
+            const revDropSel = smGetMsFilterValues('RevDrop');
+            const structureSel = smGetMsFilterValues('Structure');
 
             window.TSM_SE_ACTIVE = teamSel.length === 1 && teamSel[0] === 'TSM_SE';
 
@@ -6062,8 +6138,12 @@ if (window.TSM_SE_ACTIVE) {
             this._buildGui();
         };
         SmSetColumnFilter.prototype._cellValue = function (data) {
-            var v = data[this.params.colDef.field];
+            var field = this.params.colDef.field;
+            var v = data[field];
             if (v === null || v === undefined || v === '') return '—';
+            if (this.params.colDef.type === 'numericColumn' || typeof v === 'number') {
+                return typeof formatCurrency === 'function' ? formatCurrency(v) : String(v);
+            }
             return String(v);
         };
         SmSetColumnFilter.prototype._allValues = function () {
@@ -6130,17 +6210,9 @@ if (window.TSM_SE_ACTIVE) {
         };
         SmSetColumnFilter.prototype.destroy = function () {};
 
-        var SM_MS_FILTER_FIELDS = new Set([
-            'customer', 'type', 'team', 'lm', 'sm', 'am', 'ad',
-            'pocName', 'pocEmail', 'pocPhone',
-            'secondaryPocName', 'secondaryPocEmail', 'secondaryPocPhone',
-            'technicalPocName', 'technicalPocEmail', 'technicalPocPhone',
-            'accountType', 'rnpsEligibility', 'parent'
-        ]);
-
         function smEnhanceColDef(col) {
-            if (SM_MS_FILTER_FIELDS.has(col.field)) col.filter = SmSetColumnFilter;
-            else if (col.type === 'numericColumn') col.filter = 'agNumberColumnFilter';
+            if (col.field === 'actions') return col;
+            col.filter = SmSetColumnFilter;
             return col;
         }
 
@@ -6167,7 +6239,6 @@ if (window.TSM_SE_ACTIVE) {
             const columnDefs = [{
                     field: 'code',
                     headerName: 'Account Code',
-                    filter: 'agTextColumnFilter',
                     pinned: 'left',
                     width: 180,
                     cellRenderer: params => {
@@ -6189,19 +6260,16 @@ if (window.TSM_SE_ACTIVE) {
                 {
                     field: 'parent',
                     headerName: 'Parent Code',
-                    filter: SmSetColumnFilter,
                     width: 140
                 },
                 {
                     field: 'customer',
                     headerName: 'Customer Name',
-                    filter: SmSetColumnFilter,
                     width: 200
                 },
                 {
                     field: 'type',
                     headerName: 'Type',
-                    filter: SmSetColumnFilter,
                     width: 100,
                     cellRenderer: params => {
                         if (params.data._isChild) {
@@ -6214,103 +6282,56 @@ if (window.TSM_SE_ACTIVE) {
                 {
                     field: 'team',
                     headerName: 'Team',
-                    filter: SmSetColumnFilter,
                     width: 110
                 },
                 {
                     field: 'lm',
                     headerName: 'Line Manager',
-                    filter: SmSetColumnFilter,
                     width: 150
                 },
                 {
                     field: 'sm',
                     headerName: 'Service Manager',
-                    filter: SmSetColumnFilter,
                     width: 150
                 },
                 {
                     field: 'am',
                     headerName: 'Account Manager',
-                    filter: SmSetColumnFilter,
                     width: 150
                 },
                 {
                     field: 'ad',
                     headerName: 'Account Director',
-                    filter: SmSetColumnFilter,
                     width: 150
                 },
                 {
                     field: 'pocName',
                     headerName: 'POC Name',
-                    filter: SmSetColumnFilter,
                     width: 150
                 },
                 {
                     field: 'pocEmail',
                     headerName: 'POC Email',
-                    filter: SmSetColumnFilter,
                     width: 180
                 },
                 {
                     field: 'pocPhone',
                     headerName: 'POC Phone',
-                    filter: SmSetColumnFilter,
                     width: 140
-                },
-                {
-                    field: 'secondaryPocName',
-                    headerName: 'Secondary POC Name',
-                    filter: SmSetColumnFilter,
-                    width: 150
-                },
-                {
-                    field: 'secondaryPocEmail',
-                    headerName: 'Secondary POC Email',
-                    filter: SmSetColumnFilter,
-                    width: 180
-                },
-                {
-                    field: 'secondaryPocPhone',
-                    headerName: 'Secondary POC Contact',
-                    filter: SmSetColumnFilter,
-                    width: 150
-                },
-                {
-                    field: 'technicalPocName',
-                    headerName: 'Technical POC Name',
-                    filter: SmSetColumnFilter,
-                    width: 150
-                },
-                {
-                    field: 'technicalPocEmail',
-                    headerName: 'Technical POC Email',
-                    filter: SmSetColumnFilter,
-                    width: 180
-                },
-                {
-                    field: 'technicalPocPhone',
-                    headerName: 'Technical POC Contact',
-                    filter: SmSetColumnFilter,
-                    width: 150
                 },
                 {
                     field: 'accountType',
                     headerName: 'Account Type',
-                    filter: SmSetColumnFilter,
                     width: 150
                 },
                 {
                     field: 'rnpsEligibility',
                     headerName: 'RNPS Eligibility',
-                    filter: SmSetColumnFilter,
                     width: 150
                 },
                 ...lastThree.map((month, index) => ({
                     field: month.key,
                     headerName: month.label,
-                    filter: 'agNumberColumnFilter',
                     width: 150,
                     type: 'numericColumn',
                     autoHeight: true, // ✅ Let row expand for 2 lines
@@ -6352,7 +6373,6 @@ if (window.TSM_SE_ACTIVE) {
                 {
                     field: 'avg',
                     headerName: 'Avg Revenue',
-                    filter: 'agNumberColumnFilter',
                     width: 130,
                     valueFormatter: params => formatCurrency(params.value),
                     type: 'numericColumn',
@@ -6458,7 +6478,7 @@ onclick="sendTransferReminderEmailMain('${esc(a.amEmail)}','${esc(a.adEmail)}','
 
             const gridOptions = {
                 columnDefs: columnDefs.map(function (col) {
-                    if (!col.field || col.field === 'actions' || col.field === 'code') return col;
+                    if (!col.field || col.field === 'actions') return col;
                     return smEnhanceColDef(Object.assign({}, col));
                 }),
                 rowData: parentRows,
@@ -6906,7 +6926,6 @@ ${USER_CONTEXT.userName}`
             const overlayViews = [
                 'reviewRequestView',
                 'sdReviewTransferView',
-                'editRequestView',
                 'transferRequestView'
             ];
             overlayViews.forEach(function(id) {
@@ -7290,6 +7309,28 @@ async function ownerFetchUserRole(email) {
             return String(val).replace(/\u00a0/g, ' ').trim();
         }
 
+        function smCleanSpValue(val) {
+            val = smHistoryNorm(val);
+            if (val.indexOf(';#') >= 0) val = val.split(';#').pop();
+            return val;
+        }
+
+        function smParseVersionFields(data) {
+            if (!data || !data.d) return {};
+            var d = data.d;
+            if (d.FieldValuesAsText && typeof d.FieldValuesAsText === 'object' && !d.FieldValuesAsText.__deferred) {
+                return d.FieldValuesAsText;
+            }
+            var copy = Object.assign({}, d);
+            delete copy.__metadata;
+            if (copy.FieldValuesAsText && copy.FieldValuesAsText.__deferred) delete copy.FieldValuesAsText;
+            return copy;
+        }
+
+        function smEditorFromFields(fields) {
+            return smCleanSpValue(fields.Editor || fields['Modified By'] || fields.Author || '');
+        }
+
         async function smFetchListItemId(accountCode) {
             const safeCode = String(accountCode || '').replace(/'/g, "''");
             const url = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items?" +
@@ -7305,16 +7346,16 @@ async function ownerFetchUserRole(email) {
         }
 
         async function smFetchItemVersions(itemId) {
-            const url = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items(" + itemId + ")/versions?" +
-                "$select=VersionId,VersionLabel,Created,IsCurrentVersion,Editor/Title&" +
-                "$expand=Editor&$orderby=Created desc";
+            const url = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items(" + itemId + ")/versions";
             const res = await fetch(url, {
                 headers: { 'Accept': 'application/json;odata=verbose' },
                 credentials: 'include'
             });
             if (!res.ok) throw new Error('Failed to load version history (' + res.status + ')');
             const data = await res.json();
-            return data.d.results || [];
+            var versions = data.d.results || [];
+            versions.sort(function (a, b) { return new Date(b.Created) - new Date(a.Created); });
+            return versions;
         }
 
         async function smFetchVersionFields(itemId, versionId) {
@@ -7325,14 +7366,22 @@ async function ownerFetchUserRole(email) {
             });
             if (!res.ok) return {};
             const data = await res.json();
-            return data.d || {};
+            return smParseVersionFields(data);
+        }
+
+        function smGetHistoryFieldVal(fields, internalKey) {
+            if (!fields) return '';
+            if (fields[internalKey] !== undefined && fields[internalKey] !== null) return fields[internalKey];
+            var label = SM_HISTORY_FIELDS[internalKey];
+            if (label && fields[label] !== undefined && fields[label] !== null) return fields[label];
+            return '';
         }
 
         function smCompareVersionFields(newerFields, olderFields) {
             const changes = [];
             Object.keys(SM_HISTORY_FIELDS).forEach(function (key) {
-                const oldVal = smHistoryNorm(olderFields[key]);
-                const newVal = smHistoryNorm(newerFields[key]);
+                const oldVal = smCleanSpValue(smGetHistoryFieldVal(olderFields, key));
+                const newVal = smCleanSpValue(smGetHistoryFieldVal(newerFields, key));
                 if (oldVal !== newVal) {
                     changes.push({
                         label: SM_HISTORY_FIELDS[key],
@@ -7407,7 +7456,8 @@ async function ownerFetchUserRole(email) {
             if (typeof lucide !== 'undefined') lucide.createIcons();
 
             try {
-                const itemId = await smFetchListItemId(code);
+                let itemId = account.spItemId;
+                if (!itemId) itemId = await smFetchListItemId(code);
                 const versions = await smFetchItemVersions(itemId);
                 if (!versions.length) {
                     smRenderItemHistoryTimeline([], body);
@@ -7417,7 +7467,8 @@ async function ownerFetchUserRole(email) {
                 const fieldsByVersion = [];
                 for (let i = 0; i < versions.length; i++) {
                     const v = versions[i];
-                    const fields = await smFetchVersionFields(itemId, v.VersionId);
+                    const vid = v.VersionId != null ? v.VersionId : v.ID;
+                    const fields = await smFetchVersionFields(itemId, vid);
                     fieldsByVersion.push(fields);
                 }
 
@@ -7427,10 +7478,10 @@ async function ownerFetchUserRole(email) {
                     const newer = fieldsByVersion[i];
                     const older = fieldsByVersion[i + 1] || {};
                     entries.push({
-                        versionId: v.VersionId,
-                        versionLabel: v.VersionLabel,
+                        versionId: v.VersionId != null ? v.VersionId : v.ID,
+                        versionLabel: v.VersionLabel || v.VersionId || v.ID,
                         created: v.Created,
-                        editor: v.Editor ? v.Editor.Title : '',
+                        editor: smEditorFromFields(newer) || (v.Editor ? v.Editor.Title : '') || 'Unknown',
                         isCurrent: v.IsCurrentVersion === true,
                         changes: fieldsByVersion[i + 1] ? smCompareVersionFields(newer, older) : []
                     });
@@ -7454,10 +7505,10 @@ async function ownerFetchUserRole(email) {
 
         async function openEditRequest(accountCode) {
             try {
-                // ✅ STEP 1: Show the view FIRST - hide everything else
-                document.getElementById('transfer-requests').style.display = 'none';
-                document.getElementById('dashboardContent').style.display = 'none';
+                document.querySelectorAll('.dashboard-section').forEach(function (s) { s.style.display = 'none'; });
                 document.getElementById('editRequestView').style.display = 'block';
+                var contentDiv = document.querySelector('.content');
+                if (contentDiv) contentDiv.classList.add('section-mode');
                 // ✅ STEP 2: NOW reset the button (it exists now)
                 const submitBtn = document.querySelector('#editReviewSection button[onclick="submitEditRequest()"]');
                 if (submitBtn) {
@@ -7767,7 +7818,10 @@ async function ownerFetchUserRole(email) {
 
         function backFromEditRequest() {
             document.getElementById('editRequestView').style.display = 'none';
-            document.getElementById('dashboardContent').style.display = 'block';
+            var dashView = document.getElementById('dashboard-view');
+            if (dashView) dashView.style.display = 'block';
+            var contentDiv = document.querySelector('.content');
+            if (contentDiv) contentDiv.classList.remove('section-mode');
             const histBtn = document.getElementById('editViewHistoryBtn');
             if (histBtn) histBtn.style.display = 'none';
             window.EDIT_ACCOUNT_CODE = null;
