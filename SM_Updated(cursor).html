@@ -419,6 +419,32 @@
             display: none !important
         }
 
+        /* Edit account — full-bleed beside sidebar (same as PSD) */
+        .portal-shell.edit-full-shell {
+            max-width: none;
+            width: 100%;
+        }
+
+        .content.edit-full-mode {
+            padding: 0 !important;
+            width: 100%;
+            flex: 1;
+            min-width: 0;
+        }
+
+        #editRequestView {
+            width: 100%;
+            max-width: none;
+            padding: 0.75rem 1rem 1.25rem;
+            box-sizing: border-box;
+            margin: 0;
+        }
+
+        #editRequestView .table-section {
+            width: 100%;
+            max-width: none;
+        }
+
         /* ═══════ SIDEBAR ═══════════════════════════════════════════════════════ */
         .sidebar {
             width: 210px;
@@ -2338,6 +2364,12 @@
                                     </div>
                                 </div>
                             </div>
+                            <!-- Legacy selects for tsm-se.js (hidden — do not remove) -->
+                            <div aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none;">
+                                <select class="filter-select" id="filterLM" onchange="applyFilters()"></select>
+                                <select class="filter-select" id="filterSM" onchange="applyFilters()"></select>
+                                <select class="filter-select" id="filterTeam" onchange="onTeamFilterChanged()"></select>
+                            </div>
                             <div class="filter-actions">
                                 <button type="button" id="revenueToggleBtn" class="export-btn" onclick="toggleRevenueEnabled()" style="display:none;padding:.5rem 1rem;font-size:.82rem;">
                                     <i data-lucide="lock" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Revenue: Disabled
@@ -2577,9 +2609,8 @@
                 </div>
             </div>
             <!-- EDIT ACCOUNT SECTION -->
-            <div id="editRequestView" class="dashboard-section" style="display:none;">
-                <div style="width:100%;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:1.25rem;">
+            <div id="editRequestView" class="dashboard-section" style="display:none;width:100%;">
+                <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:1.25rem;">
                         <h2 style="font-size:1rem;font-weight:800;color:var(--t1);margin:0!important;display:flex;align-items:center;gap:.5rem;">
                             <i data-lucide="edit-3" style="width:22px;height:22px;"></i> Edit Account Details
                         </h2>
@@ -2624,7 +2655,6 @@
                             <div id="editSubmitMessage" style="margin-top: 16px; text-align: center; font-weight: 600;"></div>
                         </div>
                     </div>
-                </div>
             </div>
             <!-- REVIEW REQUEST VIEW (ADMIN) -->
             <div class="dashboard" style="display:none;" id="reviewRequestView">
@@ -3304,7 +3334,7 @@
     </div>
     <!-- Edit-mode SharePoint item version history (Service Manager Request list) -->
     <div id="editHistoryModal" style="display:none;position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:24px;">
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:18px;max-width:760px;width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.35);overflow:hidden;">
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:18px;max-width:1100px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.35);overflow:hidden;">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--border);background:var(--bg-secondary);">
                 <div>
                     <div style="font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;">Item Version History</div>
@@ -4960,6 +4990,43 @@ if (rnpsNav) rnpsNav.style.display = 'flex';
             if (textEl) textEl.textContent = displayText;
         }
 
+        function smUpdateLegacySelect(selectId, values, selectedValues) {
+            var el = document.getElementById(selectId);
+            if (!el) return;
+            el.innerHTML = '<option value=""></option>';
+            values.forEach(function (v) {
+                var opt = document.createElement('option');
+                opt.value = v;
+                opt.textContent = v;
+                el.appendChild(opt);
+            });
+            if (selectedValues && selectedValues.length === 1) el.value = selectedValues[0];
+            else el.value = '';
+        }
+
+        function smSyncLegacyFilterSelects(fireTeamChange) {
+            var teamSel = smGetMsFilterValues('Team');
+            var lmSel = smGetMsFilterValues('LM');
+            var smSel = smGetMsFilterValues('SM');
+            var teamEl = document.getElementById('filterTeam');
+            var lmEl = document.getElementById('filterLM');
+            var smEl = document.getElementById('filterSM');
+            if (lmEl) lmEl.value = lmSel.length === 1 ? lmSel[0] : '';
+            if (smEl) smEl.value = smSel.length === 1 ? smSel[0] : '';
+            if (!teamEl) return;
+            var newTeam = teamSel.length === 1 ? teamSel[0] : '';
+            var teamChanged = teamEl.value !== newTeam;
+            teamEl.value = newTeam;
+            if (fireTeamChange && teamChanged && !window._smSyncingLegacyTeam) {
+                window._smSyncingLegacyTeam = true;
+                try {
+                    onTeamFilterChanged();
+                } finally {
+                    window._smSyncingLegacyTeam = false;
+                }
+            }
+        }
+
         function smOnMsFilterChange(key, label, applyNow) {
             smUpdateMsFilterDisplay(key, label);
             if (key === 'Team') {
@@ -4967,6 +5034,8 @@ if (rnpsNav) rnpsNav.style.display = 'flex';
                 selectedSM = null;
                 var perfSec = document.getElementById('smPerformanceSection');
                 if (perfSec) perfSec.style.display = 'none';
+                smSyncLegacyFilterSelects(true);
+                return;
             }
             if (applyNow !== false) applyFilters();
         }
@@ -5065,6 +5134,10 @@ if (role === 'Line Manager') {
             const teams = [...new Set(filteredData.map(a => a.team))].filter(Boolean).sort();
             smBuildMsDropdown('Team', teams, preserve ? savedTeam.filter(v => teams.includes(v)) : []);
             smSetMsDropdownDisabled('Team', false);
+            smUpdateLegacySelect('filterLM', role === 'Line Manager' ? [userName] : (role === 'Service Manager' ? (ALL_DATA.find(a => a.sm === userName)?.lm ? [ALL_DATA.find(a => a.sm === userName).lm] : []) : [...new Set((USER_CONTEXT.isTSMManager ? ALL_DATA.filter(a => a.team === 'TSM_ME' || a.team === 'TSM_SE') : ALL_DATA).map(a => a.lm))].filter(Boolean).sort()), smGetMsFilterValues('LM'));
+            smUpdateLegacySelect('filterSM', role === 'Service Manager' ? [userName] : [...new Set(filteredData.map(a => a.sm))].filter(Boolean).sort(), smGetMsFilterValues('SM'));
+            smUpdateLegacySelect('filterTeam', teams, smGetMsFilterValues('Team'));
+            smSyncLegacyFilterSelects(false);
         }
 
         function updateServiceManagerFilter() {
@@ -5114,7 +5187,13 @@ if (role === 'Line Manager') {
         }
 
         function onTeamFilterChanged() {
-            smOnMsFilterChange('Team', 'Teams', true);
+            selectedLM = null;
+            selectedSM = null;
+            var teamEl = document.getElementById('filterTeam');
+            window.TSM_SE_ACTIVE = !!(teamEl && teamEl.value === 'TSM_SE');
+            var perfSec = document.getElementById('smPerformanceSection');
+            if (perfSec) perfSec.style.display = 'none';
+            applyFilters();
         }
 
         function resetFilters() {
@@ -5134,6 +5213,7 @@ if (role === 'Line Manager') {
         }
 
         function applyFilters() {
+            smSyncLegacyFilterSelects(false);
             updateServiceManagerFilter();
             const lmSel = smGetMsFilterValues('LM');
             const smSel = smGetMsFilterValues('SM');
@@ -5195,7 +5275,11 @@ if (role === 'Line Manager') {
             renderLineManagers();
             renderServiceManagers();
             renderCharts();
-            renderTable();
+            if (window.TSM_SE_ACTIVE && typeof window.tsmSeRenderTable === 'function') {
+                window.tsmSeRenderTable();
+            } else {
+                renderTable();
+            }
         }
 
      async function selectLM(name) {
@@ -6217,6 +6301,9 @@ if (window.TSM_SE_ACTIVE) {
         }
 
         function renderTable() {
+            if (window.TSM_SE_ACTIVE && typeof window.tsmSeRenderTable === 'function') {
+                return window.tsmSeRenderTable();
+            }
             const gridDiv = document.getElementById('myGrid');
             const lastThree = getLastThreeCompletedMonths();
 
@@ -7440,6 +7527,19 @@ async function ownerFetchUserRole(email) {
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
 
+        async function smGetListGuid() {
+            if (window._SM_LIST_GUID) return window._SM_LIST_GUID;
+            const url = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')?$select=Id";
+            const res = await fetch(url, {
+                headers: { 'Accept': 'application/json;odata=verbose' },
+                credentials: 'include'
+            });
+            if (!res.ok) throw new Error('Could not resolve SharePoint list ID');
+            const data = await res.json();
+            window._SM_LIST_GUID = data.d.Id;
+            return window._SM_LIST_GUID;
+        }
+
         async function smShowItemHistory() {
             const account = EDIT_ACCOUNT_DATA;
             const code = account && account.code;
@@ -7458,36 +7558,13 @@ async function ownerFetchUserRole(email) {
             try {
                 let itemId = account.spItemId;
                 if (!itemId) itemId = await smFetchListItemId(code);
-                const versions = await smFetchItemVersions(itemId);
-                if (!versions.length) {
-                    smRenderItemHistoryTimeline([], body);
-                    return;
-                }
-
-                const fieldsByVersion = [];
-                for (let i = 0; i < versions.length; i++) {
-                    const v = versions[i];
-                    const vid = v.VersionId != null ? v.VersionId : v.ID;
-                    const fields = await smFetchVersionFields(itemId, vid);
-                    fieldsByVersion.push(fields);
-                }
-
-                const entries = [];
-                for (let i = 0; i < versions.length; i++) {
-                    const v = versions[i];
-                    const newer = fieldsByVersion[i];
-                    const older = fieldsByVersion[i + 1] || {};
-                    entries.push({
-                        versionId: v.VersionId != null ? v.VersionId : v.ID,
-                        versionLabel: v.VersionLabel || v.VersionId || v.ID,
-                        created: v.Created,
-                        editor: smEditorFromFields(newer) || (v.Editor ? v.Editor.Title : '') || 'Unknown',
-                        isCurrent: v.IsCurrentVersion === true,
-                        changes: fieldsByVersion[i + 1] ? smCompareVersionFields(newer, older) : []
-                    });
-                }
-
-                smRenderItemHistoryTimeline(entries, body);
+                const listGuid = await smGetListGuid();
+                const historyUrl = SP_URL + '/_layouts/15/Versions.aspx?list=' + encodeURIComponent('{' + listGuid + '}') + '&ID=' + itemId;
+                body.innerHTML =
+                    '<iframe src="' + historyUrl + '" style="width:100%;height:68vh;border:none;border-radius:8px;background:#fff;" title="Version History"></iframe>' +
+                    '<div style="margin-top:10px;text-align:center;font-size:12px;color:var(--t3);">' +
+                    'Same page as SharePoint list → ⋮ → Version History · ' +
+                    '<a href="' + historyUrl + '" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600;">Open in new tab</a></div>';
             } catch (err) {
                 console.error('[smShowItemHistory]', err);
                 body.innerHTML = '<div style="color:#ef4444;padding:16px;line-height:1.5;">Error loading item history: ' + err.message +
@@ -7508,7 +7585,12 @@ async function ownerFetchUserRole(email) {
                 document.querySelectorAll('.dashboard-section').forEach(function (s) { s.style.display = 'none'; });
                 document.getElementById('editRequestView').style.display = 'block';
                 var contentDiv = document.querySelector('.content');
-                if (contentDiv) contentDiv.classList.add('section-mode');
+                var portalShell = document.querySelector('.portal-shell');
+                if (contentDiv) {
+                    contentDiv.classList.remove('section-mode');
+                    contentDiv.classList.add('edit-full-mode');
+                }
+                if (portalShell) portalShell.classList.add('edit-full-shell');
                 // ✅ STEP 2: NOW reset the button (it exists now)
                 const submitBtn = document.querySelector('#editReviewSection button[onclick="submitEditRequest()"]');
                 if (submitBtn) {
@@ -7821,7 +7903,12 @@ async function ownerFetchUserRole(email) {
             var dashView = document.getElementById('dashboard-view');
             if (dashView) dashView.style.display = 'block';
             var contentDiv = document.querySelector('.content');
-            if (contentDiv) contentDiv.classList.remove('section-mode');
+            var portalShell = document.querySelector('.portal-shell');
+            if (contentDiv) {
+                contentDiv.classList.remove('section-mode');
+                contentDiv.classList.remove('edit-full-mode');
+            }
+            if (portalShell) portalShell.classList.remove('edit-full-shell');
             const histBtn = document.getElementById('editViewHistoryBtn');
             if (histBtn) histBtn.style.display = 'none';
             window.EDIT_ACCOUNT_CODE = null;
