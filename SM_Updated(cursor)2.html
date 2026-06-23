@@ -426,7 +426,7 @@
         }
 
         .content.edit-full-mode {
-            padding: 0 !important;
+            padding: 1.1rem 1.25rem !important;
             width: 100%;
             flex: 1;
             min-width: 0;
@@ -435,7 +435,7 @@
         #editRequestView {
             width: 100%;
             max-width: none;
-            padding: 0.75rem 1rem 1.25rem;
+            padding: 0;
             box-sizing: border-box;
             margin: 0;
         }
@@ -443,6 +443,86 @@
         #editRequestView .table-section {
             width: 100%;
             max-width: none;
+            margin-bottom: 1.25rem;
+        }
+
+        #editRequestView #editCurrentInfo {
+            display: flex;
+            flex-direction: column;
+            gap: 1.75rem;
+        }
+
+        #editRequestView .edit-section-block {
+            padding: 1.25rem 1.35rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: var(--cs);
+        }
+
+        #editRequestView .edit-info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem;
+        }
+
+        #editRequestView .edit-revenue-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
+            margin-top: .75rem;
+        }
+
+        #editRequestView .edit-section-block .table-title {
+            margin: 0 0 1rem !important;
+        }
+
+        #editRequestView .edit-section-block h4 {
+            margin: 0 0 .75rem !important;
+            font-size: .82rem;
+            color: var(--t2);
+            font-weight: 600;
+        }
+
+        #editRequestView .edit-field-card {
+            padding: .85rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+
+        #editRequestView .edit-field-label {
+            font-size: .68rem;
+            color: var(--t3);
+            margin-bottom: .35rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+
+        #editRequestView .edit-field-value {
+            font-size: .9rem;
+            font-weight: 600;
+            color: var(--t1);
+            line-height: 1.4;
+        }
+
+        #editRequestView .edit-revenue-card {
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+
+        #editRequestView .filter-group {
+            gap: .45rem;
+        }
+
+        @media (max-width: 900px) {
+            #editRequestView .edit-info-grid,
+            #editRequestView .edit-revenue-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         /* ═══════ SIDEBAR ═══════════════════════════════════════════════════════ */
@@ -2624,10 +2704,10 @@
                         </div>
                     </div>
                     <div class="table-section">
-                        <h3 class="table-title" style="margin-bottom: 24px;"><i data-lucide="clipboard-list" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Current Account Information</h3>
                         <div id="editCurrentInfo"></div>
 
-                        <h3 class="table-title" style="margin: 32px 0 24px;"><i data-lucide="edit" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Update Account Assignment</h3>
+                        <div class="edit-section-block" style="margin-top: 1.75rem;">
+                        <h3 class="table-title"><i data-lucide="edit" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Update Account Assignment</h3>
 
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                             <div class="filter-group">
@@ -2643,6 +2723,7 @@
                         <div style="display: flex; gap: 16px; margin-top: 32px;">
                             <button type="button" class="export-btn" onclick="reviewEditRequest()" style="flex: 1; font-size: 14px; padding: 14px; white-space: nowrap;"><i data-lucide="eye" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Review Changes</button>
                             <button type="button" class="reset-btn" onclick="backFromEditRequest()" style="font-size: 14px; padding: 14px 24px; white-space: nowrap;"><i data-lucide="x" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Cancel</button>
+                        </div>
                         </div>
 
                         <div class="table-section" id="editReviewSection" style="display: none; margin-top: 24px;">
@@ -5288,10 +5369,43 @@ if (role === 'Line Manager') {
             selectedLM = null;
             selectedSM = null;
             var teamEl = document.getElementById('filterTeam');
+            var wasTsmSe = !!window.TSM_SE_ACTIVE;
             window.TSM_SE_ACTIVE = !!(teamEl && teamEl.value === 'TSM_SE');
+            if (wasTsmSe && !window.TSM_SE_ACTIVE) {
+                smExitTsmSeMode();
+            }
             var perfSec = document.getElementById('smPerformanceSection');
             if (perfSec) perfSec.style.display = 'none';
             applyFilters();
+        }
+
+        function smDestroyTsmSeGridOnly() {
+            ['tsmSeDestroy', 'tsmSeReset', 'tsmSeClear', 'tsmSeRestoreMainGrid', 'tsmSeHide'].forEach(function (name) {
+                if (typeof window[name] === 'function') {
+                    try { window[name](); } catch (e) { console.warn('[smDestroyTsmSeGridOnly]', name, e); }
+                }
+            });
+            if (window.tsmSeGridApi) {
+                try { window.tsmSeGridApi.destroy(); } catch (e) {}
+                window.tsmSeGridApi = null;
+            }
+            var gridDiv = document.getElementById('myGrid');
+            if (gridDiv) gridDiv.innerHTML = '';
+            if (agGridApi) {
+                try {
+                    agGridApi.setFilterModel(null);
+                    agGridApi.setGridOption('quickFilterText', '');
+                    agGridApi.destroy();
+                } catch (e) {}
+                agGridApi = null;
+            }
+        }
+
+        function smExitTsmSeMode() {
+            window.TSM_SE_ACTIVE = false;
+            smDestroyTsmSeGridOnly();
+            window.PARENT_ROWS = null;
+            window.CURRENT_TABLE_DATA = null;
         }
 
         function resetFilters() {
@@ -5302,12 +5416,31 @@ if (role === 'Line Manager') {
             smClearMsDropdown('Structure');
             var tfEl = document.getElementById('transferStatusFilterMain');
             if (tfEl) tfEl.value = '';
+            var searchEl = document.getElementById('agGridSearch');
+            if (searchEl) searchEl.value = '';
             window._TRANSFER_FILTER_VAL = '';
             selectedLM = null;
             selectedSM = null;
             document.getElementById('smPerformanceSection').style.display = 'none';
+
+            smExitTsmSeMode();
             populateFilters({ preserve: false });
-            applyFilters();
+
+            var teamEl = document.getElementById('filterTeam');
+            var lmEl = document.getElementById('filterLM');
+            var smEl = document.getElementById('filterSM');
+            if (lmEl) lmEl.value = '';
+            if (smEl) smEl.value = '';
+            if (teamEl) {
+                teamEl.value = '';
+                try {
+                    teamEl.dispatchEvent(new Event('change', { bubbles: true }));
+                } catch (e) {
+                    onTeamFilterChanged();
+                }
+            } else {
+                applyFilters();
+            }
         }
 
         function applyFilters() {
@@ -6402,7 +6535,11 @@ if (window.TSM_SE_ACTIVE) {
             if (window.TSM_SE_ACTIVE && typeof window.tsmSeRenderTable === 'function') {
                 return window.tsmSeRenderTable();
             }
+
+            smDestroyTsmSeGridOnly();
+
             const gridDiv = document.getElementById('myGrid');
+            if (!gridDiv) return;
             const lastThree = getLastThreeCompletedMonths();
 
             // Build parent rows with children nested
@@ -7484,7 +7621,9 @@ async function ownerFetchUserRole(email) {
 
         function smHistoryFmtDate(iso) {
             if (!iso) return 'N/A';
-            return new Date(iso).toLocaleString('en-GB', {
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return String(iso);
+            return d.toLocaleString('en-GB', {
                 day: '2-digit', month: 'short', year: 'numeric',
                 hour: '2-digit', minute: '2-digit'
             });
@@ -7542,6 +7681,104 @@ async function ownerFetchUserRole(email) {
             var versions = data.d.results || [];
             versions.sort(function (a, b) { return new Date(b.Created) - new Date(a.Created); });
             return versions;
+        }
+
+        async function smFetchVersionsPageHtml(itemId) {
+            const listGuid = await smGetListGuid();
+            const url = SP_URL + '/_layouts/15/Versions.aspx?list=' + encodeURIComponent(listGuid) + '&ID=' + itemId;
+            const res = await fetch(url, { credentials: 'include' });
+            if (!res.ok) throw new Error('Failed to load version history page (' + res.status + ')');
+            return res.text();
+        }
+
+        function smParseInlineVersionChange(text, changes) {
+            const trimmed = String(text || '').trim();
+            if (!trimmed) return;
+            const known = Object.keys(SM_HISTORY_FIELDS);
+            let matched = false;
+            known.forEach(function (key) {
+                const label = SM_HISTORY_FIELDS[key];
+                if (trimmed.indexOf(key) === 0) {
+                    changes.push({ label: label, oldVal: '—', newVal: trimmed.slice(key.length).trim() || '—' });
+                    matched = true;
+                } else if (trimmed.indexOf(label) === 0) {
+                    changes.push({ label: label, oldVal: '—', newVal: trimmed.slice(label.length).trim() || '—' });
+                    matched = true;
+                }
+            });
+            if (!matched) {
+                const parts = trimmed.split(/\s+/);
+                if (parts.length >= 2) {
+                    changes.push({ label: parts[0], oldVal: '—', newVal: parts.slice(1).join(' ') });
+                } else {
+                    changes.push({ label: trimmed, oldVal: '—', newVal: '—' });
+                }
+            }
+        }
+
+        function smParseVersionsPageHtml(html) {
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const entries = [];
+            const rows = doc.querySelectorAll('tr');
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                const cells = row.querySelectorAll('td');
+                if (cells.length < 3) continue;
+
+                const firstText = (cells[0].textContent || '').replace(/\s+/g, ' ').trim();
+                const verMatch = firstText.match(/^(\d+\.\d+)/);
+                if (!verMatch) continue;
+
+                const versionLabel = verMatch[1];
+                const modified = (cells[1].textContent || '').replace(/\s+/g, ' ').trim();
+                const editor = (cells[2].textContent || '').replace(/\s+/g, ' ').trim();
+                const changes = [];
+
+                row.querySelectorAll('table tr').forEach(function (cr) {
+                    const chCells = cr.querySelectorAll('td');
+                    if (chCells.length >= 2) {
+                        const label = (chCells[0].textContent || '').trim();
+                        const newVal = (chCells[1].textContent || '').trim();
+                        if (label) changes.push({ label: label, oldVal: '—', newVal: newVal || '—' });
+                    }
+                });
+
+                const nextRow = rows[i + 1];
+                if (nextRow && nextRow.querySelector('table')) {
+                    nextRow.querySelectorAll('table tr').forEach(function (cr) {
+                        const chCells = cr.querySelectorAll('td');
+                        if (chCells.length >= 2) {
+                            const label = (chCells[0].textContent || '').trim();
+                            const newVal = (chCells[1].textContent || '').trim();
+                            if (label) changes.push({ label: label, oldVal: '—', newVal: newVal || '—' });
+                        } else if (chCells.length === 1) {
+                            smParseInlineVersionChange(chCells[0].textContent, changes);
+                        }
+                    });
+                    i++;
+                }
+
+                entries.push({
+                    versionLabel: versionLabel,
+                    created: modified,
+                    editor: editor,
+                    changes: changes
+                });
+            }
+
+            entries.sort(function (a, b) {
+                return parseFloat(b.versionLabel) - parseFloat(a.versionLabel);
+            });
+            entries.forEach(function (e, idx) { e.isCurrent = idx === 0; });
+            return entries;
+        }
+
+        async function smBuildItemHistoryFromVersionsPage(itemId) {
+            const html = await smFetchVersionsPageHtml(itemId);
+            const entries = smParseVersionsPageHtml(html);
+            if (!entries.length) throw new Error('No version history found');
+            return entries;
         }
 
         async function smFetchVersionFields(itemId, versionId) {
@@ -7652,28 +7889,34 @@ async function ownerFetchUserRole(email) {
         }
 
         async function smBuildItemHistoryEntries(itemId) {
-            const versions = await smFetchItemVersions(itemId);
-            if (!versions.length) return [];
+            try {
+                const versions = await smFetchItemVersions(itemId);
+                if (!versions.length) return [];
 
-            const fieldSets = await Promise.all(versions.map(function (v) {
-                return smFetchVersionFields(itemId, v.ID);
-            }));
+                const fieldSets = await Promise.all(versions.map(function (v) {
+                    return smFetchVersionFields(itemId, v.ID);
+                }));
 
-            return versions.map(function (v, idx) {
-                const fields = fieldSets[idx] || {};
-                const olderFields = idx < versions.length - 1 ? (fieldSets[idx + 1] || {}) : null;
-                const changes = olderFields ? smCompareVersionFields(fields, olderFields) : [];
-                let editor = smEditorFromFields(fields);
-                if (!editor && v.Editor && typeof v.Editor === 'object' && v.Editor.Title) editor = v.Editor.Title;
-                return {
-                    versionId: v.ID,
-                    versionLabel: smHistoryVersionLabel(v),
-                    created: v.Created,
-                    editor: editor,
-                    changes: changes,
-                    isCurrent: idx === 0
-                };
-            });
+                return versions.map(function (v, idx) {
+                    const fields = fieldSets[idx] || {};
+                    const olderFields = idx < versions.length - 1 ? (fieldSets[idx + 1] || {}) : null;
+                    const changes = olderFields ? smCompareVersionFields(fields, olderFields) : [];
+                    let editor = smEditorFromFields(fields);
+                    if (!editor && v.Editor && typeof v.Editor === 'object' && v.Editor.Title) editor = v.Editor.Title;
+                    return {
+                        versionId: v.ID,
+                        versionLabel: smHistoryVersionLabel(v),
+                        created: v.Created,
+                        editor: editor,
+                        changes: changes,
+                        isCurrent: idx === 0
+                    };
+                });
+            } catch (restErr) {
+                if (String(restErr.message).indexOf('404') < 0) throw restErr;
+                console.warn('[smBuildItemHistoryEntries] REST /versions unavailable on-prem — using Versions.aspx');
+                return smBuildItemHistoryFromVersionsPage(itemId);
+            }
         }
 
         async function smGetListGuid() {
@@ -7713,8 +7956,17 @@ async function ownerFetchUserRole(email) {
                 smRenderItemHistoryTimeline(entries, body);
             } catch (err) {
                 console.error('[smShowItemHistory]', err);
+                var openLink = '';
+                try {
+                    var itemId = account.spItemId;
+                    if (!itemId) itemId = await smFetchListItemId(code);
+                    var listGuid = await smGetListGuid();
+                    openLink = SP_URL + '/_layouts/15/Versions.aspx?list=' + encodeURIComponent(listGuid) + '&ID=' + itemId;
+                } catch (e) {}
                 body.innerHTML = '<div style="color:#ef4444;padding:16px;line-height:1.5;">Error loading item history: ' + err.message +
-                    '<div style="font-size:12px;color:var(--t3);margin-top:8px;">Ensure versioning is enabled on the Service Manager Request list.</div></div>';
+                    '<div style="font-size:12px;color:var(--t3);margin-top:8px;">On-prem SharePoint may not expose the REST /versions API. Versioning must be enabled on the Service Manager Request list.</div>' +
+                    (openLink ? '<div style="margin-top:12px;"><a href="' + openLink + '" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600;">Open SharePoint Version History</a></div>' : '') +
+                    '</div>';
             }
         }
 
@@ -7771,7 +8023,9 @@ async function ownerFetchUserRole(email) {
                 if (histBtn) histBtn.style.display = 'inline-flex';
 
                 // Display current info
-                let html = '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">';
+                let html = '<div class="edit-section-block">';
+                html += '<h3 class="table-title"><i data-lucide="building-2" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Account Information</h3>';
+                html += '<div class="edit-info-grid">';
                 const fields = [
                     ['Account Code', account.code],
                     ['Customer Name', account.customer],
@@ -7782,58 +8036,48 @@ async function ownerFetchUserRole(email) {
                     ['Account Director', account.ad]
                 ];
 
-                fields.forEach(([label, value]) => {
-                    html += `
-            <div style="padding: 12px; background: rgba(168, 85, 247, 0.1); border-radius: 8px;">
-                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 600;">${label}</div>
-                <div style="font-size: 14px; font-weight: 600;">${value}</div>
-            </div>
-        `;
+                fields.forEach(function (pair) {
+                    html += '<div class="edit-field-card">' +
+                        '<div class="edit-field-label">' + pair[0] + '</div>' +
+                        '<div class="edit-field-value">' + (pair[1] || '—') + '</div></div>';
                 });
 
-                html += `
-            <div style="padding: 12px; background: rgba(168, 85, 247, 0.1); border-radius: 8px;">
-                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 600;">Account Type</div>
-                <div style="font-size: 14px; font-weight: 600;">${account.accountType || '—'}</div>
-            </div>`;
+                html += '<div class="edit-field-card">' +
+                    '<div class="edit-field-label">Account Type</div>' +
+                    '<div class="edit-field-value">' + (account.accountType || '—') + '</div></div>';
 
                 if (USER_CONTEXT.isAdmin) {
-                    html += `
-            <div style="padding: 12px; background: rgba(168, 85, 247, 0.1); border-radius: 8px;">
-                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 600;">RNPS Eligibility</div>
-                <select class="filter-select" id="editRnpsEligibility" style="font-size: 14px; padding: 10px; width: 100%;">
-                    <option value="">Select...</option>
-                    <option value="Yes"${account.rnpsEligibility === 'Yes' ? ' selected' : ''}>Yes</option>
-                    <option value="No"${account.rnpsEligibility === 'No' ? ' selected' : ''}>No</option>
-                </select>
-            </div>`;
+                    html += '<div class="edit-field-card">' +
+                        '<div class="edit-field-label">RNPS Eligibility</div>' +
+                        '<select class="filter-select" id="editRnpsEligibility" style="font-size: 14px; padding: 10px; width: 100%;">' +
+                        '<option value="">Select...</option>' +
+                        '<option value="Yes"' + (account.rnpsEligibility === 'Yes' ? ' selected' : '') + '>Yes</option>' +
+                        '<option value="No"' + (account.rnpsEligibility === 'No' ? ' selected' : '') + '>No</option>' +
+                        '</select></div>';
                 } else {
-                    html += `
-            <div style="padding: 12px; background: rgba(168, 85, 247, 0.1); border-radius: 8px;">
-                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 600;">RNPS Eligibility</div>
-                <div style="font-size: 14px; font-weight: 600;">${account.rnpsEligibility || '—'}</div>
-            </div>`;
+                    html += '<div class="edit-field-card">' +
+                        '<div class="edit-field-label">RNPS Eligibility</div>' +
+                        '<div class="edit-field-value">' + (account.rnpsEligibility || '—') + '</div></div>';
                 }
 
-                html += '</div>';
-                // [REVENUE SECTION] Add Monthly Revenue
-                html += '<h3 class="table-title" style="margin: 32px 0 16px; font-size: 18px;"><i data-lucide="bar-chart-3" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Monthly Revenue</h3>';
+                html += '</div></div>';
+
+                html += '<div class="edit-section-block">';
+                html += '<h3 class="table-title"><i data-lucide="bar-chart-3" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Monthly Revenue</h3>';
 
                 const revenueMonths = getRevenueMonthsForEdit();
 
-                html += '<h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 600;">Past 3 Months (Read-Only)</h4>';
-                html += '<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px;">';
+                html += '<h4>Past 3 Months (Read-Only)</h4>';
+                html += '<div class="edit-revenue-grid">';
 
-                revenueMonths.lastThree.forEach(month => {
+                revenueMonths.lastThree.forEach(function (month) {
                     const value = account.allMonths ? (account.allMonths[month.field] || 0) : 0;
                     const isLocked = !window.REVENUE_ENABLED;
-                    html += `
-<div style="padding: 16px; background: rgba(59, 130, 246, 0.1); border-radius: 12px; border: 1px solid rgba(59, 130, 246, 0.3);">
-    <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 700; text-transform: uppercase;">${month.label}</div>
-    <input type="number" id="hist_${month.field}" value="${value}" ${isLocked ? 'disabled' : ''}
-    style="width: 100%; padding: 10px; background: ${isLocked ? 'rgba(0,0,0,0.05)' : 'var(--bg-card)'}; border: ${isLocked ? '1px solid var(--border-color)' : '2px solid var(--acc)'}; border-radius: 8px; font-size: 16px; font-weight: 700; color: var(--text-primary); cursor: ${isLocked ? 'not-allowed' : 'text'};">
-</div>
-`;
+                    html += '<div class="edit-revenue-card">' +
+                        '<div class="edit-field-label">' + month.label + '</div>' +
+                        '<input type="number" id="hist_' + month.field + '" value="' + value + '" ' + (isLocked ? 'disabled' : '') +
+                        ' style="width: 100%; padding: 10px; background: var(--bg-input); border: 1px solid var(--border-s); border-radius: 8px; font-size: 16px; font-weight: 700; color: var(--t1); cursor: ' + (isLocked ? 'not-allowed' : 'text') + ';">' +
+                        '</div>';
                 });
                 html += '</div>';
 
@@ -7842,52 +8086,42 @@ async function ownerFetchUserRole(email) {
                     const currentValue = account.allMonths ? (account.allMonths[editMonth.field] || 0) : 0;
                     const isLocked = isMonthLocked(currentValue, editMonth);
 
-                    html += `<h4 style="font-size: 14px; color: var(--text-secondary); margin-bottom: 12px; font-weight: 600;">
-        ${isLocked ? 'Previous Month (Locked)' : 'Previous Month (You Can Submit Revenue)'}
-    </h4>`;
+                    html += '<h4 style="margin-top: 1.25rem;">' +
+                        (isLocked ? 'Previous Month (Locked)' : 'Previous Month (You Can Submit Revenue)') +
+                        '</h4>';
 
                     if (isLocked) {
-                        html += `
-            <div style="padding: 20px; background: rgba(16, 185, 129, 0.1); border-radius: 12px; border: 2px solid rgba(16, 185, 129, 0.5);">
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-                    <i data-lucide="lock" style="width: 20px; height: 20px; color: var(--success);"></i>
-                    <div style="font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--success);">${editMonth.label} - LOCKED</div>
-                </div>
-                <div style="font-size: 20px; font-weight: 700; color: var(--success);">${formatCurrency(currentValue)}</div>
-                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">Revenue submitted and locked. Contact admin to modify.</div>
-            </div>
-        `;
+                        html += '<div class="edit-revenue-card" style="border-color: rgba(16,185,129,.45); background: rgba(16,185,129,.08);">' +
+                            '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">' +
+                            '<i data-lucide="lock" style="width:20px;height:20px;color:var(--success);"></i>' +
+                            '<div class="edit-field-label" style="color:var(--success);margin:0;">' + editMonth.label + ' — LOCKED</div></div>' +
+                            '<div class="edit-field-value" style="font-size:1.25rem;color:var(--success);">' + formatCurrency(currentValue) + '</div>' +
+                            '<div style="font-size:12px;color:var(--t3);margin-top:8px;">Revenue submitted and locked. Contact admin to modify.</div></div>';
                     } else {
-                        html += `
-            <div style="padding: 20px; background: rgba(168, 85, 247, 0.08); border-radius: 12px; border: 2px solid var(--accent);">
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-                    <i data-lucide="edit-3" style="width: 20px; height: 20px; color: var(--accent);"></i>
-                    <div style="font-size: 13px; font-weight: 700; text-transform: uppercase; color: var(--accent);">${editMonth.label} Revenue</div>
-                </div>
-                <input type="number" step="0.01" id="editRevenue_${editMonth.field}" value="${currentValue}" 
-                       style="width: 100%; padding: 14px; background: var(--bg-card); border: 2px solid var(--accent); border-radius: 10px; font-size: 18px; font-weight: 700; color: var(--accent);" 
-                       placeholder="Enter revenue amount">
-                <div style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">
-                    ⚠️ Deadline: ${getDeadlineText(editMonth)} | Once submitted, cannot be edited.
-                </div>
-            </div>
-        `;
+                        html += '<div class="edit-revenue-card" style="border-color: var(--accent); background: rgba(168,85,247,.06); margin-top: .5rem;">' +
+                            '<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">' +
+                            '<i data-lucide="edit-3" style="width:20px;height:20px;color:var(--accent);"></i>' +
+                            '<div class="edit-field-label" style="color:var(--accent);margin:0;">' + editMonth.label + ' Revenue</div></div>' +
+                            '<input type="number" step="0.01" id="editRevenue_' + editMonth.field + '" value="' + currentValue + '" ' +
+                            'style="width:100%;padding:14px;background:var(--bg-input);border:2px solid var(--accent);border-radius:10px;font-size:18px;font-weight:700;color:var(--accent);" placeholder="Enter revenue amount">' +
+                            '<div style="font-size:12px;color:var(--t3);margin-top:8px;">Deadline: ' + getDeadlineText(editMonth) + ' | Once submitted, cannot be edited.</div></div>';
                     }
                 } else if (!window.REVENUE_ENABLED) {
-                    html += '<div style="padding: 20px; background: rgba(239, 68, 68, 0.1); border-radius: 12px; text-align: center; color: var(--danger);">No editable month available (deadline passed).</div>';
+                    html += '<div class="edit-revenue-card" style="text-align:center;color:var(--danger);margin-top:1rem;">No editable month available (deadline passed).</div>';
                 }
 
-                html += `
-                <h3 class="table-title" style="margin: 32px 0 16px; font-size: 18px;"><i data-lucide="users" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>POC Details</h3>
-                <div class="filter-group" style="margin-bottom: 16px; max-width: 360px;">
-                    <label class="filter-label">POC Category</label>
-                    <select class="filter-select" id="editPocCategory" onchange="renderEditPocFields()" style="font-size: 14px; padding: 10px;">
-                        <option value="primary" selected>Primary POC Details</option>
-                        <option value="secondary">Secondary POC Details</option>
-                        <option value="technical">Technical POC Details</option>
-                    </select>
-                </div>
-                <div id="editPocFields"></div>`;
+                html += '</div>';
+
+                html += '<div class="edit-section-block">';
+                html += '<h3 class="table-title"><i data-lucide="users" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>POC Details</h3>';
+                html += '<div class="filter-group" style="margin-bottom: 1rem; max-width: 360px;">' +
+                    '<label class="filter-label">POC Category</label>' +
+                    '<select class="filter-select" id="editPocCategory" onchange="renderEditPocFields()" style="font-size: 14px; padding: 10px;">' +
+                    '<option value="primary" selected>Primary POC Details</option>' +
+                    '<option value="secondary">Secondary POC Details</option>' +
+                    '<option value="technical">Technical POC Details</option>' +
+                    '</select></div>' +
+                    '<div id="editPocFields"></div></div>';
 
                 document.getElementById('editCurrentInfo').innerHTML = html;
                 renderEditPocFields();
@@ -8003,13 +8237,13 @@ async function ownerFetchUserRole(email) {
                 }
             };
             const cfg = configs[cat] || configs.primary;
-            let html = '<div style="padding: 16px; background: rgba(168, 85, 247, 0.06); border: 1px solid rgba(168, 85, 247, 0.2); border-radius: 12px;">';
-            html += '<div style="font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 14px;">' + cfg.title + (cfg.readOnly ? ' <span style="font-size:11px;color:var(--t3);font-weight:600;">(Read-only)</span>' : ' <span style="font-size:11px;color:var(--success);font-weight:600;">(Editable)</span>') + '</div>';
-            html += '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">';
+            let html = '<div class="edit-revenue-card" style="margin-top:.5rem;">';
+            html += '<div class="edit-field-label" style="color:var(--accent);margin-bottom:14px;">' + cfg.title + (cfg.readOnly ? ' <span style="font-size:11px;color:var(--t3);font-weight:600;">(Read-only)</span>' : ' <span style="font-size:11px;color:var(--success);font-weight:600;">(Editable)</span>') + '</div>';
+            html += '<div class="edit-info-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));">';
 
             if (cfg.readOnly) {
                 cfg.fields.forEach(function (pair) {
-                    html += '<div style="padding: 12px; background: rgba(168, 85, 247, 0.1); border-radius: 8px;"><div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 600;">' + pair[0] + '</div><div style="font-size: 14px; font-weight: 600;">' + (pair[1] || '—') + '</div></div>';
+                    html += '<div class="edit-field-card"><div class="edit-field-label">' + pair[0] + '</div><div class="edit-field-value">' + (pair[1] || '—') + '</div></div>';
                 });
             } else {
                 const ids = ['Name', 'Email', 'Contact'];
