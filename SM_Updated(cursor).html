@@ -3830,8 +3830,8 @@ function computeLMRNPS(rnpsGrouped) {
                 "Account_x0020_Manager/Title,Account_x0020_Manager/EMail," +
                 "Account_x0020_Director/Title,Account_x0020_Director/EMail," +
                 "POC_x0020_Name,POC_x0020_Email_x0020_ID,POC_x0020_Contact_x0020_No," +
-                "Secondary_x0020_POC_x0020_Name,Secondary_x0020_POC_x0020_Email,Secondary_x0020_POC_x0020_Contact," +
-                "Technical_x0020_POC_x0020_Name,Technical_x0020_POC_x0020_Email,Technical_x0020_POC_x0020_Contact," +
+                "Secondary_x0020_POC_x0020_Name,Secondary_x0020_POC_x0020_Email,Secondary_x0020_POC_x0020_Contac," +
+                "Technical_x0020_POC_x0020_Name,Technical_x0020_POC_x0020_Email,Technical_x0020_POC_x0020_Contac," +
                 "AccountType,RNPS_Eligibility," +
                 // 2025 months
                 "Oct_x002d_25,Nov_x002d_25,Dec_x002d_25," +
@@ -3901,10 +3901,10 @@ function computeLMRNPS(rnpsGrouped) {
                     pocPhone: item.POC_x0020_Contact_x0020_No || '',
                     secondaryPocName: item.Secondary_x0020_POC_x0020_Name || '',
                     secondaryPocEmail: item.Secondary_x0020_POC_x0020_Email || '',
-                    secondaryPocPhone: item.Secondary_x0020_POC_x0020_Contact || '',
+                    secondaryPocPhone: item.Secondary_x0020_POC_x0020_Contac || '',
                     technicalPocName: item.Technical_x0020_POC_x0020_Name || '',
                     technicalPocEmail: item.Technical_x0020_POC_x0020_Email || '',
-                    technicalPocPhone: item.Technical_x0020_POC_x0020_Contact || '',
+                    technicalPocPhone: item.Technical_x0020_POC_x0020_Contac || '',
                     accountType: parseChoiceField(item.AccountType) || '',
                     rnpsEligibility: parseChoiceField(item.RNPS_Eligibility) || '',
 
@@ -7261,10 +7261,10 @@ async function ownerFetchUserRole(email) {
             'POC_x0020_Contact_x0020_No': 'POC Contact',
             'Secondary_x0020_POC_x0020_Name': 'Secondary POC Name',
             'Secondary_x0020_POC_x0020_Email': 'Secondary POC Email',
-            'Secondary_x0020_POC_x0020_Contact': 'Secondary POC Contact',
+            'Secondary_x0020_POC_x0020_Contac': 'Secondary POC Contact',
             'Technical_x0020_POC_x0020_Name': 'Technical POC Name',
             'Technical_x0020_POC_x0020_Email': 'Technical POC Email',
-            'Technical_x0020_POC_x0020_Contact': 'Technical POC Contact',
+            'Technical_x0020_POC_x0020_Contac': 'Technical POC Contact',
             'AccountType': 'Account Type',
             'RNPS_Eligibility': 'RNPS Eligibility',
             'Request_x0020_Status': 'Request Status',
@@ -7956,10 +7956,10 @@ async function ownerFetchUserRole(email) {
                 var spPocMap = {
                     secondaryPocName: 'Secondary_x0020_POC_x0020_Name',
                     secondaryPocEmail: 'Secondary_x0020_POC_x0020_Email',
-                    secondaryPocPhone: 'Secondary_x0020_POC_x0020_Contact',
+                    secondaryPocPhone: 'Secondary_x0020_POC_x0020_Contac',
                     technicalPocName: 'Technical_x0020_POC_x0020_Name',
                     technicalPocEmail: 'Technical_x0020_POC_x0020_Email',
-                    technicalPocPhone: 'Technical_x0020_POC_x0020_Contact'
+                    technicalPocPhone: 'Technical_x0020_POC_x0020_Contac'
                 };
                 (window.EDIT_POC_CHANGES || []).forEach(function (pc) {
                     if (spPocMap[pc.field]) updateData[spPocMap[pc.field]] = pc.newVal === '—' ? '' : pc.newVal;
