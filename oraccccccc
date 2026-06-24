@@ -1421,7 +1421,7 @@
         }
 
         // ═══ ALERTS ═══
-        function alert_(cid, type, msg) {
+        function alert_(cid, type, msg, sticky) {
             var icons = {
                 success: "check-circle",
                 error: "alert-circle",
@@ -1429,10 +1429,12 @@
             };
             document.getElementById(cid).innerHTML = '<div class="alert alert-' + type + '"><i data-lucide="' + icons[type] + '"></i><span>' + msg + '</span></div>';
             if (typeof lucide !== "undefined") lucide.createIcons();
-            setTimeout(function() {
-                var el = document.getElementById(cid);
-                if (el) el.innerHTML = "";
-            }, 6000);
+            if (!sticky) {
+                setTimeout(function() {
+                    var el = document.getElementById(cid);
+                    if (el) el.innerHTML = "";
+                }, 6000);
+            }
         }
 
         // ═══ HELPERS ═══
@@ -2946,7 +2948,7 @@
                     if (errorDetails.length) {
                         summary += "<br><br>" + errorDetails.slice(0, 5).join("<br>");
                     }
-                    alert_("bulkAlert", errors > 0 ? "error" : "success", summary);
+                    alert_("bulkAlert", errors > 0 ? "error" : "success", summary, errors > 0);
                     masterLoaded = false;
                     oracleLoaded = false;
                     return;
