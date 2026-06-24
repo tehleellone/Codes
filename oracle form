@@ -129,7 +129,7 @@
             justify-content: space-between;
         }
 
-        .logo-section {
+        .logo-section { 
             display: flex;
             align-items: center;
             gap: 1rem;
@@ -1304,26 +1304,33 @@
                             </select>
                         </div>
                         <p style="color:var(--text-secondary);font-size:0.84rem;margin-bottom:0.8rem;line-height:1.6;">
-                            Upload your file, review and edit rows below, then submit. Rows are matched automatically —
-                            <strong>Master</strong> by Email (update if found, create if new) ·
-                            <strong>Oracle</strong> by Request ID (update if found, create with new ID if blank/new).
+                            Select a list, upload your CSV, then review the split view below before submitting.
                         </p>
                         <div class="form-group"><label class="form-label">CSV File</label><input type="file" id="bulkFileInput" accept=".csv" onchange="previewCSV()" style="color:var(--text-secondary);font-size:0.88rem;padding:0.4rem 0;"></div>
                     </div>
                     <div id="bulkPreview" style="display:none;">
                         <div class="card">
-                            <div class="card-title"><i data-lucide="eye"></i> Review &amp; Edit Before Submit</div>
+                            <div class="card-title"><i data-lucide="eye"></i> Step 2 — Review &amp; Edit</div>
+                            <p style="color:var(--text-secondary);font-size:0.86rem;line-height:1.65;margin-bottom:0.75rem;">
+                                Your file is split into <strong>New Records</strong> and <strong>Updated Records</strong>.
+                                Edit any cell before submit. Yellow cells on updates show fields that will change in SharePoint.
+                            </p>
+                            <ul style="color:var(--text-muted);font-size:0.82rem;line-height:1.7;margin:0 0 0.75rem 1.1rem;padding:0;">
+                                <li><strong>Master Data</strong> — matched by End User Email</li>
+                                <li><strong>Oracle Activation</strong> — matched by Request ID (auto-assigned for new rows)</li>
+                                <li><strong>Remove</strong> on new rows skips creation · <strong>Delete</strong> on updates removes from SharePoint</li>
+                            </ul>
                             <div id="bulkSummary"></div>
                             <div class="bulk-legend">
-                                <span class="lg-create"><i></i> New record</span>
-                                <span class="lg-update"><i></i> Update existing</span>
-                                <span class="lg-changed"><i></i> Field will change</span>
-                                <span class="lg-delete"><i></i> Marked delete / skip</span>
+                                <span class="lg-create"><i></i> New</span>
+                                <span class="lg-update"><i></i> Update</span>
+                                <span class="lg-changed"><i></i> Changed field</span>
+                                <span class="lg-delete"><i></i> Marked delete</span>
                             </div>
                         </div>
                         <div class="card bulk-review-block" id="bulkNewSection">
                             <div class="card-title"><i data-lucide="plus-circle"></i> New Records (<span id="bulkNewCount">0</span>)</div>
-                            <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:0.6rem;">Records that will be <strong>created</strong> in SharePoint. Check Delete to remove from this batch.</p>
+                            <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:0.6rem;">These rows will be <strong>inserted</strong> as new SharePoint items.</p>
                             <div class="bulk-table-wrap">
                                 <table id="bulkNewTable" class="bulk-review-table"></table>
                             </div>
@@ -1331,7 +1338,7 @@
                         </div>
                         <div class="card bulk-review-block" id="bulkUpdateSection">
                             <div class="card-title"><i data-lucide="refresh-cw"></i> Updated Records (<span id="bulkUpdateCount">0</span>)</div>
-                            <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:0.6rem;">Records that will be <strong>updated</strong> in SharePoint. Yellow = changed field. Check Delete to remove the record from SharePoint.</p>
+                            <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:0.6rem;">These rows will <strong>update</strong> existing SharePoint items. Yellow = value differs from current data.</p>
                             <div class="bulk-table-wrap">
                                 <table id="bulkUpdateTable" class="bulk-review-table"></table>
                             </div>
@@ -1353,7 +1360,7 @@
                     </div>
                     <div class="card" style="margin-top:0.8rem;">
                         <div class="card-title"><i data-lucide="info"></i> Column Reference</div>
-                        <p style="color:var(--text-secondary);font-size:0.85rem;line-height:1.7;"><strong style="color:var(--text-primary);">Master Data:</strong> Email, FirstName, LastName, Entity, Subscriber, SubLevel, L20AC, MSISDN, Tariff, Status, DeviceModel, DeviceOffer, ExpiryDate, SIMSerial, ActivationDateSIM, ContractStartSIM, ContractEndSIM, ContractStartHandset, ContractEndHandset, DeactivationDateSIM<br><strong style="color:var(--text-primary);">Oracle Activation:</strong> RequestID, Email, FirstName, LastName, Entity, Subscriber, SubLevel, TransactionType, PONo, PODate, ActivityRefNo, ActivityDate, SRDate, SONo, SOCreationDate, ShipTo, UpdateOrder, ActivityRefNo2, ActivityDate2, SONo2, SOCreationDate2, MSISDN, SIMSerial, SIMType, Tariff, Addons, ActivationDateSIM, ContractStartSIM, ContractEndSIM, DeviceBrand, DeviceSubcat, Capacity, IMEI, Quantity, ActivationDateHandset, ContractEndHandset, FutureTermDate, Status, Reason, PendingWith, EmailReceived, LoggedInSP, CompletedDate, Remarks<br><strong style="color:var(--text-primary);">Smart submit:</strong> Master matches by Email. Oracle matches by RequestID. Leave Oracle RequestID blank for new records — IDs are assigned automatically. Yellow cells = value differs from SharePoint.</p>
+                        <p style="color:var(--text-secondary);font-size:0.85rem;line-height:1.7;">Use the exact column headers from the example CSV files. Master matches by <strong>End User Email</strong>. Oracle matches by <strong>Request ID</strong> (leave blank on new rows).</p>
                     </div>
                 </div>
 
@@ -1618,10 +1625,97 @@
             });
         }
 
+        function sortListNewestFirst(items) {
+            return items.slice().sort(function(a, b) {
+                var da = new Date(a.Modified || a.Created || 0).getTime();
+                var db = new Date(b.Modified || b.Created || 0).getTime();
+                return db - da;
+            });
+        }
+
+        function refreshListData(which) {
+            masterLoaded = false;
+            oracleLoaded = false;
+            if (which === "master" || which === "both") loadAndRenderMaster();
+            if (which === "oracle" || which === "both") loadAndRenderOracle();
+        }
+
+        function showSubmitSuccess(alertId, msg, resetFn, refreshWhich) {
+            if (resetFn) resetFn();
+            refreshListData(refreshWhich);
+            alert_(alertId, "success", msg);
+        }
+
         function generateRequestId(cb) {
             reserveRequestIds(1, function(ids) {
                 cb(ids[0]);
             });
+        }
+
+        var BULK_COL_LABELS = {
+            RequestID: "Request ID",
+            Email: "End User Email",
+            FirstName: "End User First Name",
+            LastName: "End User Last Name",
+            Entity: "Entity",
+            Subscriber: "Subscriber",
+            SubLevel: "Sub Level",
+            L20AC: "L20 AC",
+            MSISDN: "MSISDN",
+            Tariff: "Tariff (Rate Plan)",
+            Status: "Current Status",
+            DeviceModel: "Device Model",
+            DeviceOffer: "Device Offer",
+            ExpiryDate: "Expiry Date",
+            SIMSerial: "SIM Serial (ICCID)",
+            ActivationDateSIM: "Activation Date – SIM",
+            ContractStartSIM: "Contract Start Date – SIM",
+            ContractEndSIM: "Contract End Date – SIM",
+            ContractStartHandset: "Contract Start Date – Handset",
+            ContractEndHandset: "Contract End Date – Handset",
+            DeactivationDateSIM: "Deactivation Date – SIM",
+            TransactionType: "Transaction Type",
+            PONo: "PO No",
+            PODate: "PO Date",
+            ActivityRefNo: "Activity Ref. No",
+            ActivityDate: "Activity Date",
+            SRDate: "SR Date",
+            SONo: "SO No",
+            SOCreationDate: "SO Creation Date",
+            ShipTo: "Ship To",
+            UpdateOrder: "Update Order",
+            ActivityRefNo2: "Activity Ref. No 2",
+            ActivityDate2: "Activity Date 2",
+            SONo2: "SO No 2",
+            SOCreationDate2: "SO Creation Date 2",
+            SIMType: "SIM Type",
+            Addons: "Add-ons",
+            DeviceBrand: "Device (Brand)",
+            DeviceSubcat: "Device Subcategory",
+            Capacity: "Capacity",
+            IMEI: "IMEI",
+            Quantity: "Quantity",
+            ActivationDateHandset: "Activation Date – Handset",
+            FutureTermDate: "Future Termination Date",
+            Reason: "Reason",
+            PendingWith: "Pending With",
+            EmailReceived: "Email Received",
+            LoggedInSP: "Logged in SP",
+            CompletedDate: "Completed Date",
+            Remarks: "Remarks"
+        };
+
+        function bulkHeaderToKey(h) {
+            var t = bulkNorm(h);
+            for (var key in BULK_COL_LABELS) {
+                if (key === t || BULK_COL_LABELS[key].toLowerCase() === t.toLowerCase()) return key;
+            }
+            if (t === "RequestId" || t === "Request ID") return "RequestID";
+            return t;
+        }
+
+        function bulkColLabel(key) {
+            return BULK_COL_LABELS[key] || key;
         }
 
         function formatDateForInput(dateStr) {
@@ -2387,27 +2481,27 @@
 
         function loadAndRenderMaster() {
             document.getElementById("masterGridContainer").innerHTML = '<div class="dg-empty"><span class="spinner"></span> Loading all Master Data...</div>';
-            var url = getSite() + "/_api/web/lists/getbytitle('Master Data')/items?$select=Id,Title,End_x0020_User_x0020_Email,End_x0020_User_x0020_First_x0020,End_x0020_User_x0020_First_x00200,MSISDN,Sub_x0020_Level,Subscriber,Tariff_x0020__x0028_Rate_x0020_P,Current_Status,Device_x0020_Model,L20_x0020_AC,Device_x0020_Offer,Expiry_x0020_Date,SIM_x0020_Serial_x0020__x0028_IC,Activation_x0020_Date_x0020__x20,Contract_x0020_Start_x0020_Date_,Contract_x0020_End_x0020_Date_x0,Contract_x0020_Start_x0020_Date_0,Contract_x0020_End_x0020_Date_x00,DeactivationDate_x0020_Sim,EmailLower";
+            var url = getSite() + "/_api/web/lists/getbytitle('Master Data')/items?$select=Id,Title,End_x0020_User_x0020_Email,End_x0020_User_x0020_First_x0020,End_x0020_User_x0020_First_x00200,MSISDN,Sub_x0020_Level,Subscriber,Tariff_x0020__x0028_Rate_x0020_P,Current_Status,Device_x0020_Model,L20_x0020_AC,Device_x0020_Offer,Expiry_x0020_Date,SIM_x0020_Serial_x0020__x0028_IC,Activation_x0020_Date_x0020__x20,Contract_x0020_Start_x0020_Date_,Contract_x0020_End_x0020_Date_x0,Contract_x0020_Start_x0020_Date_0,Contract_x0020_End_x0020_Date_x00,DeactivationDate_x0020_Sim,EmailLower,Created,Modified&$orderby=Modified desc";
             fetchAllItems(url, [], function(items, err) {
                 if (err) {
                     document.getElementById("masterGridContainer").innerHTML = '<div class="dg-empty" style="color:#ef4444;">Error: ' + (err.text || JSON.stringify(err)) + '</div>';
                     return;
                 }
-                masterData = items;
-                createGrid("masterGridContainer", MASTER_COLS, items);
+                masterData = sortListNewestFirst(items);
+                createGrid("masterGridContainer", MASTER_COLS, masterData);
             });
         }
 
         function loadAndRenderOracle() {
             document.getElementById("oracleGridContainer").innerHTML = '<div class="dg-empty"><span class="spinner"></span> Loading all Oracle Activation records...</div>';
-            var url = getSite() + "/_api/web/lists/getbytitle('Oracle Activation')/items?$select=Id,Title,End_x0020_User_x0020_First_x0020,End_x0020_User_x0020_Last_x0020_,Transaction_x0020_Type,Status,MSISDN,SIM_x0020_Serial_x0020__x0028_IC,SIM_x0020_Type,Tariff_x0020__x0028_Rate_x0020_P,Add_x002d_ons,Device_x0020__x0028_Brand_x0029_,Device_x0020_Subcategory,Capacity,IMEI,Quantity,Request_x0020_IDD,Remarks,Entity,Subscriber,Account_x0020_Code,PO_x0020_No,PO_x0020_Date,Activity_x0020_Ref_x002e__x0020_,Activity_x0020_Date,SR_x0020_Date,SO_x0020_No,SO_x0020_Creation_x0020_Date,Ship_x0020_To,Update_x0020_Order,Activity_x0020_Ref_x002e__x0020_0,Activity_x0020_Date_x0020_2,SO_x0020_No_x0020_2,SO_x0020_Creation_x0020_Date_x00,Activation_x0020_Date_x0020__x20,Contract_x0020_Start_x0020_Date_,Contract_x0020_End_x0020_Date_x0,Activation_x0020_Date_x0020__x200,Contract_x0020_End_x0020_Date_x00,Future_x0020_Termination_x0020_D,Reason,Pending_x0020_With,Email_x0020_Received,Logged_x0020_in_x0020_SP,Completed_x0020_Date";
+            var url = getSite() + "/_api/web/lists/getbytitle('Oracle Activation')/items?$select=Id,Title,End_x0020_User_x0020_First_x0020,End_x0020_User_x0020_Last_x0020_,Transaction_x0020_Type,Status,MSISDN,SIM_x0020_Serial_x0020__x0028_IC,SIM_x0020_Type,Tariff_x0020__x0028_Rate_x0020_P,Add_x002d_ons,Device_x0020__x0028_Brand_x0029_,Device_x0020_Subcategory,Capacity,IMEI,Quantity,Request_x0020_IDD,Remarks,Entity,Subscriber,Account_x0020_Code,PO_x0020_No,PO_x0020_Date,Activity_x0020_Ref_x002e__x0020_,Activity_x0020_Date,SR_x0020_Date,SO_x0020_No,SO_x0020_Creation_x0020_Date,Ship_x0020_To,Update_x0020_Order,Activity_x0020_Ref_x002e__x0020_0,Activity_x0020_Date_x0020_2,SO_x0020_No_x0020_2,SO_x0020_Creation_x0020_Date_x00,Activation_x0020_Date_x0020__x20,Contract_x0020_Start_x0020_Date_,Contract_x0020_End_x0020_Date_x0,Activation_x0020_Date_x0020__x200,Contract_x0020_End_x0020_Date_x00,Future_x0020_Termination_x0020_D,Reason,Pending_x0020_With,Email_x0020_Received,Logged_x0020_in_x0020_SP,Completed_x0020_Date,Created,Modified&$orderby=Modified desc";
             fetchAllItems(url, [], function(items, err) {
                 if (err) {
                     document.getElementById("oracleGridContainer").innerHTML = '<div class="dg-empty" style="color:#ef4444;">Error: ' + (err.text || JSON.stringify(err)) + '</div>';
                     return;
                 }
-                oracleData = items;
-                createGrid("oracleGridContainer", ORACLE_COLS, items);
+                oracleData = sortListNewestFirst(items);
+                createGrid("oracleGridContainer", ORACLE_COLS, oracleData);
             });
         }
         // ═══════════════════════════════════════
@@ -2596,9 +2690,7 @@
                     btn.innerHTML = '<i data-lucide="check"></i> Submit';
                     if (typeof lucide !== "undefined") lucide.createIcons();
                     if (x.status >= 200 && x.status < 300) {
-                        alert_("masterAlert", "success", "Created!");
-                        resetMasterForm();
-                        masterLoaded = false;
+                        showSubmitSuccess("masterAlert", "Master record created successfully.", resetMasterForm, "master");
                     } else alert_("masterAlert", "error", "Error " + x.status);
                 }
             };
@@ -2609,6 +2701,11 @@
             var id = document.getElementById("md_editId").value;
             if (!id) return;
             alert_("masterAlert", "info", "Updating...");
+            var btn = document.getElementById("submitMasterBtn");
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner"></span> Updating...';
+            }
             // Step 1: fetch ETag
             var x1 = new XMLHttpRequest();
             x1.open("GET", getSite() + "/_api/web/lists/getbytitle('Master Data')/items(" + id + ")", true);
@@ -2630,14 +2727,15 @@
                         x2.setRequestHeader("If-Match", etag);
                         x2.onreadystatechange = function() {
                             if (x2.readyState === 4) {
+                                if (btn) {
+                                    btn.disabled = false;
+                                    btn.innerHTML = '<i data-lucide="check"></i> Submit';
+                                    if (typeof lucide !== "undefined") lucide.createIcons();
+                                }
                                 if (x2.status >= 200 && x2.status < 300) {
-                                    alert_("oracleAlert", "success", "✓ Update Successful!");
-                                    setTimeout(function() {
-                                        resetOracleForm();
-                                        oracleLoaded = false;
-                                    }, 1500);
+                                    showSubmitSuccess("masterAlert", "Master record updated successfully.", resetMasterForm, "master");
                                 } else {
-                                    alert_("oracleAlert", "error", "✗ Update Failed — Error " + x2.status);
+                                    alert_("masterAlert", "error", "Update failed — Error " + x2.status);
                                 }
                             }
                         };
@@ -2827,10 +2925,7 @@
                             btn.innerHTML = '<i data-lucide="check"></i> Submit';
                             if (typeof lucide !== "undefined") lucide.createIcons();
                             if (x.status >= 200 && x.status < 300) {
-                                alert_("oracleAlert", "success", "Created! ID: " + payload.Request_x0020_IDD);
-                                resetOracleForm();
-                                oracleLoaded = false;
-                                masterLoaded = false;
+                                showSubmitSuccess("oracleAlert", "Oracle record created successfully. Request ID: " + payload.Request_x0020_IDD, resetOracleForm, "both");
                             } else alert_("oracleAlert", "error", "Error " + x.status);
                         }
                     };
@@ -2865,9 +2960,7 @@
                         x2.onreadystatechange = function() {
                             if (x2.readyState === 4) {
                                 if (x2.status >= 200 && x2.status < 300) {
-                                    alert_("oracleAlert", "success", "Updated!");
-                                    resetOracleForm();
-                                    oracleLoaded = false;
+                                    showSubmitSuccess("oracleAlert", "Oracle record updated successfully.", resetOracleForm, "both");
                                 } else alert_("oracleAlert", "error", "PATCH failed — Error " + x2.status);
                             }
                         };
@@ -2897,13 +2990,15 @@
         }
 
         function downloadMasterCSV() {
-            var h = "Email,FirstName,LastName,Entity,Subscriber,SubLevel,L20AC,MSISDN,Tariff,Status,DeviceModel,DeviceOffer,ExpiryDate,SIMSerial,ActivationDateSIM,ContractStartSIM,ContractEndSIM,ContractStartHandset,ContractEndHandset,DeactivationDateSIM\n";
+            var keys = ["Email", "FirstName", "LastName", "Entity", "Subscriber", "SubLevel", "L20AC", "MSISDN", "Tariff", "Status", "DeviceModel", "DeviceOffer", "ExpiryDate", "SIMSerial", "ActivationDateSIM", "ContractStartSIM", "ContractEndSIM", "ContractStartHandset", "ContractEndHandset", "DeactivationDateSIM"];
+            var h = keys.map(bulkColLabel).join(",") + "\n";
             var r = ["john.smith@example.com,John,Smith,Oracle Systems Ltd,du Corporate,5.13291.15.00.100001,5.13291,'971551234567,Premier Plan 250000,Active,iPhone 16,Device Offer A,2025-12-31,'8964010112233445566,2025-01-15,2025-01-15,2027-01-15,2025-01-15,2027-01-15,2027-06-30", "sarah.jones@example.com,Sarah,Jones,Oracle Systems Ltd,du Corporate,5.13291.15.00.100002,5.13291,'971559876543,Enterprise Postpaid Plan,Active,Samsung Galaxy S25,Device Offer B,2025-06-30,'8964010112233445577,2025-02-10,2025-02-10,2027-02-10,2025-02-10,2027-02-10,"];
             downloadCSV("Master_Data_Example.csv", h + r.join("\n"));
         }
 
         function downloadOracleCSV() {
-            var h = "RequestID,Email,FirstName,LastName,Entity,Subscriber,SubLevel,TransactionType,PONo,PODate,ActivityRefNo,ActivityDate,SRDate,SONo,SOCreationDate,ShipTo,UpdateOrder,ActivityRefNo2,ActivityDate2,SONo2,SOCreationDate2,MSISDN,SIMSerial,SIMType,Tariff,Addons,ActivationDateSIM,ContractStartSIM,ContractEndSIM,DeviceBrand,DeviceSubcat,Capacity,IMEI,Quantity,ActivationDateHandset,ContractEndHandset,FutureTermDate,Status,Reason,PendingWith,EmailReceived,LoggedInSP,CompletedDate,Remarks\n";
+            var keys = ["RequestID", "Email", "FirstName", "LastName", "Entity", "Subscriber", "SubLevel", "TransactionType", "PONo", "PODate", "ActivityRefNo", "ActivityDate", "SRDate", "SONo", "SOCreationDate", "ShipTo", "UpdateOrder", "ActivityRefNo2", "ActivityDate2", "SONo2", "SOCreationDate2", "MSISDN", "SIMSerial", "SIMType", "Tariff", "Addons", "ActivationDateSIM", "ContractStartSIM", "ContractEndSIM", "DeviceBrand", "DeviceSubcat", "Capacity", "IMEI", "Quantity", "ActivationDateHandset", "ContractEndHandset", "FutureTermDate", "Status", "Reason", "PendingWith", "EmailReceived", "LoggedInSP", "CompletedDate", "Remarks"];
+            var h = keys.map(bulkColLabel).join(",") + "\n";
             var r = [",john.smith@example.com,John,Smith,Oracle Systems Ltd,du Corporate,5.13291.15.00.100001,Sim + Handset,PO12345,2026-01-15,ACT-001,2026-01-20,2026-01-22,SO-9876,2026-01-23,Office Building A,N/A,ACT-002,2026-01-26,SO-9877,2026-01-27,971551234567,8964010112233445566,Physical SIM,Premier Plan 250000,5G Addon,2026-01-25,2026-01-25,2028-01-25,Apple,iPhone 16,256GB,352123456789012,1,2026-01-25,2028-01-25,2028-12-31,Acknowledged,,du,2026-01-15T09:00,2026-01-15T10:30,2026-01-25T14:00,New activation"];
             downloadCSV("Oracle_Activation_Example.csv", h + r.join("\n"));
         }
@@ -2912,9 +3007,63 @@
         // ═══════════════════════════════════════
         var bulkParsedRows = [];
         var bulkHeaders = [];
+        var bulkIdSeq = null;
 
         function getRowRequestId(r) {
+            var i;
+            for (i = 0; i < bulkHeaders.length; i++) {
+                if (bulkHeaderToKey(bulkHeaders[i]) === "RequestID") {
+                    var v = bulkNorm(r[bulkHeaders[i]]);
+                    if (v) return v;
+                }
+            }
             return bulkNorm(r.RequestID || r.RequestId || "");
+        }
+
+        function setRowRequestId(r, id) {
+            var i;
+            r.RequestID = id;
+            r.RequestId = id;
+            for (i = 0; i < bulkHeaders.length; i++) {
+                if (bulkHeaderToKey(bulkHeaders[i]) === "RequestID") {
+                    r[bulkHeaders[i]] = id;
+                }
+            }
+        }
+
+        function assignOracleRequestIdsForPreview() {
+            var needs = bulkParsedRows.filter(function(r) {
+                return r._bulkAction === "create" && !getRowRequestId(r);
+            });
+            if (!needs.length) {
+                renderBulkReviewTable();
+                return;
+            }
+            function assignFromSeq(base) {
+                var n = base.next;
+                needs.forEach(function(r) {
+                    setRowRequestId(r, formatRequestId(base.year, n++));
+                });
+                bulkIdSeq = {
+                    year: base.year,
+                    next: n
+                };
+                if (bulkHeaders.indexOf("RequestID") === -1) {
+                    bulkHeaders.unshift("RequestID");
+                }
+                renderBulkReviewTable();
+            }
+            if (bulkIdSeq) {
+                assignFromSeq(bulkIdSeq);
+                return;
+            }
+            fetchNextRequestIdBase(function(base) {
+                bulkIdSeq = {
+                    year: base.year,
+                    next: base.next
+                };
+                assignFromSeq(bulkIdSeq);
+            });
         }
 
         function bulkNorm(val) {
@@ -3016,7 +3165,7 @@
             if (!entries.length) return "";
             var html = '<thead><tr><th>Delete</th>';
             bulkHeaders.forEach(function(h) {
-                html += '<th>' + escapeHtml(h) + '</th>';
+                html += '<th>' + escapeHtml(bulkColLabel(bulkHeaderToKey(h))) + '</th>';
             });
             html += '</tr></thead><tbody>';
             entries.forEach(function(entry) {
@@ -3027,13 +3176,14 @@
                 html += '<tr class="' + rowCls + '">';
                 html += '<td class="bulk-delete-col"><label><input type="checkbox"' + (r._markedDelete ? " checked" : "") + ' onchange="toggleBulkRowDelete(' + rowIdx + ')"> ' + deleteLabel + '</label></td>';
                 bulkHeaders.forEach(function(h) {
-                    var val = bulkNorm(r[h]);
-                    var changed = isBulkCellChanged(r, h, target);
+                    var key = bulkHeaderToKey(h);
+                    var val = bulkNorm(r[key] !== undefined ? r[key] : r[h]);
+                    var changed = isBulkCellChanged(r, key, target);
                     var cls = "bulk-editable";
                     if (!isUpdateSection) cls += " bulk-new-row";
                     if (changed) cls += " bulk-changed";
                     var disabled = r._markedDelete ? " disabled" : "";
-                    html += '<td class="' + cls + '"><input type="text" value="' + escapeHtml(val) + '"' + disabled + ' onchange="onBulkCellChange(' + rowIdx + ',\'' + h.replace(/'/g, "\\'") + '\',this.value)" onblur="onBulkCellChange(' + rowIdx + ',\'' + h.replace(/'/g, "\\'") + '\',this.value)"></td>';
+                    html += '<td class="' + cls + '"><input type="text" value="' + escapeHtml(val) + '"' + disabled + ' onchange="onBulkCellChange(' + rowIdx + ',\'' + key.replace(/'/g, "\\'") + '\',this.value)" onblur="onBulkCellChange(' + rowIdx + ',\'' + key.replace(/'/g, "\\'") + '\',this.value)"></td>';
                 });
                 html += '</tr>';
             });
@@ -3094,11 +3244,11 @@
             renderBulkReviewTable();
         }
 
-        function onBulkCellChange(rowIdx, col, val) {
+        function onBulkCellChange(rowIdx, colKey, val) {
             if (!bulkParsedRows[rowIdx]) return;
-            bulkParsedRows[rowIdx][col] = val;
-            if (col === "RequestID" || col === "RequestId") bulkParsedRows[rowIdx].RequestID = val;
-            if (col === "Email" || col === "RequestID" || col === "RequestId") {
+            bulkParsedRows[rowIdx][colKey] = val;
+            if (colKey === "RequestID") setRowRequestId(bulkParsedRows[rowIdx], val);
+            if (colKey === "Email" || colKey === "RequestID") {
                 prepareBulkReview();
                 return;
             }
@@ -3106,6 +3256,7 @@
         }
 
         function onBulkTargetChange() {
+            bulkIdSeq = null;
             if (bulkParsedRows.length) prepareBulkReview();
         }
 
@@ -3143,7 +3294,6 @@
                         var rid = bulkNorm(it.Request_x0020_IDD);
                         if (rid) map[rid.toUpperCase()] = it;
                     });
-                    var newCount = 0;
                     bulkParsedRows.forEach(function(r) {
                         var rid = getRowRequestId(r);
                         var wasDelete = r._markedDelete;
@@ -3155,26 +3305,10 @@
                             r._bulkAction = "create";
                             r._spItemId = null;
                             r._existing = null;
-                            if (!rid) newCount++;
                         }
                         r._markedDelete = wasDelete;
                     });
-                    if (newCount === 0) {
-                        renderBulkReviewTable();
-                        return;
-                    }
-                    reserveRequestIds(newCount, function(ids) {
-                        var idIdx = 0;
-                        bulkParsedRows.forEach(function(r) {
-                            if (r._bulkAction === "create" && !getRowRequestId(r)) {
-                                r.RequestID = ids[idIdx++];
-                                if (bulkHeaders.indexOf("RequestID") === -1 && bulkHeaders.indexOf("RequestId") === -1) {
-                                    bulkHeaders.unshift("RequestID");
-                                }
-                            }
-                        });
-                        renderBulkReviewTable();
-                    });
+                    assignOracleRequestIdsForPreview();
                 });
             }
         }
@@ -3183,6 +3317,7 @@
             var file = document.getElementById("bulkFileInput").files[0];
             if (!file) return;
             document.getElementById("bulkAlert").innerHTML = "";
+            bulkIdSeq = null;
             var reader = new FileReader();
             reader.onload = function(e) {
                 var lines = e.target.result.trim().split(/\r?\n/);
@@ -3190,8 +3325,13 @@
                     alert_("bulkAlert", "error", "Need header + data rows");
                     return;
                 }
-                bulkHeaders = lines[0].split(",").map(function(h) {
+                var rawHeaders = lines[0].split(",").map(function(h) {
                     return h.trim().replace(/"/g, "");
+                });
+                bulkHeaders = [];
+                rawHeaders.forEach(function(h) {
+                    var key = bulkHeaderToKey(h);
+                    if (bulkHeaders.indexOf(key) === -1) bulkHeaders.push(key);
                 });
                 bulkParsedRows = [];
                 for (var i = 1; i < lines.length; i++) {
@@ -3200,8 +3340,8 @@
                         return v.trim().replace(/"/g, "");
                     });
                     var obj = {};
-                    bulkHeaders.forEach(function(h, idx) {
-                        obj[h] = vals[idx] || "";
+                    rawHeaders.forEach(function(rawH, idx) {
+                        obj[bulkHeaderToKey(rawH)] = vals[idx] || "";
                     });
                     bulkParsedRows.push(obj);
                 }
@@ -3211,14 +3351,15 @@
             reader.readAsText(file);
         }
 
-        function clearBulk() {
+        function clearBulk(clearAlert) {
             document.getElementById("bulkFileInput").value = "";
             document.getElementById("bulkPreview").style.display = "none";
             document.getElementById("bulkProgress").style.display = "none";
-            document.getElementById("bulkAlert").innerHTML = "";
+            if (clearAlert !== false) document.getElementById("bulkAlert").innerHTML = "";
             document.getElementById("bulkSummary").innerHTML = "";
             bulkParsedRows = [];
             bulkHeaders = [];
+            bulkIdSeq = null;
         }
 
         function executeBulkUpload() {
@@ -3431,8 +3572,10 @@
                         summary += "<br><br>" + errorDetails.slice(0, 5).join("<br>");
                     }
                     alert_("bulkAlert", errors > 0 ? "error" : "success", summary, errors > 0);
-                    masterLoaded = false;
-                    oracleLoaded = false;
+                    if (errors === 0) {
+                        clearBulk(false);
+                    }
+                    refreshListData(target === "master" ? "master" : "oracle");
                     return;
                 }
                 var job = workItems[wIdx];
