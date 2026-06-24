@@ -1421,7 +1421,7 @@
         }
 
         // ═══ ALERTS ═══
-        function alert_(cid, type, msg, holdMs) {
+        function alert_(cid, type, msg) {
             var icons = {
                 success: "check-circle",
                 error: "alert-circle",
@@ -1429,11 +1429,10 @@
             };
             document.getElementById(cid).innerHTML = '<div class="alert alert-' + type + '"><i data-lucide="' + icons[type] + '"></i><span>' + msg + '</span></div>';
             if (typeof lucide !== "undefined") lucide.createIcons();
-            var ms = holdMs != null ? holdMs : (type === "error" && String(msg).length > 120 ? 15000 : 6000);
             setTimeout(function() {
                 var el = document.getElementById(cid);
                 if (el) el.innerHTML = "";
-            }, ms);
+            }, 6000);
         }
 
         // ═══ HELPERS ═══
@@ -1488,28 +1487,19 @@
 
         function escapeHtml(text) {
             if (!text) return "";
-            return String(text)
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#39;");
+            return String(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
 
         function parseSharePointError(responseText, status) {
             if (responseText) {
                 try {
                     var data = JSON.parse(responseText);
-                    var err = data.error || (data.d && data.d.error);
-                    if (err && err.message) {
-                        if (typeof err.message === "string" && err.message.trim()) return err.message.trim();
-                        if (err.message.value) return String(err.message.value).trim();
+                    if (data.error && data.error.message && data.error.message.value) {
+                        return data.error.message.value;
                     }
                 } catch (e) {}
-                var trimmed = responseText.trim();
-                if (trimmed) return trimmed.length > 240 ? trimmed.substring(0, 240) + "..." : trimmed;
             }
-            return status ? ("Request failed (HTTP " + status + ")") : "Request failed";
+            return status ? ("Error " + status) : "Request failed";
         }
 
         function fetchAllItems(url, allItems, callback) {
@@ -1905,7 +1895,7 @@
         // LOAD GRIDS
         // ═══════════════════════════════════════
         var MASTER_COLS = [{
-                key: "Entity",
+                key: "Title",
                 label: "Entity",
                 width: 160
             },
@@ -2204,17 +2194,14 @@
 
         function loadAndRenderMaster() {
             document.getElementById("masterGridContainer").innerHTML = '<div class="dg-empty"><span class="spinner"></span> Loading all Master Data...</div>';
-            var url = getSite() + "/_api/web/lists/getbytitle('Master Data')/items?$select=Id,Title,Entity,End_x0020_User_x0020_Email,End_x0020_User_x0020_First_x0020,End_x0020_User_x0020_First_x00200,MSISDN,Sub_x0020_Level,Subscriber,Tariff_x0020__x0028_Rate_x0020_P,Current_Status,Device_x0020_Model,L20_x0020_AC,Device_x0020_Offer,Expiry_x0020_Date,SIM_x0020_Serial_x0020__x0028_IC,Activation_x0020_Date_x0020__x20,Contract_x0020_Start_x0020_Date_,Contract_x0020_End_x0020_Date_x0,Contract_x0020_Start_x0020_Date_0,Contract_x0020_End_x0020_Date_x00,EmailLower";
+            var url = getSite() + "/_api/web/lists/getbytitle('Master Data')/items?$select=Id,Title,End_x0020_User_x0020_Email,End_x0020_User_x0020_First_x0020,End_x0020_User_x0020_First_x00200,MSISDN,Sub_x0020_Level,Subscriber,Tariff_x0020__x0028_Rate_x0020_P,Current_Status,Device_x0020_Model,L20_x0020_AC,Device_x0020_Offer,Expiry_x0020_Date,SIM_x0020_Serial_x0020__x0028_IC,Activation_x0020_Date_x0020__x20,Contract_x0020_Start_x0020_Date_,Contract_x0020_End_x0020_Date_x0,Contract_x0020_Start_x0020_Date_0,Contract_x0020_End_x0020_Date_x00,EmailLower";
             fetchAllItems(url, [], function(items, err) {
                 if (err) {
                     document.getElementById("masterGridContainer").innerHTML = '<div class="dg-empty" style="color:#ef4444;">Error: ' + (err.text || JSON.stringify(err)) + '</div>';
                     return;
                 }
-                masterData = items.map(function(i) {
-                    if (!i.Entity && i.Title) i.Entity = i.Title;
-                    return i;
-                });
-                createGrid("masterGridContainer", MASTER_COLS, masterData);
+                masterData = items;
+                createGrid("masterGridContainer", MASTER_COLS, items);
             });
         }
 
@@ -2244,7 +2231,7 @@
             }
             if (!row) return;
             if (type === "master") {
-                document.getElementById("md_entity").value = row.Entity || row.Title || "";
+                document.getElementById("md_entity").value = row.Title || "";
                 document.getElementById("md_subscriber").value = row.Subscriber || "";
                 document.getElementById("md_sublevel").value = row.Sub_x0020_Level || "";
                 document.getElementById("md_l20ac").value = row.L20_x0020_AC || "";
@@ -2364,10 +2351,8 @@
 
         function getMasterPayload() {
             var email = document.getElementById("md_email").value.trim();
-            var entity = document.getElementById("md_entity").value.trim();
             return {
-                Title: entity || email || null,
-                Entity: entity || null,
+                Title: document.getElementById("md_entity").value || null,
                 MSISDN: document.getElementById("md_msisdn").value || null,
                 L20_x0020_AC: document.getElementById("md_l20ac").value || null,
                 Sub_x0020_Level: document.getElementById("md_sublevel").value || null,
@@ -2500,7 +2485,7 @@
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner"></span> Checking...';
             sd.innerHTML = '<span style="color:var(--text-muted);">Searching...</span>';
-            var url = getSite() + "/_api/web/lists/getbytitle('Master Data')/items?$select=Title,Entity,Subscriber,Sub_x0020_Level,End_x0020_User_x0020_First_x0020,End_x0020_User_x0020_First_x00200,MSISDN,Tariff_x0020__x0028_Rate_x0020_P,SIM_x0020_Serial_x0020__x0028_IC,Activation_x0020_Date_x0020__x20,Contract_x0020_Start_x0020_Date_,Contract_x0020_End_x0020_Date_x0,Contract_x0020_Start_x0020_Date_0,Contract_x0020_End_x0020_Date_x00&$filter=End_x0020_User_x0020_Email eq '" + email.replace(/'/g, "''") + "'&$top=1";
+            var url = getSite() + "/_api/web/lists/getbytitle('Master Data')/items?$select=Title,Subscriber,Sub_x0020_Level,End_x0020_User_x0020_First_x0020,End_x0020_User_x0020_First_x00200,MSISDN,Tariff_x0020__x0028_Rate_x0020_P,SIM_x0020_Serial_x0020__x0028_IC,Activation_x0020_Date_x0020__x20,Contract_x0020_Start_x0020_Date_,Contract_x0020_End_x0020_Date_x0,Contract_x0020_Start_x0020_Date_0,Contract_x0020_End_x0020_Date_x00&$filter=End_x0020_User_x0020_Email eq '" + email.replace(/'/g, "''") + "'&$top=1";
             fetchAllItems(url, [], function(items) {
                 btn.disabled = false;
                 btn.innerHTML = '<i data-lucide="search"></i> Check';
@@ -2509,7 +2494,7 @@
                     var i = items[0];
                     document.getElementById("oa_firstname").value = i.End_x0020_User_x0020_First_x0020 || "";
                     document.getElementById("oa_lastname").value = i.End_x0020_User_x0020_First_x00200 || "";
-                    document.getElementById("oa_entity").value = i.Entity || i.Title || "";
+                    document.getElementById("oa_entity").value = i.Title || "";
                     document.getElementById("oa_subscriber").value = i.Subscriber || "";
                     document.getElementById("oa_sublevel").value = i.Sub_x0020_Level || "";
                     document.getElementById("oa_msisdn").value = i.MSISDN || "";
@@ -2588,13 +2573,11 @@
                     cb();
                     return;
                 }
-                var entity = document.getElementById("oa_entity").value.trim();
                 var payload = {
                     __metadata: {
                         type: "SP.Data.Master_x0020_DataListItem"
                     },
-                    Title: entity || email || null,
-                    Entity: entity || null,
+                    Title: document.getElementById("oa_entity").value || null,
                     End_x0020_User_x0020_Email: email,
                     End_x0020_User_x0020_First_x0020: document.getElementById("oa_firstname").value || null,
                     End_x0020_User_x0020_First_x00200: document.getElementById("oa_lastname").value || null,
@@ -2791,15 +2774,6 @@
             }
             var target = document.getElementById("bulkTarget").value;
             var action = document.getElementById("bulkAction").value;
-            if (target === "master") {
-                var missingEmail = bulkParsedRows.some(function(r) {
-                    return !(r.Email || "").trim();
-                });
-                if (missingEmail) {
-                    alert_("bulkAlert", "error", "Master bulk upload requires Email on every row.");
-                    return;
-                }
-            }
             var listName = target === "master" ? "Master Data" : "Oracle Activation";
             var metaType = target === "master" ? "SP.Data.Master_x0020_DataListItem" : "SP.Data.Oracle_x0020_ActivationListItem";
             var filterField = target === "master" ? "End_x0020_User_x0020_Email" : "Title";
@@ -2808,35 +2782,21 @@
             var done = 0,
                 errors = 0,
                 total = bulkParsedRows.length,
-                errorDetails = [],
-                lastError = "";
-
-            function recordBulkError(rowIdx, row, errMsg) {
-                errors++;
-                var email = ((row && row.Email) || "").trim() || "—";
-                var msg = errMsg || "Request failed";
-                lastError = msg;
-                errorDetails.push("Row " + (rowIdx + 2) + " (" + email + "): " + msg);
-            }
+                errorDetails = [];
 
             function updateProg() {
                 var pct = Math.round((done + errors) / total * 100);
                 document.getElementById("progressBar").style.width = pct + "%";
                 document.getElementById("progressBar").textContent = pct + "%";
-                var text = "Processed: " + (done + errors) + "/" + total + " | Success: " + done + " | Errors: " + errors;
-                if (lastError) text += " | Latest: " + lastError;
-                document.getElementById("progressText").textContent = text;
+                document.getElementById("progressText").textContent = "Processed: " + (done + errors) + "/" + total + " | Success: " + done + " | Errors: " + errors;
             }
             updateProg();
 
             function buildPayload(r) {
                 if (target === "master") {
-                    var email = (r.Email || "").trim();
-                    var entity = (r.Entity || "").trim();
                     return {
-                        Title: entity || email || null,
-                        Entity: entity || null,
-                        End_x0020_User_x0020_Email: email || null,
+                        Title: r.Entity || null,
+                        End_x0020_User_x0020_Email: r.Email || null,
                         End_x0020_User_x0020_First_x0020: r.FirstName || null,
                         End_x0020_User_x0020_First_x00200: r.LastName || null,
                         Subscriber: r.Subscriber || null,
@@ -2854,12 +2814,11 @@
                         Contract_x0020_End_x0020_Date_x0: r.ContractEndSIM || null,
                         Contract_x0020_Start_x0020_Date_0: r.ContractStartHandset || null,
                         Contract_x0020_End_x0020_Date_x00: r.ContractEndHandset || null,
-                        EmailLower: email.toLowerCase()
+                        EmailLower: (r.Email || "").toLowerCase()
                     };
                 } else {
                     return {
                         Title: r.Email || null,
-                        End_x0020_User_x0020_Email: r.Email || null,
                         End_x0020_User_x0020_First_x0020: r.FirstName || null,
                         End_x0020_User_x0020_Last_x0020_: r.LastName || null,
                         Entity: r.Entity || null,
@@ -2901,7 +2860,8 @@
                         Email_x0020_Received: r.EmailReceived || null,
                         Logged_x0020_in_x0020_SP: r.LoggedInSP || null,
                         Completed_x0020_Date: r.CompletedDate || null,
-                        Remarks: r.Remarks || null
+                        Remarks: r.Remarks || null,
+                        EmailLower: (r.Email || "").toLowerCase()
                     };
                 }
             }
@@ -2982,26 +2942,25 @@
             function processRow(idx) {
                 if (idx >= total) {
                     document.getElementById("bulkSubmitBtn").disabled = false;
-                    var summary = "Done! " + done + " succeeded, " + errors + " failed.";
+                    var summary = "Done! " + done + " succeeded, " + errors + " errors.";
                     if (errorDetails.length) {
-                        summary += "<br><br><strong>Error details:</strong><br>" +
-                            errorDetails.slice(0, 10).map(escapeHtml).join("<br>");
-                        if (errorDetails.length > 10) {
-                            summary += "<br>...and " + (errorDetails.length - 10) + " more (see browser console).";
-                            console.error("Bulk upload errors:", errorDetails);
-                        }
+                        summary += "<br><br>" + errorDetails.slice(0, 5).join("<br>");
                     }
-                    alert_("bulkAlert", errors > 0 ? "error" : "success", summary, errors > 0 ? 20000 : null);
+                    alert_("bulkAlert", errors > 0 ? "error" : "success", summary);
                     masterLoaded = false;
                     oracleLoaded = false;
                     return;
                 }
                 var r = bulkParsedRows[idx];
                 var payload = buildPayload(r);
+                function onFail(errMsg) {
+                    errors++;
+                    errorDetails.push("Row " + (idx + 2) + ": " + (errMsg || "Request failed"));
+                }
                 if (action === "create") {
                     postItem(payload, function(ok, errMsg) {
                         if (ok) done++;
-                        else recordBulkError(idx, r, errMsg);
+                        else onFail(errMsg);
                         updateProg();
                         processRow(idx + 1);
                     });
@@ -3010,14 +2969,14 @@
                         if (existingId) {
                             patchItem(existingId, payload, function(ok, errMsg) {
                                 if (ok) done++;
-                                else recordBulkError(idx, r, errMsg);
+                                else onFail(errMsg);
                                 updateProg();
                                 processRow(idx + 1);
                             });
                         } else {
                             postItem(payload, function(ok, errMsg) {
                                 if (ok) done++;
-                                else recordBulkError(idx, r, errMsg);
+                                else onFail(errMsg);
                                 updateProg();
                                 processRow(idx + 1);
                             });
