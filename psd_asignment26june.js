@@ -17,7 +17,7 @@ var psdCharts        = {};
 var psdGrids         = { dash: null, assign: null, assigned: null, agentQueue: null, agentRecords: null };
 var psdUploadRows    = [];
 var psdSelectedAgent = null;
-window.PSD_MODULE_VERSION = '2.2.0';
+window.PSD_MODULE_VERSION = '2.2.1';
 
 var psdDashFilters   = { status: [], category: [], agent: [], product: [], search: '' };
 var psdDateFilters   = { dateField: 'UploadDate', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
@@ -837,7 +837,6 @@ function psdRenderShell() {
             '<div><h2 style="font-size:1.15rem;font-weight:900;color:var(--t1);display:flex;align-items:center;gap:.5rem;">' +
             '<i data-lucide="clipboard-list" style="width:24px;height:24px;color:var(--acc);"></i>PSD Assignment</h2>' +
             '<div style="font-size:.76rem;color:var(--t3);margin-top:3px;">' + psdEsc(psdRoleLabel()) + ' · ' + psdEsc(psdUserName()) + '</div></div>' +
-            '<button type="button" class="export-btn" onclick="psdInit()" style="padding:9px 18px;"><i data-lucide="refresh-cw" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Refresh</button>' +
         '</div>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1.1rem;">' +
         tabs.map(function (t) {
@@ -1293,6 +1292,7 @@ function psdReassignActionRenderer(params) {
     if (!params.data) return null;
     var wrap = document.createElement('div');
     wrap.className = 'psd-grid-action';
+    wrap.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
     var sel = psdAgentSelectEl(params.data.assignedTo === '—' ? '' : params.data.assignedTo);
     var btn = document.createElement('button');
     btn.type = 'button';
@@ -1303,6 +1303,15 @@ function psdReassignActionRenderer(params) {
     };
     wrap.appendChild(sel);
     wrap.appendChild(btn);
+    if (params.data.psdStatus === PSD_STATUS.INPROGRESS) {
+        var cBtn = document.createElement('button');
+        cBtn.type = 'button';
+        cBtn.className = 'export-btn';
+        cBtn.style.cssText = 'padding:4px 10px;font-size:.68rem;';
+        cBtn.textContent = 'Complete';
+        cBtn.onclick = function () { psdComplete(params.data.id); };
+        wrap.appendChild(cBtn);
+    }
     return wrap;
 }
 
@@ -1371,9 +1380,11 @@ function psdBuildColDefs(mode) {
     if (mode === 'assign') {
         cols.push({ headerName: 'Action', width: 210, minWidth: 190, pinned: 'right', sortable: false, filter: false, cellRenderer: psdAssignActionRenderer });
     } else if (mode === 'assigned') {
-        cols.push({ headerName: 'Reassign', width: 220, minWidth: 200, pinned: 'right', sortable: false, filter: false, cellRenderer: psdReassignActionRenderer });
+        cols.push({ headerName: 'Actions', width: 300, minWidth: 260, pinned: 'right', sortable: false, filter: false, cellRenderer: psdReassignActionRenderer });
     } else if (mode === 'agentqueue') {
         cols.push({ headerName: 'Action', width: 120, minWidth: 100, pinned: 'right', sortable: false, filter: false, cellRenderer: psdCompleteActionRenderer });
+    } else if (mode === 'records' && psdIsAdminLike()) {
+        cols.push({ headerName: 'Complete', width: 120, minWidth: 100, pinned: 'right', sortable: false, filter: false, cellRenderer: psdCompleteActionRenderer });
     }
     return cols.map(function (col) { return col.colId === 'psd_select' ? col : psdEnhanceColDef(col); });
 }
@@ -1959,11 +1970,11 @@ window.psdComplete = async function (id) {
     try { digest = await psdGetDigest(); } catch (e) { psdToast('Digest error', 'error'); return; }
     try {
         await psdUpdateItem(id, { PSDStatus: PSD_STATUS.COMPLETED, CompletedDate: new Date().toISOString() }, digest);
-        if (item) {
+        if (item && !psdIsAdminLike()) {
             var notifyItem = Object.assign({}, item, { PSDStatus: PSD_STATUS.COMPLETED, CompletedDate: new Date().toISOString() });
             try { await psdSendCompletionEmail(notifyItem); } catch (mailErr) { console.warn('[PSD] completion email', mailErr); }
         }
-        psdToast('Marked completed — admin notified', 'success');
+        psdToast(psdIsAdminLike() ? 'Marked completed' : 'Marked completed — admin notified', 'success');
         await psdFetchItems();
         psdRenderTabBody();
     } catch (e) { psdToast('Could not complete', 'error'); }
