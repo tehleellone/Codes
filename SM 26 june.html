@@ -2748,7 +2748,7 @@
                         <div class="edit-section-block" style="margin-top: 1.75rem;">
                         <h3 class="table-title"><i data-lucide="edit" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Update Account Assignment</h3>
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                             <div class="filter-group">
                                 <label class="filter-label">Account Manager *</label>
                                 <select class="filter-select" id="editAM"></select>
@@ -2756,18 +2756,6 @@
                             <div class="filter-group">
                                 <label class="filter-label">Account Director *</label>
                                 <select class="filter-select" id="editAD"></select>
-                            </div>
-                            <div class="filter-group">
-                                <label class="filter-label">Secondary SM</label>
-                                <div class="sm-person-wrap">
-                                    <input type="text" id="editSecondarySMInput" class="filter-select" placeholder="Search service manager..." style="font-size:14px;padding:10px;cursor:text;" autocomplete="off"
-                                        oninput="smSecondarySmSearch(this.value)"
-                                        onfocus="smSecondarySmSearch(this.value)"
-                                        onblur="setTimeout(function(){var d=document.getElementById('editSecondarySMDD');if(d)d.style.display='none';},250)">
-                                    <div id="editSecondarySMDD" class="sm-person-dd"></div>
-                                </div>
-                                <div id="editSecondarySMTag" style="display:none;margin-top:.35rem;"></div>
-                                <input type="hidden" id="editSecondarySM" value="">
                             </div>
                         </div>
 
@@ -4003,6 +3991,20 @@ let charts = {};
         window.smClearSecondarySm = function() {
             smSelectSecondarySm('', '');
         };
+
+        function smSecondarySmEditHtml() {
+            return '<div class="edit-field-card">' +
+                '<div class="edit-field-label">Secondary SM</div>' +
+                '<div class="sm-person-wrap">' +
+                    '<input type="text" id="editSecondarySMInput" class="filter-select" placeholder="Search service manager..." style="font-size:14px;padding:10px;width:100%;cursor:text;" autocomplete="off" ' +
+                    'oninput="smSecondarySmSearch(this.value)" onfocus="smSecondarySmSearch(this.value)" ' +
+                    'onblur="setTimeout(function(){var d=document.getElementById(\'editSecondarySMDD\');if(d)d.style.display=\'none\';},250)">' +
+                    '<div id="editSecondarySMDD" class="sm-person-dd"></div>' +
+                '</div>' +
+                '<div id="editSecondarySMTag" style="display:none;margin-top:.35rem;"></div>' +
+                '<input type="hidden" id="editSecondarySM" value="">' +
+            '</div>';
+        }
 
 async function fetchRNPSForLM(lmName) {
     try {
@@ -8772,7 +8774,6 @@ async function ownerFetchUserRole(email) {
                 // ✅ STEP 5: Reset dropdowns
                 document.getElementById('editAM').selectedIndex = 0;
                 document.getElementById('editAD').selectedIndex = 0;
-                smClearSecondarySm();
 
                 // ✅ STEP 6: Load fresh account data
                 const account = ALL_DATA.find(a => a.code === accountCode);
@@ -8801,7 +8802,6 @@ async function ownerFetchUserRole(email) {
                     ['Team', account.team],
                     ['Line Manager', account.lm],
                     ['Service Manager', account.sm],
-                    ['Secondary SM', account.secondarySm || '—'],
                     ['Account Manager', account.am],
                     ['Account Director', account.ad]
                 ];
@@ -8810,6 +8810,9 @@ async function ownerFetchUserRole(email) {
                     html += '<div class="edit-field-card">' +
                         '<div class="edit-field-label">' + pair[0] + '</div>' +
                         '<div class="edit-field-value">' + (pair[1] || '—') + '</div></div>';
+                    if (pair[0] === 'Service Manager') {
+                        html += smSecondarySmEditHtml();
+                    }
                 });
 
                 html += '<div class="edit-field-card">' +
@@ -8896,6 +8899,12 @@ async function ownerFetchUserRole(email) {
                 document.getElementById('editCurrentInfo').innerHTML = html;
                 renderEditPocFields();
 
+                if (account.secondarySm) {
+                    smSelectSecondarySm(account.secondarySm, '');
+                } else {
+                    smClearSecondarySm();
+                }
+
                 // Populate AM/AD dropdowns
                 const allAMs = [...new Set(ALL_DATA.map(a => a.am))].filter(Boolean).sort();
                 const allADs = [...new Set(ALL_DATA.map(a => a.ad))].filter(Boolean).sort();
@@ -8919,12 +8928,6 @@ async function ownerFetchUserRole(email) {
                     if (ad === account.ad) opt.selected = true;
                     adSelect.appendChild(opt);
                 });
-
-                if (account.secondarySm) {
-                    smSelectSecondarySm(account.secondarySm, '');
-                } else {
-                    smClearSecondarySm();
-                }
 
                 // Initialize Lucide icons
                 if (typeof lucide !== 'undefined') {
