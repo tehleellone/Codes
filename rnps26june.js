@@ -22,9 +22,51 @@ var rnpsLBTeam   = '';
 var rnpsLBStatus = '';
 var rnpsLBSearch = '';
 
-// ── Role helpers ──────────────────────────────────────────────
-function rnpsCanSeeAll() { return USER_CONTEXT.isAdmin || USER_CONTEXT.role === 'Service Director'; }
+// ── Role helpers (access matrix — same as main dashboard / QA) ─
 function rnpsNorm(n)     { return (n || '').toLowerCase().replace(/\s+/g,' ').trim(); }
+function rnpsGetRole()   { return (window.USER_CONTEXT && USER_CONTEXT.role) || ''; }
+function rnpsGetUser()   { return (window.USER_CONTEXT && USER_CONTEXT.userName) || ''; }
+
+// Full org view: Admin, Service Director, Auditor, Read Only
+function rnpsCanSeeAllData() {
+    var role = rnpsGetRole();
+    return !!(window.USER_CONTEXT && USER_CONTEXT.isAdmin) ||
+        role === 'Service Director' || role === 'Auditor' || role === 'Read Only';
+}
+
+// Upload tab: Admin + Service Director only
+function rnpsCanUpload() {
+    return !!(window.USER_CONTEXT && USER_CONTEXT.isAdmin) || rnpsGetRole() === 'Service Director';
+}
+
+// Scope RNPS rows to what the current user is allowed to see
+function rnpsApplyScope(rows) {
+    if (!rows || !rows.length) return [];
+    if (rnpsCanSeeAllData()) return rows.slice();
+    var role = rnpsGetRole();
+    var user = rnpsNorm(rnpsGetUser());
+    if (role === 'Service Manager') {
+        return rows.filter(function(r) { return rnpsNorm(r.ServiceManager) === user; });
+    }
+    if (role === 'Line Manager') {
+        return rows.filter(function(r) { return rnpsNorm(r.LineManager) === user; });
+    }
+    if ((window.USER_CONTEXT && USER_CONTEXT.isTSMManager) || role === 'TSM Manager' || role === 'TSM_SE_Viewer') {
+        return rows.filter(function(r) { return r.Team === 'TSM'; });
+    }
+    return [];
+}
+
+function rnpsGetVisibleScores() { return rnpsApplyScope(rnpsScores); }
+
+function rnpsScopeLabel() {
+    var role = rnpsGetRole();
+    if (rnpsCanSeeAllData()) return '';
+    if (role === 'Service Manager') return 'Your RNPS report';
+    if (role === 'Line Manager') return 'Your team\u2019s RNPS reports';
+    if ((window.USER_CONTEXT && USER_CONTEXT.isTSMManager) || role === 'TSM Manager' || role === 'TSM_SE_Viewer') return 'TSM team RNPS reports';
+    return 'No RNPS access for your role';
+}
 
 // ── Entry Point ───────────────────────────────────────────────
 window.rnpsInit = async function() {
@@ -92,7 +134,7 @@ function rnpsParsePeriod(p) {
     return m ? { q: parseInt(m[1]), year: parseInt(m[2]) } : { q:0, year:0 };
 }
 function rnpsGetPeriods() {
-    return [...new Set(rnpsScores.map(function(r){ return r.Period; }))].filter(Boolean).sort(function(a,b){
+    return [...new Set(rnpsGetVisibleScores().map(function(r){ return r.Period; }))].filter(Boolean).sort(function(a,b){
         var pa=rnpsParsePeriod(a), pb=rnpsParsePeriod(b);
         return pb.year!==pa.year ? pb.year-pa.year : pb.q-pa.q;
     });
@@ -104,13 +146,13 @@ function rnpsGeneratePeriodOptions() {
 }
 function rnpsGetSMScores(f) {
     f = f || {};
-    var d = rnpsScores.filter(function(r){ return r.RowType === 'SM'; });
+    var d = rnpsGetVisibleScores().filter(function(r){ return r.RowType === 'SM'; });
     if (f.period) d = d.filter(function(r){ return r.Period === f.period; });
     if (f.team)   d = d.filter(function(r){ return r.Team   === f.team;   });
     return d;
 }
 function rnpsAvg(period, team, key) {
-    var rows = rnpsScores.filter(function(r){ return r.RowType==='SM' && r.Period===period && (!team || r.Team===team); });
+    var rows = rnpsGetVisibleScores().filter(function(r){ return r.RowType==='SM' && r.Period===period && (!team || r.Team===team); });
     if (!rows.length) return null;
     return Math.round(rows.reduce(function(s,r){ return s+(r[key]||0); },0) / rows.length);
 }
@@ -127,20 +169,22 @@ function rnpsCC() {
 function rnpsRenderShell() {
     var wrap = document.getElementById('rnpsContainer'); if (!wrap) return;
     var periods = rnpsGetPeriods();
-    var isAdmin = rnpsCanSeeAll();
+    var canUpload = rnpsCanUpload();
+    var scopeLbl = rnpsScopeLabel();
+    var visibleSmCount = rnpsGetVisibleScores().filter(function(r){ return r.RowType==='SM'; }).length;
 
     wrap.innerHTML =
         '<div style="background:var(--grad);border-radius:16px;padding:1.5rem 2rem;margin-bottom:1.5rem;color:#fff;display:flex;align-items:center;gap:1rem;">' +
         '<div style="width:48px;height:48px;background:rgba(255,255,255,0.2);border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i data-lucide="star" style="width:24px;height:24px;color:#fff;"></i></div>' +
         '<div style="flex:1;"><div style="font-size:1.15rem;font-weight:800;">Relationship NPS Dashboard</div>' +
-        '<div style="font-size:.8rem;opacity:.8;">Service Manager Performance · Quarter Tracking</div></div>' +
+        '<div style="font-size:.8rem;opacity:.8;">'+(scopeLbl || 'Service Manager Performance · Quarter Tracking')+'</div></div>' +
         '<div style="text-align:right;flex-shrink:0;"><div style="font-size:.68rem;opacity:.7;">Latest Period</div>' +
         '<div style="font-size:1rem;font-weight:800;">'+(periods[0]||'No data yet')+'</div>' +
-        '<div style="font-size:.68rem;opacity:.65;">'+rnpsScores.filter(function(r){return r.RowType==='SM';}).length+' SM records</div></div></div>' +
+        '<div style="font-size:.68rem;opacity:.65;">'+visibleSmCount+' SM record'+(visibleSmCount===1?'':'s')+'</div></div></div>' +
 
         '<div style="display:flex;gap:8px;margin-bottom:1.25rem;">' +
         '<button type="button" id="rnpsTab_dashboard" onclick="rnpsSetTab(\'dashboard\')" style="padding:9px 20px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:none;background:var(--grad);color:#fff;box-shadow:0 2px 10px var(--glow);"><i data-lucide="layout-dashboard" style="width:14px;height:14px;"></i>Dashboard</button>' +
-        (isAdmin ? '<button type="button" id="rnpsTab_upload" onclick="rnpsSetTab(\'upload\')" style="padding:9px 20px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--t1);"><i data-lucide="upload-cloud" style="width:14px;height:14px;"></i>Upload</button>' : '') +
+        (canUpload ? '<button type="button" id="rnpsTab_upload" onclick="rnpsSetTab(\'upload\')" style="padding:9px 20px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--t1);"><i data-lucide="upload-cloud" style="width:14px;height:14px;"></i>Upload</button>' : '') +
         '</div>' +
 
         '<div id="rnpsFilterBar" style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.8rem 1rem;margin-bottom:1.25rem;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">' +
@@ -151,11 +195,11 @@ function rnpsRenderShell() {
         '</div>' +
 
         '<div id="rnpsTab_dashboard_sec"></div>' +
-        (isAdmin ? '<div id="rnpsTab_upload_sec" style="display:none;"></div>' : '');
+        (canUpload ? '<div id="rnpsTab_upload_sec" style="display:none;"></div>' : '');
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
     rnpsRenderDashboard();
-    if (isAdmin) {
+    if (canUpload) {
         var us = document.getElementById('rnpsTab_upload_sec');
         if (us) { us.innerHTML = rnpsUploadHTML(); rnpsRenderUploadHistory(); }
     }
@@ -191,12 +235,15 @@ function rnpsRenderDashboard() {
     var smRows = rnpsGetSMScores(f);
     var periods = rnpsGetPeriods();
 
-    if (!rnpsScores.length) {
+    if (!rnpsGetVisibleScores().length) {
+        var emptyMsg = rnpsScores.length
+            ? (rnpsScopeLabel() || 'No RNPS data matches your access.')
+            : 'Upload your first quarter using the Upload tab.';
         sec.innerHTML = '<div style="text-align:center;padding:80px;">' +
             '<div style="font-size:3rem;margin-bottom:1rem;">📊</div>' +
-            '<div style="font-size:1.1rem;font-weight:800;color:var(--t1);margin-bottom:.5rem;">No RNPS Data Yet</div>' +
-            '<div style="font-size:.85rem;color:var(--t3);margin-bottom:1.5rem;">Upload your first quarter using the Upload tab.</div>' +
-            (rnpsCanSeeAll()?'<button class="export-btn" onclick="rnpsSetTab(\'upload\')" style="padding:10px 24px;"><i data-lucide="upload-cloud" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Go to Upload</button>':'') +
+            '<div style="font-size:1.1rem;font-weight:800;color:var(--t1);margin-bottom:.5rem;">'+(rnpsScores.length ? 'No RNPS Data For You' : 'No RNPS Data Yet')+'</div>' +
+            '<div style="font-size:.85rem;color:var(--t3);margin-bottom:1.5rem;">'+emptyMsg+'</div>' +
+            (rnpsCanUpload()?'<button class="export-btn" onclick="rnpsSetTab(\'upload\')" style="padding:10px 24px;"><i data-lucide="upload-cloud" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Go to Upload</button>':'') +
             '</div>';
         if (typeof lucide !== 'undefined') lucide.createIcons();
         return;
@@ -368,7 +415,7 @@ function rnpsDrawTrendChart(f, periods, team, metric, view, tColors) {
         });
 
         // Target line
-        var tgtRow = rnpsScores.find(function(r){ return r.RowType==='SM' && r[tgtKey]; });
+        var tgtRow = rnpsGetVisibleScores().find(function(r){ return r.RowType==='SM' && r[tgtKey]; });
         var tgtVal = tgtRow ? (tgtRow[tgtKey]||0) : 0;
         if (tgtVal) datasets.push({
             label: 'Target '+tgtVal+'%',
@@ -400,7 +447,7 @@ function rnpsDrawTrendChart(f, periods, team, metric, view, tColors) {
             area.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--t3);font-size:.85rem;">Need at least 2 quarters of data for QoQ comparison.</div>';
             return;
         }
-        var smList = [...new Set(rnpsScores.filter(function(r){ return r.RowType==='SM' && r.Team===team; }).map(function(r){ return r.ServiceManager; }))].filter(Boolean).sort();
+        var smList = [...new Set(rnpsGetVisibleScores().filter(function(r){ return r.RowType==='SM' && r.Team===team; }).map(function(r){ return r.ServiceManager; }))].filter(Boolean).sort();
         var palette = ['rgba(76,111,255,0.85)','rgba(139,92,246,0.75)','rgba(16,185,129,0.75)','rgba(245,158,11,0.75)'];
         var h = Math.max(300, smList.length * 34 + 80);
         area.innerHTML = '<div style="height:'+h+'px;"><canvas id="rnpsTrendCanvas"></canvas></div>';
@@ -412,7 +459,7 @@ function rnpsDrawTrendChart(f, periods, team, metric, view, tColors) {
             data:{ labels:smList, datasets: recent.map(function(p,idx){
                 return { label:p,
                     data:smList.map(function(name){
-                        var row = rnpsScores.find(function(r){ return r.RowType==='SM'&&r.ServiceManager===name&&r.Period===p; });
+                        var row = rnpsGetVisibleScores().find(function(r){ return r.RowType==='SM'&&r.ServiceManager===name&&r.Period===p; });
                         return row ? (row[metric]||0) : null;
                     }),
                     backgroundColor: palette[idx%palette.length], borderRadius:4, maxBarThickness:18
@@ -516,7 +563,8 @@ function rnpsRenderLeaderboard(smRows, f, periods) {
 
     el.innerHTML = '<div class="table-section">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">' +
-        '<h3 class="table-title"><i data-lucide="trophy" style="width:18px;height:18px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>SM Leaderboard' +
+        '<h3 class="table-title"><i data-lucide="trophy" style="width:18px;height:18px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>' +
+        (rnpsGetRole()==='Service Manager' ? 'Your Performance' : 'SM Leaderboard') +
         (currentYear ? ' <span style="font-size:.72rem;color:var(--t3);font-weight:600;">'+currentYear+' quarters</span>' : '') + '</h3>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' +
         (!f.team ? '<div style="display:flex;gap:4px;">' +
@@ -566,7 +614,7 @@ function rnpsRenderLeaderboard(smRows, f, periods) {
             var bg    = i%2===0?'var(--bg-card)':'var(--bg-secondary)';
 
             var histVals = yearPeriods.map(function(p) {
-                var row = rnpsScores.find(function(s){ return s.RowType==='SM' && s.ServiceManager===name && s.Period===p; });
+                var row = rnpsGetVisibleScores().find(function(s){ return s.RowType==='SM' && s.ServiceManager===name && s.Period===p; });
                 return row ? (row.RNPS||0) : null;
             });
             var known = histVals.filter(function(v){ return v !== null; });
@@ -958,10 +1006,11 @@ window.rnpsDelScore = async function(id) {
 };
 
 window.rnpsGetSMScore = function(smName) {
-    if (!rnpsScores.length) return null;
+    var visible = rnpsGetVisibleScores();
+    if (!visible.length) return null;
     var periods=rnpsGetPeriods(); var result={};
-    var r1=rnpsScores.find(function(s){return s.ServiceManager===smName&&s.Period===periods[0]&&s.RowType==='SM';});
-    var r2=rnpsScores.find(function(s){return s.ServiceManager===smName&&s.Period===periods[1]&&s.RowType==='SM';});
+    var r1=visible.find(function(s){return s.ServiceManager===smName&&s.Period===periods[0]&&s.RowType==='SM';});
+    var r2=visible.find(function(s){return s.ServiceManager===smName&&s.Period===periods[1]&&s.RowType==='SM';});
     if(r1) result.latest={period:periods[0],rnps:r1.RNPS||0,rr:r1.ResponseRate||0,target:r1.RNPSTarget||0};
     if(r2) result.prev={period:periods[1],rnps:r2.RNPS||0,rr:r2.ResponseRate||0};
     return (result.latest||result.prev)?result:null;
