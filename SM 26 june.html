@@ -2275,6 +2275,9 @@
                 <div class="date-badge"><i data-lucide="calendar"></i><span id="currentDate">Loading...</span></div>
             </div>
             <div class="header-actions">
+                <button type="button" class="export-btn tab-refresh-btn" id="headerRefreshBtn" onclick="refreshCurrentTab()" title="Refresh current tab data" style="padding:.45rem .85rem;font-size:.82rem;">
+                    <i data-lucide="refresh-cw" style="width:15px;height:15px;display:inline-block;vertical-align:middle;margin-right:5px;"></i>Refresh
+                </button>
                 <select class="color-scheme-selector" id="colorSchemeSelector" onchange="changeTheme(event)">
                     <option value="magenta">&#9670; Magenta</option>
                     <option value="duralux">&#9670; Duralux</option>
@@ -2308,10 +2311,6 @@
                     <div class="nav-item" data-section="transfer-requests" onclick="switchDashboardSection('transfer-requests')" id="transferRequestsNavItem" style="display:none;">
                         <div class="nav-icon"><i data-lucide="arrow-right-left"></i></div>
                         <div class="nav-label">Transfer Requests</div>
-                    </div>
-                    <div class="nav-item" data-section="account-history" onclick="switchDashboardSection('account-history');ahLoad();" id="accountHistoryNavItem" style="display:none;">
-                        <div class="nav-icon"><i data-lucide="history"></i></div>
-                        <div class="nav-label">Account History</div>
                     </div>
                     <div class="nav-item" id="qaNavItem" onclick="switchDashboardSection('qaView')" data-section="qaView" style="display:none;">
     <div class="nav-icon"><i data-lucide="shield-check"></i></div>
@@ -2451,6 +2450,9 @@
                                 <select class="filter-select" id="filterTeam" onchange="onTeamFilterChanged()"></select>
                             </div>
                             <div class="filter-actions">
+                                <button type="button" class="export-btn tab-refresh-btn" data-section="dashboard-view" onclick="refreshTabData('dashboard-view')" style="padding:.5rem 1rem;font-size:.82rem;">
+                                    <i data-lucide="refresh-cw" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Refresh
+                                </button>
                                 <button type="button" id="revenueToggleBtn" class="export-btn" onclick="toggleRevenueEnabled()" style="display:none;padding:.5rem 1rem;font-size:.82rem;">
                                     <i data-lucide="lock" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Revenue: Disabled
                                 </button>
@@ -2517,9 +2519,6 @@
                         </div>
                     </div>
                 </div>
-    <div class="dashboard-section" style="display:none;" id="account-history">
-                        <div id="ahContainer" style="padding:1rem;"></div>
-                    </div>
                 <div class="dashboard-section" style="display:none;" id="customerServiceView">
                     <div class="header">
                         <div class="header-left">
@@ -2574,6 +2573,9 @@
                                         <button type="button" onclick="csClearFilters()" class="reset-btn" style="padding:8px 16px;font-size:12px;">
                                             <i data-lucide="rotate-ccw" style="width:13px;height:13px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>Reset Filters
                                         </button>
+                                        <button type="button" class="export-btn tab-refresh-btn" data-section="customerServiceView" onclick="refreshTabData('customerServiceView')" style="padding:8px 16px;font-size:12px;">
+                                            <i data-lucide="refresh-cw" style="width:13px;height:13px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>Refresh
+                                        </button>
                                         <button type="button" id="csAutoCreateBtn" onclick="csAutoCreateReviews();return false;" class="export-btn" style="display:none;">
                                             <i data-lucide="plus-circle" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Auto-Create
                                         </button>
@@ -2609,6 +2611,11 @@
 
                 </div><!-- /customerServiceView -->
 <div class="dashboard-section" style="display:none;" id="contactUsView">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem;">
+        <button type="button" class="export-btn tab-refresh-btn" data-section="contactUsView" onclick="refreshTabData('contactUsView')" style="padding:.45rem .9rem;font-size:.82rem;">
+            <i data-lucide="refresh-cw" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Refresh
+        </button>
+    </div>
     <div id="cuLoading" style="text-align:center;padding:20px;color:var(--t2);">
         <i data-lucide="loader-2" style="width:40px;height:40px;animation:spin 1s linear infinite;color:var(--acc);display:inline-block;"></i>
         <div style="margin-top:12px;font-weight:600;">Loading Directory...</div>
@@ -2618,6 +2625,11 @@
     </div>
 </div>
                 <div class="dashboard-section" style="display:none;" id="suggestionsView">
+                    <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem;">
+                        <button type="button" class="export-btn tab-refresh-btn" data-section="suggestionsView" onclick="refreshTabData('suggestionsView')" style="padding:.45rem .9rem;font-size:.82rem;">
+                            <i data-lucide="refresh-cw" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Refresh
+                        </button>
+                    </div>
                     <div id="sgLoading" style="text-align:center;padding:60px;color:var(--t2);">
                         <i data-lucide="loader-2" style="width:40px;height:40px;animation:spin 1s linear infinite;color:var(--acc);display:inline-block;"></i>
                         <div style="margin-top:12px;font-weight:600;">Loading Suggestions...</div>
@@ -2627,9 +2639,19 @@
                     </div>
                 </div>
 <div class="dashboard-section" style="display:none;" id="seMailboxView">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem;">
+        <button type="button" class="export-btn tab-refresh-btn" data-section="seMailboxView" onclick="refreshTabData('seMailboxView')" style="padding:.45rem .9rem;font-size:.82rem;">
+            <i data-lucide="refresh-cw" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Refresh
+        </button>
+    </div>
     <div id="semailbox-root"></div>
 </div>
                 <div class="dashboard-section" style="display:none;" id="processDocsView">
+                    <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem;">
+                        <button type="button" class="export-btn tab-refresh-btn" data-section="processDocsView" onclick="refreshTabData('processDocsView')" style="padding:.45rem .9rem;font-size:.82rem;">
+                            <i data-lucide="refresh-cw" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Refresh
+                        </button>
+                    </div>
                     <div id="pdLoading" style="text-align:center;padding:60px;color:var(--t2);">
                         <i data-lucide="loader-2" style="width:40px;height:40px;animation:spin 1s linear infinite;color:var(--acc);display:inline-block;"></i>
                         <div style="margin-top:12px;font-weight:600;">Loading Documents...</div>
@@ -2640,6 +2662,11 @@
                 </div>
                 
                 <div class="dashboard-section" style="display:none;" id="qaView">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem;">
+        <button type="button" class="export-btn tab-refresh-btn" data-section="qaView" onclick="refreshTabData('qaView')" style="padding:.45rem .9rem;font-size:.82rem;">
+            <i data-lucide="refresh-cw" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Refresh
+        </button>
+    </div>
     <div id="qaLoading" style="text-align:center;padding:20px;color:var(--t2);">
         <i data-lucide="loader-2" style="width:40px;height:40px;animation:spin 1s linear infinite;color:var(--acc);display:inline-block;"></i>
         <div style="margin-top:12px;font-weight:600;">Loading Quality Assurance...</div>
@@ -2649,7 +2676,11 @@
     </div>
 </div>
 <div class="dashboard-section" style="display:none;" id="rnpsView">
-    
+    <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem;">
+        <button type="button" class="export-btn tab-refresh-btn" data-section="rnpsView" onclick="refreshTabData('rnpsView')" style="padding:.45rem .9rem;font-size:.82rem;">
+            <i data-lucide="refresh-cw" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Refresh
+        </button>
+    </div>
     <div id="rnpsContent"><div id="rnpsContainer"></div></div>
 </div>
             </div><!-- dashboard-view -->
@@ -2657,6 +2688,11 @@
             <div id="pm-view" class="dashboard-section" style="display:none; width:100%;"></div>
             <!-- PSD ASSIGNMENT SECTION -->
             <div class="dashboard-section" style="display:none;" id="psdView">
+                <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem;">
+                    <button type="button" class="export-btn tab-refresh-btn" data-section="psdView" onclick="refreshTabData('psdView')" style="padding:.45rem .9rem;font-size:.82rem;">
+                        <i data-lucide="refresh-cw" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Refresh
+                    </button>
+                </div>
                 <div id="psdLoading" style="text-align:center;padding:40px;color:var(--t2);">
                     <i data-lucide="loader-2" style="width:40px;height:40px;animation:spin 1s linear infinite;color:var(--acc);display:inline-block;"></i>
                     <div style="margin-top:12px;font-weight:600;">Loading PSD Assignment...</div>
@@ -2666,8 +2702,11 @@
             <!-- PENDING REQUESTS SECTION -->
             <div id="pending-requests" class="dashboard-section" style="display: none;">
                 <div style="width:100%;">
-                    <h2 style="font-size:1rem;font-weight:800;color:var(--t1);margin:0 0 .85rem!important;padding:0!important;display:flex;align-items:center;gap:.4rem;">
-                        <i data-lucide="file-clock" style="width: 24px; height: 24px;"></i> Pending Service Requests
+                    <h2 style="font-size:1rem;font-weight:800;color:var(--t1);margin:0 0 .85rem!important;padding:0!important;display:flex;align-items:center;justify-content:space-between;gap:.4rem;">
+                        <span style="display:flex;align-items:center;gap:.4rem;"><i data-lucide="file-clock" style="width: 24px; height: 24px;"></i> Pending Service Requests</span>
+                        <button type="button" class="export-btn tab-refresh-btn" data-section="pending-requests" onclick="refreshTabData('pending-requests')" style="padding:.4rem .85rem;font-size:.78rem;">
+                            <i data-lucide="refresh-cw" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:5px;"></i>Refresh
+                        </button>
                     </h2>
 
                     <div id="requestsLoading" style="text-align:center; padding:60px; font-size:18px;">
@@ -2709,7 +2748,7 @@
                         <div class="edit-section-block" style="margin-top: 1.75rem;">
                         <h3 class="table-title"><i data-lucide="edit" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Update Account Assignment</h3>
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
                             <div class="filter-group">
                                 <label class="filter-label">Account Manager *</label>
                                 <select class="filter-select" id="editAM"></select>
@@ -2717,6 +2756,18 @@
                             <div class="filter-group">
                                 <label class="filter-label">Account Director *</label>
                                 <select class="filter-select" id="editAD"></select>
+                            </div>
+                            <div class="filter-group">
+                                <label class="filter-label">Secondary SM</label>
+                                <div class="sm-person-wrap">
+                                    <input type="text" id="editSecondarySMInput" class="filter-select" placeholder="Search service manager..." style="font-size:14px;padding:10px;cursor:text;" autocomplete="off"
+                                        oninput="smSecondarySmSearch(this.value)"
+                                        onfocus="smSecondarySmSearch(this.value)"
+                                        onblur="setTimeout(function(){var d=document.getElementById('editSecondarySMDD');if(d)d.style.display='none';},250)">
+                                    <div id="editSecondarySMDD" class="sm-person-dd"></div>
+                                </div>
+                                <div id="editSecondarySMTag" style="display:none;margin-top:.35rem;"></div>
+                                <input type="hidden" id="editSecondarySM" value="">
                             </div>
                         </div>
 
@@ -3052,6 +3103,31 @@
             accent-color: var(--acc);
         }
         .multiselect-option label { cursor: pointer; flex: 1; font-size: .83rem; color: var(--t1); margin: 0; }
+
+        /* searchable person select (Secondary SM, etc.) */
+        .sm-person-wrap { position: relative; }
+        .sm-person-dd {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            z-index: 800;
+            background: var(--bg-card);
+            border: 1px solid var(--border-s);
+            border-radius: 10px;
+            box-shadow: var(--ch);
+            max-height: 240px;
+            overflow-y: auto;
+            display: none;
+        }
+        .sm-person-item {
+            padding: .42rem .72rem;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border);
+        }
+        .sm-person-item:last-child { border-bottom: none; }
+        .sm-person-item:hover { background: var(--bg-hover); }
+        .tab-refresh-btn.refreshing i { animation: spin 1s linear infinite; }
 
         /* version history modal */
         .sm-history-timeline { display: flex; flex-direction: column; gap: 14px; }
@@ -3553,9 +3629,11 @@ const LOCAL_DEV_MODE = false;
         const SP_URL = 'http://sharedspaces:8086/sites/SM';
         const SP_LIST = 'Service Manager Request';
         const SP_ACCESS_LIST = 'Access_Control';
+        const SP_MAPPING_LIST = 'Account Mapping';
 
         let ALL_DATA = [];
         let filtered = [];
+        let SM_MAPPING_DATA = [];
         let DOJ_DATA = {}; // keyed by SM name → {doj, tenure}
         let selectedLM = null;
         let selectedSM = null;
@@ -3812,6 +3890,120 @@ let charts = {};
                 console.warn('DOJ fetch failed:', e);
             }
         }
+
+        async function fetchAccountMapping() {
+            if (LOCAL_DEV_MODE) {
+                const devNames = ['Ahmed Al-Mansouri', 'Fatima Hassan', 'Omar Abdullah', 'Layla Mohamed', 'Sarah Johnson', 'Michael Chen'];
+                SM_MAPPING_DATA = devNames.map(function(name, idx) {
+                    return {
+                        name: name,
+                        team: idx % 2 === 0 ? 'DSM' : 'TSM_ME',
+                        email: name.toLowerCase().replace(/ /g, '.') + '@du.ae'
+                    };
+                });
+                return;
+            }
+            try {
+                const url = SP_URL + "/_api/web/lists/getbytitle('" + SP_MAPPING_LIST + "')/items?" +
+                    "$select=Service_Manager_Name,Email_ID,Team,User_ID,Status&$top=5000&$orderby=Service_Manager_Name asc";
+                const res = await fetch(url, {
+                    headers: { 'Accept': 'application/json;odata=verbose' },
+                    credentials: 'include'
+                });
+                if (!res.ok) {
+                    console.warn('Account Mapping fetch failed:', res.status);
+                    return;
+                }
+                const data = await res.json();
+                const seen = {};
+                SM_MAPPING_DATA = [];
+                (data.d.results || []).forEach(function(item) {
+                    const name = (item.Service_Manager_Name || '').trim();
+                    if (!name) return;
+                    const key = name + '|' + (item.Team || '');
+                    if (seen[key]) return;
+                    seen[key] = true;
+                    SM_MAPPING_DATA.push({
+                        name: name,
+                        team: item.Team || '',
+                        email: item.Email_ID || '',
+                        status: item.Status || ''
+                    });
+                });
+                SM_MAPPING_DATA.sort(function(a, b) { return a.name.localeCompare(b.name); });
+                console.log('Account Mapping loaded:', SM_MAPPING_DATA.length, 'records');
+            } catch (e) {
+                console.warn('Account Mapping fetch failed:', e);
+            }
+        }
+
+        window.smSecondarySmSearch = function(q) {
+            const dd = document.getElementById('editSecondarySMDD');
+            if (!dd) return;
+            const lower = (q || '').toLowerCase();
+            const pool = SM_MAPPING_DATA.slice();
+            const results = lower
+                ? pool.filter(function(a) {
+                    return a.name.toLowerCase().indexOf(lower) >= 0 ||
+                        (a.team || '').toLowerCase().indexOf(lower) >= 0 ||
+                        (a.email || '').toLowerCase().indexOf(lower) >= 0;
+                })
+                : pool.slice(0, 40);
+
+            dd.innerHTML = '';
+            if (!results.length) {
+                dd.innerHTML = '<div class="sm-person-item" style="color:var(--t3);font-size:.82rem;">No service managers found</div>';
+                dd.style.display = 'block';
+                return;
+            }
+            const clearItem = document.createElement('div');
+            clearItem.className = 'sm-person-item';
+            clearItem.style.color = 'var(--t3)';
+            clearItem.textContent = '— Clear Secondary SM —';
+            clearItem.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                smClearSecondarySm();
+            });
+            dd.appendChild(clearItem);
+            results.forEach(function(a) {
+                const item = document.createElement('div');
+                item.className = 'sm-person-item';
+                item.innerHTML = '<div style="font-size:.83rem;font-weight:600;color:var(--t1);">' + a.name + '</div>' +
+                    '<div style="font-size:.72rem;color:var(--t3);">' + (a.team || '') + (a.email ? ' · ' + a.email : '') + '</div>';
+                item.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    smSelectSecondarySm(a.name, a.team);
+                });
+                dd.appendChild(item);
+            });
+            dd.style.display = 'block';
+        };
+
+        window.smSelectSecondarySm = function(name, team) {
+            const hidden = document.getElementById('editSecondarySM');
+            const inp = document.getElementById('editSecondarySMInput');
+            const dd = document.getElementById('editSecondarySMDD');
+            const tag = document.getElementById('editSecondarySMTag');
+            if (hidden) hidden.value = name || '';
+            if (inp) inp.value = '';
+            if (dd) dd.style.display = 'none';
+            if (tag) {
+                if (!name) {
+                    tag.innerHTML = '';
+                    tag.style.display = 'none';
+                    return;
+                }
+                tag.innerHTML = '<span style="display:inline-flex;align-items:center;gap:.35rem;background:var(--nab);border:1px solid var(--nab2);border-radius:20px;padding:.22rem .65rem;font-size:.78rem;font-weight:600;color:var(--acc);">' +
+                    name + (team ? ' <span style="font-size:.65rem;opacity:.7;">(' + team + ')</span>' : '') +
+                    '<span style="cursor:pointer;margin-left:.2rem;font-size:.95rem;" onclick="smClearSecondarySm()">×</span></span>';
+                tag.style.display = 'block';
+            }
+        };
+
+        window.smClearSecondarySm = function() {
+            smSelectSecondarySm('', '');
+        };
+
 async function fetchRNPSForLM(lmName) {
     try {
         const url = SP_URL + "/_api/web/lists/getbytitle('RNPSScores')/items?" +
@@ -4058,6 +4250,7 @@ function computeLMRNPS(rnpsGrouped) {
                 "Proposed_x0020_Team,Transfer_Request_Date," +
                 "Line_x0020_Manager/Title,Line_x0020_Manager/EMail," +
                 "Service_x0020_Manager/Title,Service_x0020_Manager/EMail," +
+                "Secondary_x0020_Service_x0020_Ma/Title,Secondary_x0020_Service_x0020_Ma/EMail," +
                 "Account_x0020_Manager/Title,Account_x0020_Manager/EMail," +
                 "Account_x0020_Director/Title,Account_x0020_Director/EMail," +
                 "POC_x0020_Name,POC_x0020_Email_x0020_ID,POC_x0020_Contact_x0020_No," +
@@ -4070,7 +4263,7 @@ function computeLMRNPS(rnpsGrouped) {
                 "Jan_x002d_26,Feb_x002d_26,Mar_x002d_26,Apr_x002d_26,May_x002d_26,Jun_x002d_26," +
                 "Jul_x002d_26,Aug_x002d_26,Sep_x002d_26,Oct_x002d_26,Nov_x002d_26,Dec_x002d_26," +
                 "Request_x0020_Status,Request_x0020_Type,Reject_New_Account_Reason&" +
-                "$expand=Line_x0020_Manager,Service_x0020_Manager,Account_x0020_Manager,Account_x0020_Director&" +
+                "$expand=Line_x0020_Manager,Service_x0020_Manager,Secondary_x0020_Service_x0020_Ma,Account_x0020_Manager,Account_x0020_Director&" +
                 "$top=10000";
 
             const res = await fetch(url, {
@@ -4120,6 +4313,8 @@ function computeLMRNPS(rnpsGrouped) {
                     team: team,
                     lm: item.Line_x0020_Manager ? item.Line_x0020_Manager.Title : '',
                     sm: item.Service_x0020_Manager ? item.Service_x0020_Manager.Title : '',
+                    secondarySm: item.Secondary_x0020_Service_x0020_Ma ? item.Secondary_x0020_Service_x0020_Ma.Title : '',
+                    secondarySmEmail: item.Secondary_x0020_Service_x0020_Ma ? (item.Secondary_x0020_Service_x0020_Ma.EMail || '') : '',
                     am: item.Account_x0020_Manager ? item.Account_x0020_Manager.Title : '',
                     ad: item.Account_x0020_Director ? item.Account_x0020_Director.Title : '',
                     lmEmail: item.Line_x0020_Manager ? (item.Line_x0020_Manager.EMail || '') : '',
@@ -4488,6 +4683,7 @@ function computeLMRNPS(rnpsGrouped) {
                     team,
                     lm: lineManagers[Math.floor(Math.random() * lineManagers.length)],
                     sm: serviceManagers[Math.floor(Math.random() * serviceManagers.length)],
+                    secondarySm: serviceManagers[Math.floor(Math.random() * serviceManagers.length)],
                     am: accountManagers[Math.floor(Math.random() * accountManagers.length)],
                     ad: accountDirectors[Math.floor(Math.random() * accountDirectors.length)],
                     pocName: pocNames[Math.floor(Math.random() * pocNames.length)],
@@ -4546,7 +4742,7 @@ USER_CONTEXT.isTSMSEViewer = (DEV_USER_PROFILE.role === 'TSM_SE_Viewer');
 
             // Show admin-only nav items immediately
             if (USER_CONTEXT.isAdmin) {
-           ['portalAnalyticsNavItem', 'transferRequestsNavItem', 'pendingRequestsNavItem', 'accountHistoryNavItem'].forEach(function(id) {
+           ['portalAnalyticsNavItem', 'transferRequestsNavItem', 'pendingRequestsNavItem'].forEach(function(id) {
                     var el = document.getElementById(id);
                     if (el) el.style.display = 'flex';
                 });
@@ -4632,7 +4828,7 @@ USER_CONTEXT.isActive = true;
 
                         // Show admin-only nav items immediately
                         if (USER_CONTEXT.isAdmin) {
-                         ['portalAnalyticsNavItem', 'transferRequestsNavItem', 'pendingRequestsNavItem', 'accountHistoryNavItem'].forEach(function(id) {
+                         ['portalAnalyticsNavItem', 'transferRequestsNavItem', 'pendingRequestsNavItem'].forEach(function(id) {
                                 var el = document.getElementById(id);
                                 if (el) el.style.display = 'flex';
                             });
@@ -4998,6 +5194,7 @@ else if (USER_CONTEXT.role === 'Account Manager' || USER_CONTEXT.role === 'Accou
             try {
                 console.log('Loading SharePoint...');
                 await fetchDOJData();
+                await fetchAccountMapping();
                 await fetchRevenueEnabled();
           ALL_DATA = await fetchData();
 window.ALL_DATA = ALL_DATA;
@@ -6617,6 +6814,11 @@ if (window.TSM_SE_ACTIVE) {
                     width: 150
                 },
                 {
+                    field: 'secondarySm',
+                    headerName: 'Secondary SM',
+                    width: 150
+                },
+                {
                     field: 'am',
                     headerName: 'Account Manager',
                     width: 150
@@ -7328,6 +7530,87 @@ else if (sectionId === 'contactUsView') {
 }
 
         }
+
+        function getVisibleDashboardSectionId() {
+            var sections = document.querySelectorAll('.dashboard-section');
+            for (var i = 0; i < sections.length; i++) {
+                var section = sections[i];
+                if (section.style.display !== 'none' && section.offsetParent !== null && section.id) {
+                    return section.id;
+                }
+            }
+            return 'dashboard-view';
+        }
+
+        window.refreshCurrentTab = function() {
+            var activeNav = document.querySelector('.nav-item.active[data-section]');
+            var sectionId = activeNav ? activeNav.getAttribute('data-section') : getVisibleDashboardSectionId();
+            refreshTabData(sectionId || 'dashboard-view');
+        };
+
+        window.refreshTabData = async function(sectionId) {
+            var btn = document.querySelector('.tab-refresh-btn[data-section="' + sectionId + '"]') || document.getElementById('headerRefreshBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('refreshing');
+            }
+            try {
+                switch (sectionId) {
+                    case 'dashboard-view':
+                        await init();
+                        break;
+                    case 'pending-requests':
+                        if (typeof loadAccountRequests === 'function') await loadAccountRequests();
+                        break;
+                    case 'transfer-requests':
+                        if (typeof loadAdminTransferRequests === 'function') await loadAdminTransferRequests();
+                        break;
+                    case 'processDocsView':
+                        if (typeof pdLoadDocs === 'function') pdLoadDocs();
+                        break;
+                    case 'qaView':
+                        if (typeof qaInit === 'function') qaInit();
+                        break;
+                    case 'rnpsView':
+                        if (typeof rnpsInit === 'function') rnpsInit();
+                        break;
+                    case 'contactUsView':
+                        if (typeof cuLoadContacts === 'function') cuLoadContacts();
+                        break;
+                    case 'suggestionsView':
+                        if (typeof sgLoadSuggestions === 'function') sgLoadSuggestions();
+                        break;
+                    case 'seMailboxView':
+                        if (typeof SEMailbox !== 'undefined' && SEMailbox.init) SEMailbox.init();
+                        break;
+                    case 'psdView':
+                        if (typeof psdInit === 'function') psdInit();
+                        break;
+                    case 'customerServiceView':
+                        if (typeof csFetchSharePointData === 'function') {
+                            var csLoading = document.getElementById('csLoadingScreen');
+                            var csMain = document.getElementById('csMainContent');
+                            if (csLoading) csLoading.style.display = 'block';
+                            if (csMain) csMain.style.display = 'none';
+                            await csFetchSharePointData();
+                        }
+                        break;
+                    default:
+                        await init();
+                        break;
+                }
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            } catch (err) {
+                console.error('Tab refresh failed:', err);
+                alert('Refresh failed: ' + err.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.classList.remove('refreshing');
+                }
+            }
+        };
+
         // Load user access first, then initialize
         // ===== MAIN INITIALIZATION =====
         function initAll() {
@@ -8489,6 +8772,7 @@ async function ownerFetchUserRole(email) {
                 // ✅ STEP 5: Reset dropdowns
                 document.getElementById('editAM').selectedIndex = 0;
                 document.getElementById('editAD').selectedIndex = 0;
+                smClearSecondarySm();
 
                 // ✅ STEP 6: Load fresh account data
                 const account = ALL_DATA.find(a => a.code === accountCode);
@@ -8499,6 +8783,10 @@ async function ownerFetchUserRole(email) {
 
                 EDIT_ACCOUNT_DATA = account;
                 window.EDIT_ACCOUNT_CODE = account.code;
+
+                if (!SM_MAPPING_DATA.length) {
+                    await fetchAccountMapping();
+                }
 
                 const histBtn = document.getElementById('editViewHistoryBtn');
                 if (histBtn) histBtn.style.display = 'inline-flex';
@@ -8513,6 +8801,7 @@ async function ownerFetchUserRole(email) {
                     ['Team', account.team],
                     ['Line Manager', account.lm],
                     ['Service Manager', account.sm],
+                    ['Secondary SM', account.secondarySm || '—'],
                     ['Account Manager', account.am],
                     ['Account Director', account.ad]
                 ];
@@ -8630,6 +8919,12 @@ async function ownerFetchUserRole(email) {
                     if (ad === account.ad) opt.selected = true;
                     adSelect.appendChild(opt);
                 });
+
+                if (account.secondarySm) {
+                    smSelectSecondarySm(account.secondarySm, '');
+                } else {
+                    smClearSecondarySm();
+                }
 
                 // Initialize Lucide icons
                 if (typeof lucide !== 'undefined') {
@@ -8779,6 +9074,7 @@ async function ownerFetchUserRole(email) {
         function reviewEditRequest() {
             const newAM = document.getElementById('editAM').value;
             const newAD = document.getElementById('editAD').value;
+            const newSecondarySm = (document.getElementById('editSecondarySM') || {}).value || '';
 
             if (!newAM || !newAD) {
                 alert('Please fill in all required fields');
@@ -8820,6 +9116,7 @@ async function ownerFetchUserRole(email) {
 
             const amChanged = newAM !== EDIT_ACCOUNT_DATA.am;
             const adChanged = newAD !== EDIT_ACCOUNT_DATA.ad;
+            const secondarySmChanged = newSecondarySm !== (EDIT_ACCOUNT_DATA.secondarySm || '');
             const revenueChanged = newRevenue !== null && newRevenue !== (EDIT_ACCOUNT_DATA.allMonths[revenueField] || 0);
             let newRnpsEligibility = EDIT_ACCOUNT_DATA.rnpsEligibility || '';
             let rnpsChanged = false;
@@ -8832,10 +9129,12 @@ async function ownerFetchUserRole(email) {
             const pocChanges = getEditPocChanges();
             const pocChanged = pocChanges.length > 0;
 
-            if (!amChanged && !adChanged && !revenueChanged && !rnpsChanged && !pocChanged && window.EDIT_ALL_MONTHS.length === 0) {
+            if (!amChanged && !adChanged && !secondarySmChanged && !revenueChanged && !rnpsChanged && !pocChanged && window.EDIT_ALL_MONTHS.length === 0) {
                 alert('No changes detected');
                 return;
             }
+
+            window.EDIT_SECONDARY_SM = newSecondarySm;
 
             let html = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">';
             const changes = [
@@ -8844,6 +9143,7 @@ async function ownerFetchUserRole(email) {
                 ['Team', EDIT_ACCOUNT_DATA.team, EDIT_ACCOUNT_DATA.team],
                 ['Line Manager', EDIT_ACCOUNT_DATA.lm, EDIT_ACCOUNT_DATA.lm],
                 ['Service Manager', EDIT_ACCOUNT_DATA.sm, EDIT_ACCOUNT_DATA.sm],
+                ['Secondary SM', EDIT_ACCOUNT_DATA.secondarySm || '—', newSecondarySm || '—'],
                 ['Account Manager', EDIT_ACCOUNT_DATA.am, newAM],
                 ['Account Director', EDIT_ACCOUNT_DATA.ad, newAD],
                 ['Account Type', EDIT_ACCOUNT_DATA.accountType || '—', EDIT_ACCOUNT_DATA.accountType || '—'],
@@ -8895,6 +9195,7 @@ async function ownerFetchUserRole(email) {
             try {
                 const newAM = document.getElementById('editAM').value;
                 const newAD = document.getElementById('editAD').value;
+                const newSecondarySm = (document.getElementById('editSecondarySM') || {}).value || '';
 
                 // Find item ID
                 const searchUrl = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items?" +
@@ -8916,6 +9217,23 @@ async function ownerFetchUserRole(email) {
                 // Get user IDs
                 const amId = await getUserId(newAM);
                 const adId = await getUserId(newAD);
+                const secondarySmChanged = newSecondarySm !== (EDIT_ACCOUNT_DATA.secondarySm || '');
+                let secondarySmId = null;
+                if (secondarySmChanged && newSecondarySm) {
+                    secondarySmId = await getUserId(newSecondarySm);
+                    if (!secondarySmId) {
+                        const mapped = SM_MAPPING_DATA.find(function(a) { return a.name === newSecondarySm; });
+                        if (mapped && mapped.email) {
+                            const eUrl = SP_URL + "/_api/web/siteusers?$filter=Email eq '" + mapped.email.replace(/'/g, "''") + "'&$select=Id&$top=1";
+                            const eRes = await fetch(eUrl, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
+                            if (eRes.ok) {
+                                const eData = await eRes.json();
+                                if (eData.d.results && eData.d.results.length > 0) secondarySmId = eData.d.results[0].Id;
+                            }
+                        }
+                    }
+                    if (!secondarySmId) throw new Error('Could not resolve Secondary SM user: ' + newSecondarySm);
+                }
 
                 // Get form digest
                 const digestRes = await fetch(SP_URL + "/_api/contextinfo", {
@@ -8938,6 +9256,9 @@ async function ownerFetchUserRole(email) {
                     Account_x0020_ManagerId: amId,
                     Account_x0020_DirectorId: adId
                 };
+                if (secondarySmChanged) {
+                    updateData.Secondary_x0020_Service_x0020_MaId = newSecondarySm ? secondarySmId : null;
+                }
 
                 if (window.EDIT_REVENUE_DATA && window.EDIT_REVENUE_DATA.field) {
                     updateData[window.EDIT_REVENUE_DATA.field] = window.EDIT_REVENUE_DATA.value;
@@ -9000,6 +9321,7 @@ async function ownerFetchUserRole(email) {
                     // Reset dropdowns to placeholder
                     document.getElementById('editAM').selectedIndex = 0;
                     document.getElementById('editAD').selectedIndex = 0;
+                    smClearSecondarySm();
 
                     // Clear current info display
                     document.getElementById('editCurrentInfo').innerHTML = '';
@@ -9610,7 +9932,6 @@ async function ownerFetchUserRole(email) {
     </div><!-- End SharePoint Compatibility Wrapper -->
     <!-- Modular view scripts -->
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/pending.js"></script>
-<script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/accounthistory.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/am-ad.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/transfer.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/customerservice.js"></script>
