@@ -2358,7 +2358,7 @@
                         <div class="nav-icon"><i data-lucide="folder-open"></i></div>
                         <div class="nav-label">Process Documents</div>
                     </div>
-                    <div class="nav-item" id="psdNavItem" data-section="psdView" onclick="switchDashboardSection('psdView'); if(typeof psdInit==='function') psdInit();" style="display:none;">
+                    <div class="nav-item" id="psdNavItem" data-section="psdView" onclick="switchDashboardSection('psdView')" style="display:none;">
                         <div class="nav-icon"><i data-lucide="clipboard-list"></i></div>
                         <div class="nav-label">PSD Assignment</div>
                     </div>
@@ -2688,11 +2688,6 @@
             <div id="pm-view" class="dashboard-section" style="display:none; width:100%;"></div>
             <!-- PSD ASSIGNMENT SECTION -->
             <div class="dashboard-section" style="display:none;" id="psdView">
-                <div style="display:flex;justify-content:flex-end;margin-bottom:.75rem;">
-                    <button type="button" class="export-btn tab-refresh-btn" data-section="psdView" onclick="refreshTabData('psdView')" style="padding:.45rem .9rem;font-size:.82rem;">
-                        <i data-lucide="refresh-cw" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Refresh
-                    </button>
-                </div>
                 <div id="psdLoading" style="text-align:center;padding:40px;color:var(--t2);">
                     <i data-lucide="loader-2" style="width:40px;height:40px;animation:spin 1s linear infinite;color:var(--acc);display:inline-block;"></i>
                     <div style="margin-top:12px;font-weight:600;">Loading PSD Assignment...</div>
@@ -5199,7 +5194,6 @@ else if (USER_CONTEXT.role === 'Account Manager' || USER_CONTEXT.role === 'Accou
             if (isPsdRole(USER_CONTEXT.role)) {
                 setTimeout(function() {
                     switchDashboardSection('psdView');
-                    if (typeof psdInit === 'function') psdInit();
                 }, 150);
             }
 
@@ -7586,6 +7580,15 @@ else if (sectionId === 'contactUsView') {
 }
           else if (sectionId === 'seMailboxView') {
     if (typeof SEMailbox !== 'undefined') SEMailbox.init();
+}
+else if (sectionId === 'psdView') {
+    if (typeof psdInit === 'function') psdInit();
+    else {
+        var psdLoading = document.getElementById('psdLoading');
+        if (psdLoading) {
+            psdLoading.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;font-weight:700;">PSD script failed to load. Re-upload psd-assignment.js to SharePoint and hard-refresh (Ctrl+F5).</div>';
+        }
+    }
 }
 
         }
