@@ -89,6 +89,14 @@
     #customerServiceView #csStatusFilter{
         display:none !important;
     }
+
+    /* AG Grid set filter — same as SM dashboard */
+    .sm-ag-set-filter { padding:.5rem; min-width:200px; max-width:260px; }
+    .sm-ag-set-search { width:100%; box-sizing:border-box; margin-bottom:.45rem; padding:.35rem .5rem; border:1px solid var(--border, var(--border-color, #e2e8f0)); border-radius:8px; font-size:.75rem; background:var(--bg-card, #fff); color:var(--t1, var(--text-primary, #1e293b)); }
+    .sm-ag-set-list { max-height:180px; overflow-y:auto; display:flex; flex-direction:column; gap:.2rem; }
+    .sm-ag-set-option { display:flex; align-items:center; gap:.35rem; font-size:.75rem; cursor:pointer; padding:.15rem 0; color:var(--t1, var(--text-primary, #1e293b)); }
+    .sm-ag-set-actions { display:flex; gap:.35rem; margin-top:.45rem; }
+    .sm-ag-set-actions button { flex:1; padding:.25rem .4rem; font-size:.68rem; font-weight:700; border:1px solid var(--border, var(--border-color, #e2e8f0)); border-radius:6px; background:var(--chip, rgba(168,85,247,.08)); color:var(--acc, #a855f7); cursor:pointer; }
     `;
     document.head.appendChild(style);
 })();
@@ -106,6 +114,7 @@ var csCompletionChart = null;
 var csGridApi = null;
 var csHCGridApi = null;
 var CS_DATA_LOADED = false;
+var CS_CHARTS_VISIBLE = false;
 var CS_REVIEWS_LIST  = 'MSR_QSR_Reviews';
 var CS_ACCOUNTS_LIST = 'Service Manager Request';
 var CS_HEALTH_LIST   = 'Health_Check_Reviews';
@@ -139,11 +148,8 @@ window.showCustomerService = function () {
         document.getElementById('csLoadingScreen').style.display = 'none';
         document.getElementById('csMainContent').style.display = 'block';
         csInitTabs();
-      csRenderBreadcrumb();
-csRenderKPIs();
-csRenderTiles();
-csRenderAnalytics();
-        csApplyFilters();
+        csRenderBreadcrumb();
+        csRefreshMSRQSRDashboard();
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 };
@@ -168,10 +174,7 @@ async function csFetchSharePointData() {
         csPopulateFilters();
         csInitTabs();
         csRenderBreadcrumb();
-       csRenderKPIs();
-csRenderTiles();
-csRenderAnalytics();
-        csApplyFilters();
+        csRefreshMSRQSRDashboard();
         CS_DATA_LOADED = true;
         if (typeof lucide !== 'undefined') lucide.createIcons();
     } catch (err) {
@@ -410,10 +413,7 @@ window.csSetTab = function(tab) {
     else {
         csPopulateFilters();
         csPlaceTopFiltersAtTop();
-        csRenderKPIs();
-        csRenderTiles();
-        csRenderAnalytics();
-        csApplyFilters();
+        csRefreshMSRQSRDashboard();
     }
 if (typeof lucide !== 'undefined') lucide.createIcons();
 };
@@ -930,11 +930,66 @@ function csRenderKPIs() {
 }
 
 // ─── ANALYTICS ─────────────────────────────────────────────────────────────────
+function csEnsureAnalyticsHost() {
+    var msrqsr = document.getElementById('csMSRQSRContent');
+    if (!msrqsr) return null;
+    var host = document.getElementById('csAnalyticsHost');
+    if (!host) {
+        host = document.createElement('div');
+        host.id = 'csAnalyticsHost';
+        var tableSection = msrqsr.querySelector('.table-section');
+        if (tableSection) msrqsr.insertBefore(host, tableSection);
+        else msrqsr.appendChild(host);
+        host.innerHTML =
+            '<div style="text-align:center;margin:1rem 0;">' +
+            '<button type="button" class="export-btn" onclick="csToggleCharts()" style="padding:12px 24px;font-size:14px;">' +
+            '<i data-lucide="eye" id="csChartsIcon" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>' +
+            '<span id="csChartsBtnText">Show Analytics Charts</span>' +
+            '</button></div>' +
+            '<div id="csAnalyticsSection"></div>';
+    }
+    var btnText = document.getElementById('csChartsBtnText');
+    var icon = document.getElementById('csChartsIcon');
+    if (btnText) btnText.textContent = CS_CHARTS_VISIBLE ? 'Hide Analytics Charts' : 'Show Analytics Charts';
+    if (icon) icon.setAttribute('data-lucide', CS_CHARTS_VISIBLE ? 'eye-off' : 'eye');
+    return host;
+}
+
+function csRenderActiveTabCharts() {
+    if (typeof Chart === 'undefined') {
+        console.warn('[CS] Chart.js is not loaded — charts cannot render.');
+        return;
+    }
+    ['csMSRCharts', 'csQSRCharts', 'csHCCharts'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    try {
+        if (CS_ACTIVE_TAB === 'MSR') {
+            var msrEl = document.getElementById('csMSRCharts');
+            if (msrEl) { msrEl.style.display = 'block'; csRenderMSRCharts(); }
+        } else if (CS_ACTIVE_TAB === 'QSR') {
+            var qsrEl = document.getElementById('csQSRCharts');
+            if (qsrEl) { qsrEl.style.display = 'block'; csRenderQSRCharts(); }
+        } else if (CS_ACTIVE_TAB === 'HC') {
+            var hcEl = document.getElementById('csHCCharts');
+            if (hcEl) { hcEl.style.display = 'block'; csRenderHCCharts(); }
+        }
+    } catch (e) { console.warn('CS Charts error:', e); }
+}
+
+function csRefreshMSRQSRDashboard() {
+    csRenderKPIs();
+    csRenderTiles();
+    csRenderAnalytics();
+    csApplyFilters();
+}
+
 function csRenderAnalytics() {
-    const _wasVisible = (function() {
-        const w = document.getElementById('csChartsWrap');
-        return w && w.style.display !== 'none';
-    })();
+    if (CS_ACTIVE_TAB === 'HC') return;
+    csEnsureAnalyticsHost();
+    var section = document.getElementById('csAnalyticsSection');
+    if (!section) return;
     const reviews = csGetDashboardReviewsFiltered({ searchT:'' });
     const months  = [...new Set(reviews.map(r => r.period))].sort().slice(-6);
     const byStatus = ['Completed','In Progress','Pending','Overdue','Customer Declined','Unreachable','Failed'].map(s => ({
@@ -944,8 +999,8 @@ function csRenderAnalytics() {
             : reviews.filter(r => r.status === s).length
     })).filter(s => s.count > 0);
 
-    document.getElementById('csAnalyticsSection').innerHTML = `
-<div id="csChartsWrap" style="display:${_wasVisible ? 'block' : 'none'};">
+    section.innerHTML = `
+<div id="csChartsWrap" style="display:${CS_CHARTS_VISIBLE ? 'block' : 'none'};">
         <!-- ACCOUNT HISTORY SEARCH -->
         <div class="chart-card" style="margin-bottom:1rem;">
             <h3 class="chart-title"><i data-lucide="search" style="width:15px;height:15px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Account History Search</h3>
@@ -1121,26 +1176,11 @@ function csRenderAnalytics() {
         </div>
 
     </div>`;
-if (_wasVisible) {
-        setTimeout(() => {
-            try {
-                ['csMSRCharts','csQSRCharts','csHCCharts'].forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.style.display = 'none';
-                });
-                if (CS_ACTIVE_TAB === 'MSR') {
-                    const el = document.getElementById('csMSRCharts');
-                    if (el) { el.style.display = 'block'; csRenderMSRCharts(); }
-                } else if (CS_ACTIVE_TAB === 'QSR') {
-                    const el = document.getElementById('csQSRCharts');
-                    if (el) { el.style.display = 'block'; csRenderQSRCharts(); }
-                } else if (CS_ACTIVE_TAB === 'HC') {
-                    const el = document.getElementById('csHCCharts');
-                    if (el) { el.style.display = 'block'; csRenderHCCharts(); }
-                }
-            } catch(e) { console.warn('CS Charts:', e); }
-        }, 150);
-    }}
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    if (CS_CHARTS_VISIBLE) {
+        setTimeout(function() { csRenderActiveTabCharts(); }, 150);
+    }
+}
 function csGetChartColors() {
     const theme = document.body.getAttribute('data-theme');
     const isDark = theme === 'dark' || theme === 'duralux-dark';
@@ -1250,40 +1290,8 @@ function csRenderTiles() {
         smsToShow.forEach((s,i)=>{ html += csMakeSMRow(s.name, s.reviews, smStats.indexOf(s), selSM===s.name); });
         html += `</div>`;
     }
-   // Inject toggle button and analytics AFTER tiles
-    html += `
-    <div style="text-align:center;margin:1rem 0;">
-        <button type="button" class="export-btn" onclick="csToggleCharts()" style="padding:12px 24px;font-size:14px;">
-            <i data-lucide="eye" id="csChartsIcon" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>
-            <span id="csChartsBtnText">Show Analytics Charts</span>
-        </button>
-    </div>
-    <div id="csAnalyticsSection"></div>`;
-
     section.innerHTML = html;
     if (typeof lucide !== 'undefined') lucide.createIcons();
-
-   // Re-render analytics if charts were visible
-    setTimeout(function() {
-        const wrap = document.getElementById('csChartsWrap');
-        if (wrap && wrap.style.display !== 'none') {
-            try {
-                if (CS_ACTIVE_TAB === 'MSR') {
-                    const el = document.getElementById('csMSRCharts');
-                    if (el) el.style.display = 'block';
-                    csRenderMSRCharts();
-                } else if (CS_ACTIVE_TAB === 'QSR') {
-                    const el = document.getElementById('csQSRCharts');
-                    if (el) el.style.display = 'block';
-                    csRenderQSRCharts();
-                } else if (CS_ACTIVE_TAB === 'HC') {
-                    const el = document.getElementById('csHCCharts');
-                    if (el) el.style.display = 'block';
-                    csRenderHCCharts();
-                }
-            } catch(e) { console.warn('CS Charts re-render:', e); }
-        }
-    }, 200);
 }
 // ─── BREADCRUMB ────────────────────────────────────────────────────────────────
 function csRenderBreadcrumb() {
@@ -1305,9 +1313,7 @@ function csRenderBreadcrumb() {
 
 function csRefreshAll() {
     csRenderBreadcrumb();
-    csRenderKPIs();
-    csRenderTiles();
-    csApplyFilters();
+    csRefreshMSRQSRDashboard();
 }
 window.csSelectLM     = function(lm) { CS_USER_CONTEXT.selectedLM = lm; CS_USER_CONTEXT.selectedSM = null; csRefreshAll(); };
 window.csClearLMFilter= function()   { CS_USER_CONTEXT.selectedLM = null; CS_USER_CONTEXT.selectedSM = null; csRefreshAll(); };
@@ -1487,39 +1493,23 @@ function csRenderHCChartsInto(volId, reachId, smActId, reachTrendId, freqId, mom
     }
 }
 window.csToggleCharts = function() {
+    csEnsureAnalyticsHost();
     const wrap = document.getElementById('csChartsWrap');
     const btn  = document.getElementById('csChartsBtnText');
     const icon = document.getElementById('csChartsIcon');
-    if (!wrap) return;
-    const isHidden = wrap.style.display === 'none';
-    wrap.style.display = isHidden ? 'block' : 'none';
-    if (btn) btn.textContent = isHidden ? 'Hide Analytics Charts' : 'Show Analytics Charts';
-    if (icon) icon.setAttribute('data-lucide', isHidden ? 'eye-off' : 'eye');
+    if (!wrap) {
+        CS_CHARTS_VISIBLE = true;
+        csRenderAnalytics();
+        return;
+    }
+    CS_CHARTS_VISIBLE = wrap.style.display === 'none';
+    wrap.style.display = CS_CHARTS_VISIBLE ? 'block' : 'none';
+    if (btn) btn.textContent = CS_CHARTS_VISIBLE ? 'Hide Analytics Charts' : 'Show Analytics Charts';
+    if (icon) icon.setAttribute('data-lucide', CS_CHARTS_VISIBLE ? 'eye-off' : 'eye');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 
-    if (isHidden) {
-        // Show correct section and render
-        ['csMSRCharts','csQSRCharts','csHCCharts'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.style.display = 'none';
-        });
-        setTimeout(() => {
-            try {
-                if (CS_ACTIVE_TAB === 'MSR') {
-                    const el = document.getElementById('csMSRCharts');
-                    if (el) el.style.display = 'block';
-                    csRenderMSRCharts();
-                } else if (CS_ACTIVE_TAB === 'QSR') {
-                    const el = document.getElementById('csQSRCharts');
-                    if (el) el.style.display = 'block';
-                    csRenderQSRCharts();
-                } else if (CS_ACTIVE_TAB === 'HC') {
-                    const el = document.getElementById('csHCCharts');
-                    if (el) el.style.display = 'block';
-                    csRenderHCCharts();
-                }
-            } catch(e) { console.warn('CS Charts error:', e); }
-        }, 100);
+    if (CS_CHARTS_VISIBLE) {
+        setTimeout(function() { csRenderActiveTabCharts(); }, 100);
     }
 };
 
@@ -1568,14 +1558,9 @@ window.csApplyFilters = function () {
 
         if (!csGridApi) { csInitGrid(rowData); }
         else { csGridApi.setGridOption('rowData', rowData); }
- const wrap = document.getElementById('csChartsWrap');
-    if (wrap && wrap.style.display !== 'none') {
-        setTimeout(() => {
-            if (CS_ACTIVE_TAB === 'MSR') csRenderMSRCharts();
-            else if (CS_ACTIVE_TAB === 'QSR') csRenderQSRCharts();
-            else if (CS_ACTIVE_TAB === 'HC') csRenderHCCharts();
-        }, 150);
-    }
+        if (CS_CHARTS_VISIBLE && CS_ACTIVE_TAB !== 'HC') {
+            setTimeout(function() { csRenderActiveTabCharts(); }, 150);
+        }
     } catch (err) { console.error('CS Filter error:', err); }
 };;
 
@@ -1586,7 +1571,115 @@ function csGetSurveyHistory(accountCode) {
     return { completedText:`${comp}/${total} (${pct}%)`, notCompletedText:`${total-comp}/${total} (${100-pct}%)` };
 }
 
-// ─── AG GRID ───────────────────────────────────────────────────────────────────
+// ─── AG GRID (SM-style set column filters) ─────────────────────────────────────
+(function csRegisterSetColumnFilter() {
+    if (typeof window.SmSetColumnFilter === 'function') return;
+
+    function SmSetColumnFilter() {}
+    SmSetColumnFilter.prototype.init = function (params) {
+        this.params = params;
+        this.selected = new Set();
+        this.gui = document.createElement('div');
+        this.gui.className = 'sm-ag-set-filter';
+        this._buildGui();
+    };
+    SmSetColumnFilter.prototype._cellValue = function (data) {
+        var colDef = this.params.colDef;
+        var v;
+        if (typeof colDef.filterValueGetter === 'function') {
+            v = colDef.filterValueGetter({ data: data, colDef: colDef, api: this.params.api, column: this.params.column });
+        } else if (typeof colDef.valueGetter === 'function') {
+            v = colDef.valueGetter({ data: data, colDef: colDef, api: this.params.api, column: this.params.column });
+        } else {
+            v = data[colDef.field];
+        }
+        if (v === null || v === undefined || v === '') return '—';
+        if (colDef.type === 'numericColumn' || typeof v === 'number') {
+            return typeof formatCurrency === 'function' ? formatCurrency(v) : String(v);
+        }
+        return String(v);
+    };
+    SmSetColumnFilter.prototype._allValues = function () {
+        var values = new Set(), self = this;
+        this.params.api.forEachNode(function (node) {
+            if (node.data) values.add(self._cellValue(node.data));
+        });
+        return Array.from(values).sort(function (a, b) { return a.localeCompare(b); });
+    };
+    SmSetColumnFilter.prototype._buildGui = function () {
+        var self = this, all = this._allValues();
+        this.gui.innerHTML = '';
+        var search = document.createElement('input');
+        search.type = 'text';
+        search.placeholder = 'Search...';
+        search.className = 'sm-ag-set-search';
+        this.gui.appendChild(search);
+        var list = document.createElement('div');
+        list.className = 'sm-ag-set-list';
+        this.gui.appendChild(list);
+        var render = function (term) {
+            list.innerHTML = '';
+            all.filter(function (v) { return !term || v.toLowerCase().indexOf(term.toLowerCase()) >= 0; }).forEach(function (v) {
+                var row = document.createElement('label');
+                row.className = 'sm-ag-set-option';
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = self.selected.has(v);
+                cb.onchange = function () {
+                    if (cb.checked) self.selected.add(v); else self.selected.delete(v);
+                    self.params.filterChangedCallback();
+                };
+                row.appendChild(cb);
+                row.appendChild(document.createTextNode(' ' + v));
+                list.appendChild(row);
+            });
+        };
+        render('');
+        search.oninput = function () { render(search.value); };
+        var actions = document.createElement('div');
+        actions.className = 'sm-ag-set-actions';
+        var btnAll = document.createElement('button');
+        btnAll.type = 'button';
+        btnAll.textContent = 'Select all';
+        btnAll.onclick = function () { all.forEach(function (v) { self.selected.add(v); }); render(search.value); self.params.filterChangedCallback(); };
+        var btnClear = document.createElement('button');
+        btnClear.type = 'button';
+        btnClear.textContent = 'Clear';
+        btnClear.onclick = function () { self.selected.clear(); render(search.value); self.params.filterChangedCallback(); };
+        actions.appendChild(btnAll);
+        actions.appendChild(btnClear);
+        this.gui.appendChild(actions);
+    };
+    SmSetColumnFilter.prototype.getGui = function () { return this.gui; };
+    SmSetColumnFilter.prototype.isFilterActive = function () { return this.selected.size > 0; };
+    SmSetColumnFilter.prototype.doesFilterPass = function (params) {
+        if (!this.selected.size) return true;
+        return this.selected.has(this._cellValue(params.data));
+    };
+    SmSetColumnFilter.prototype.getModel = function () { return this.selected.size ? { values: Array.from(this.selected) } : null; };
+    SmSetColumnFilter.prototype.setModel = function (model) {
+        this.selected = new Set(model && model.values ? model.values : []);
+        this._buildGui();
+    };
+    SmSetColumnFilter.prototype.destroy = function () {};
+
+    window.SmSetColumnFilter = SmSetColumnFilter;
+})();
+
+function csEnhanceColDef(col) {
+    if (!col.field || col.filter === false) return col;
+    var enhanced = Object.assign({}, col);
+    enhanced.filter = window.SmSetColumnFilter;
+    return enhanced;
+}
+
+function csMapColumnDefs(columnDefs) {
+    return columnDefs.map(function (col) {
+        if (!col.field || col.filter === false) return col;
+        return csEnhanceColDef(Object.assign({}, col));
+    });
+}
+
 function csInitGrid(rowData) {
     const statusMap = {
         'Completed':'cs-badge-completed','In Progress':'cs-badge-in-progress',
@@ -1644,8 +1737,8 @@ function csInitGrid(rowData) {
     gridDiv.innerHTML = '';
 
     agGrid.createGrid(gridDiv, {
-        columnDefs, rowData,
-        // Keep AG Grid filters available if needed, but main filtering is via top bar
+        columnDefs: csMapColumnDefs(columnDefs),
+        rowData,
         defaultColDef: { sortable:true, filter:true, resizable:true, minWidth:80 },
         pagination:true, paginationPageSize:50, paginationPageSizeSelector:[25,50,100,200],
         rowHeight:60, headerHeight:50, animateRows:true, enableCellTextSelection:true,
@@ -2264,7 +2357,7 @@ if (eligibility === 'No') {
         alert('✅ Customer marked as not eligible.');
         document.getElementById('csModal').style.display = 'none';
         await csFetchReviews();
-        csRenderKPIs(); csRenderAnalytics(); csRenderTiles(); csApplyFilters();
+        csRefreshMSRQSRDashboard();
     } catch(err) { csHideLoading(); alert('❌ ' + err.message); }
     return;
 }
@@ -2398,7 +2491,7 @@ if (agreedDateObj <= today) {
         alert(attOk ? '✅ Review saved!' : '⚠️ Saved, but some attachments failed.');
         document.getElementById('csModal').style.display = 'none';
         await csFetchReviews();
-        csRenderKPIs(); csRenderAnalytics(); csRenderTiles(); csApplyFilters();
+        csRefreshMSRQSRDashboard();
 
     } catch(err) {
         csHideLoading();
@@ -3215,9 +3308,7 @@ const res = await fetch(CS_SP_URL + "/_api/web/lists/getbytitle('MSR_QSR_Reviews
         csHideLoading();
         alert(`✅ Done!\n• Created: ${created}\n• Skipped: ${skipped}`);
         await csFetchReviews();
-        csRenderKPIs();
-        csRenderAnalytics();
-        csApplyFilters();
+        csRefreshMSRQSRDashboard();
 
     } catch (err) {
         csHideLoading();
@@ -3226,25 +3317,87 @@ const res = await fetch(CS_SP_URL + "/_api/web/lists/getbytitle('MSR_QSR_Reviews
 };
 
 // ─── EXPORT ───────────────────────────────────────────────────────────────────
+function csDeriveCustomerJoined(review) {
+    if (review.status === 'Completed') return 'Yes';
+    if (review.status === 'No Show') return 'No';
+    return '';
+}
+
+function csEscapeExportCell(v) {
+    if (v == null || v === '') return '-';
+    return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 window.csExportToExcel = function () {
     const today = new Date();
     const dateStr = today.toLocaleDateString('en-GB') + ' ' + today.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+    const headers = [
+        'S.No', 'Type', 'Period', 'Account', 'Customer', 'Team', 'Service Manager', 'Line Manager',
+        'POC Name', 'POC Contact', 'Status', 'Due Date', 'Actual Review Date',
+        'Eligibility', 'Eligibility Reason',
+        'Attempt 1 Date', 'Att.1 Ref', 'Reachable 1', 'Att.1 Notes',
+        'Attempt 2 Date', 'Att.2 Ref', 'Reachable 2', 'Att.2 Notes',
+        'Attempt 3 Date', 'Att.3 Ref', 'Reachable 3', 'Att.3 Notes',
+        'Date Agreed?', 'Agreed Date', 'Review Mode', 'Customer Joined', 'LM Attended',
+        'Review Notes', 'Action Items'
+    ];
+    const colSpan = headers.length;
     let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office"><head><meta charset="utf-8"></head><body><table border="1">';
-    html += `<tr><td colspan="14" style="background:#a855f7;color:white;font-size:16px;font-weight:bold;text-align:center;padding:14px;">Customer Service Reviews</td></tr>`;
-    html += `<tr><td colspan="14" style="background:#f1f5f9;padding:8px;text-align:center;"><b>Generated:</b> ${dateStr}</td></tr><tr><td colspan="14"></td></tr>`;
-    html += '<tr>' + ['S.No','Type','Period','Account','Customer','Team','SM','Status','Due Date','Review Date','Attempt 1','Reachable 1','Attempt 2','Reachable 2','Attempt 3','Reachable 3']
-        .map(h=>`<th style="background:#7F77DD;color:white;font-weight:bold;padding:10px;">${h}</th>`).join('') + '</tr>';
-    csGetDashboardReviewsFiltered({}).forEach((r,i) => {
-        const a  = CS_ACCOUNTS.find(x => x.code===r.accountCode); if (!a) return;
-        const bg = i%2===0?'#f8fafc':'#ffffff';
-        html += `<tr>${[i+1,a.team==='DSM'?'MSR':'QSR',r.period,a.code,a.customer,a.team,a.sm,r.status,r.dueDate||'-',r.reviewDate||'-',r.attempt1Date||'-',r.reachable1||'-',r.attempt2Date||'-',r.reachable2||'-',r.attempt3Date||'-',r.reachable3||'-']
-            .map(v=>`<td style="background:${bg};padding:8px;">${v}</td>`).join('')}</tr>`;
+    html += `<tr><td colspan="${colSpan}" style="background:#a855f7;color:white;font-size:16px;font-weight:bold;text-align:center;padding:14px;">Customer Service Reviews</td></tr>`;
+    html += `<tr><td colspan="${colSpan}" style="background:#f1f5f9;padding:8px;text-align:center;"><b>Generated:</b> ${dateStr}</td></tr><tr><td colspan="${colSpan}"></td></tr>`;
+    html += '<tr>' + headers.map(h => `<th style="background:#7F77DD;color:white;font-weight:bold;padding:10px;">${h}</th>`).join('') + '</tr>';
+
+    csGetDashboardReviewsFiltered({}).forEach((r, i) => {
+        const a = CS_ACCOUNTS.find(x => x.code === r.accountCode);
+        if (!a) return;
+        const bg = i % 2 === 0 ? '#f8fafc' : '#ffffff';
+        const row = [
+            i + 1,
+            a.team === 'DSM' ? 'MSR' : 'QSR',
+            r.period,
+            a.code,
+            a.customer,
+            a.team,
+            a.sm,
+            a.lm,
+            a.pocName,
+            a.pocContact,
+            r.status,
+            r.dueDate || '-',
+            r.reviewDate || '-',
+            r.eligibility || '-',
+            r.eligibilityReason || '-',
+            r.attempt1Date || '-',
+            r.eventRef1 || '-',
+            r.reachable1 || '-',
+            r.attempt1Notes || '-',
+            r.attempt2Date || '-',
+            r.eventRef2 || '-',
+            r.reachable2 || '-',
+            r.attempt2Notes || '-',
+            r.attempt3Date || '-',
+            r.eventRef3 || '-',
+            r.reachable3 || '-',
+            r.attempt3Notes || '-',
+            r.reviewDateAgreed || '-',
+            r.agreedDate || '-',
+            r.reviewMode || '-',
+            csDeriveCustomerJoined(r) || '-',
+            r.lmAttended || '-',
+            r.reviewNotes || '-',
+            r.actionItems || '-'
+        ];
+        html += `<tr>${row.map(v => `<td style="background:${bg};padding:8px;">${csEscapeExportCell(v)}</td>`).join('')}</tr>`;
     });
+
     html += '</table></body></html>';
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([html],{type:'application/vnd.ms-excel'}));
+    link.href = URL.createObjectURL(new Blob([html], { type:'application/vnd.ms-excel' }));
     link.download = `CS_Reviews_${today.toISOString().split('T')[0]}.xls`;
-    link.style.display='none'; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 };
 
 // ─── ATTACHMENT HELPERS (unchanged) ──────────────────────────────────────────
@@ -3368,40 +3521,44 @@ function csInitHCGrid(rowData) {
     const gridDiv = document.getElementById('csHCGrid');
     if (csHCGridApi) { try { csHCGridApi.destroy(); } catch(e){} csHCGridApi = null; }
     gridDiv.innerHTML = '';
+    var hcColumnDefs = [
+        { field:'date', headerName:'Date', width:120 },
+        { field:'accountCode', headerName:'Account', width:120, cellStyle:{fontWeight:'700'} },
+        { field:'customer', headerName:'Customer', flex:1, minWidth:160 },
+        { field:'team', headerName:'Team', width:100 },
+        { field:'sm', headerName:'Service Manager', width:160 },
+        { field:'lm', headerName:'Line Manager', width:150 },
+        { field:'reachable', headerName:'Reachable', width:110,
+          cellRenderer: p => p.value==='Yes'
+            ? `<span style="font-weight:700;color:#10b981;">Yes</span>`
+            : p.value==='No'
+            ? `<span style="font-weight:700;color:#ef4444;">No</span>`
+            : '<span style="color:var(--t3);">—</span>'
+        },
+        { field:'eventRef', headerName:'Event Ref', width:140 },
+        { field:'notes', headerName:'Notes', flex:1, minWidth:160,
+          cellRenderer: p => {
+              if (!p.value || p.value === '-') return '<span style="color:var(--t3);">—</span>';
+              const clean = p.value.replace(/<[^>]*>/g,'').trim();
+              return `<span title="${clean}">${clean}</span>`;
+          }
+        },
+        { field:'edit', headerName:'', width:100, pinned:'right', sortable:false, filter:false,
+          cellRenderer: p => {
+              const canEdit = CS_USER_CONTEXT.role === 'SD' || CS_USER_CONTEXT.isTSMManager ||
+                  (CS_USER_CONTEXT.role === 'SM' && p.data.sm === CS_USER_CONTEXT.userName) ||
+                  (CS_USER_CONTEXT.role === 'LM' && p.data.lm === CS_USER_CONTEXT.userName);
+              return canEdit ? `<button type="button" class="export-btn" onclick="csShowHCModal(${p.data.id})" style="padding:5px 12px;font-size:11px;">Edit</button>` : '';
+          }
+        }
+    ];
     agGrid.createGrid(gridDiv, {
-        columnDefs: [
-            { field:'date', headerName:'Date', width:120 },
-            { field:'accountCode', headerName:'Account', width:120, cellStyle:{fontWeight:'700'} },
-            { field:'customer', headerName:'Customer', flex:1, minWidth:160 },
-            { field:'team', headerName:'Team', width:100 },
-            { field:'sm', headerName:'Service Manager', width:160 },
-            { field:'lm', headerName:'Line Manager', width:150 },
-            { field:'reachable', headerName:'Reachable', width:110,
-              cellRenderer: p => p.value==='Yes'
-                ? `<span style="font-weight:700;color:#10b981;">Yes</span>`
-                : p.value==='No'
-                ? `<span style="font-weight:700;color:#ef4444;">No</span>`
-                : '<span style="color:var(--t3);">—</span>'
-            },
-            { field:'eventRef', headerName:'Event Ref', width:140 },
-            { field:'notes', headerName:'Notes', flex:1, minWidth:160,
-              cellRenderer: p => {
-                  if (!p.value || p.value === '-') return '<span style="color:var(--t3);">—</span>';
-                  const clean = p.value.replace(/<[^>]*>/g,'').trim();
-                  return `<span title="${clean}">${clean}</span>`;
-              }
-            },
-            { field:'edit', headerName:'', width:100, pinned:'right', sortable:false, filter:false,
-              cellRenderer: p => {
-                  const canEdit = CS_USER_CONTEXT.role === 'SD' || CS_USER_CONTEXT.isTSMManager ||
-                      (CS_USER_CONTEXT.role === 'SM' && p.data.sm === CS_USER_CONTEXT.userName) ||
-                      (CS_USER_CONTEXT.role === 'LM' && p.data.lm === CS_USER_CONTEXT.userName);
-                  return canEdit ? `<button type="button" class="export-btn" onclick="csShowHCModal(${p.data.id})" style="padding:5px 12px;font-size:11px;">Edit</button>` : '';
-              }
-            }
-        ],
-        rowData, defaultColDef:{ sortable:true, filter:true, resizable:true, minWidth:80 },
+        columnDefs: csMapColumnDefs(hcColumnDefs),
+        rowData,
+        defaultColDef:{ sortable:true, filter:true, resizable:true, minWidth:80 },
         pagination:true, paginationPageSize:50, rowHeight:56, headerHeight:48, animateRows:true,
+        enableCellTextSelection:true,
+        suppressMenuHide:false,
         onGridReady: p => { csHCGridApi = p.api; }
     });
     if (typeof lucide !== 'undefined') lucide.createIcons();
