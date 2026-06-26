@@ -17,15 +17,16 @@ var psdCharts        = {};
 var psdGrids         = { dash: null, assign: null, assigned: null, agentQueue: null, agentRecords: null };
 var psdUploadRows    = [];
 var psdSelectedAgent = null;
-var psdDashFilters   = { status: '', category: '', agent: '', product: '', search: '' };
-var psdDateFilters   = { mode: '', dateField: 'UploadDate', from: '', to: '', specific: '', year: '', quarter: '', month: '', week: '' };
+window.PSD_MODULE_VERSION = '2.2.0';
+
+var psdDashFilters   = { status: [], category: [], agent: [], product: [], search: '' };
+var psdDateFilters   = { dateField: 'UploadDate', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
 var psdChartsBuilt   = false;
 var psdLastChartItems = null;
 var psdLastChartSummary = null;
 var psdAgentsVisible = false;
 var psdAdminEmailsCache = null;
 var psdInitInFlight = null;
-window.PSD_MODULE_VERSION = '2.1.1';
 
 var PSD_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 var PSD_DATE_FIELD_OPTS = [
@@ -129,49 +130,39 @@ function psdItemDateValue(item, field) {
 
 function psdApplyDateFilters(items, f) {
     f = f || psdDateFilters;
-    if (!f.mode) return items;
     var field = f.dateField || 'UploadDate';
+    var hasDate = f.from || f.to || f.specific ||
+        (f.years && f.years.length) || (f.quarters && f.quarters.length) ||
+        (f.months && f.months.length) || (f.weeks && f.weeks.length);
+    if (!hasDate) return items;
     return items.filter(function (it) {
         var meta = psdDateMeta(psdItemDateValue(it, field));
         if (!meta) return false;
-        if (f.mode === 'range') {
-            if (f.from) {
-                var fromD = new Date(f.from);
-                if (!isNaN(fromD.getTime())) {
-                    fromD.setHours(0, 0, 0, 0);
-                    if (meta.dayStart < fromD.getTime()) return false;
-                }
+        if (f.from) {
+            var fromD = new Date(f.from);
+            if (!isNaN(fromD.getTime())) {
+                fromD.setHours(0, 0, 0, 0);
+                if (meta.dayStart < fromD.getTime()) return false;
             }
-            if (f.to) {
-                var toD = new Date(f.to);
-                if (!isNaN(toD.getTime())) {
-                    toD.setHours(23, 59, 59, 999);
-                    if (meta.dayStart > toD.getTime()) return false;
-                }
-            }
-            return true;
         }
-        if (f.mode === 'specific') {
-            if (!f.specific) return true;
+        if (f.to) {
+            var toD = new Date(f.to);
+            if (!isNaN(toD.getTime())) {
+                toD.setHours(23, 59, 59, 999);
+                if (meta.dayStart > toD.getTime()) return false;
+            }
+        }
+        if (f.specific) {
             var spec = new Date(f.specific);
-            if (isNaN(spec.getTime())) return true;
-            spec.setHours(0, 0, 0, 0);
-            return meta.dayStart === spec.getTime();
+            if (!isNaN(spec.getTime())) {
+                spec.setHours(0, 0, 0, 0);
+                if (meta.dayStart !== spec.getTime()) return false;
+            }
         }
-        if (f.mode === 'year' && f.year && meta.year !== parseInt(f.year, 10)) return false;
-        if (f.mode === 'quarter') {
-            if (f.year && meta.year !== parseInt(f.year, 10)) return false;
-            if (f.quarter && meta.quarter !== parseInt(f.quarter, 10)) return false;
-        }
-        if (f.mode === 'month') {
-            if (f.year && meta.year !== parseInt(f.year, 10)) return false;
-            if (f.month !== '' && f.month != null && meta.monthIndex !== parseInt(f.month, 10)) return false;
-        }
-        if (f.mode === 'week') {
-            if (f.year && meta.year !== parseInt(f.year, 10)) return false;
-            if (f.month !== '' && f.month != null && meta.monthIndex !== parseInt(f.month, 10)) return false;
-            if (f.week && meta.week !== parseInt(f.week, 10)) return false;
-        }
+        if (f.years && f.years.length && f.years.indexOf(String(meta.year)) < 0) return false;
+        if (f.quarters && f.quarters.length && f.quarters.indexOf(String(meta.quarter)) < 0) return false;
+        if (f.months && f.months.length && f.months.indexOf(String(meta.monthIndex)) < 0) return false;
+        if (f.weeks && f.weeks.length && f.weeks.indexOf(String(meta.week)) < 0) return false;
         return true;
     });
 }
@@ -179,18 +170,17 @@ function psdApplyDateFilters(items, f) {
 function psdReadDateFiltersFromDom(prefix) {
     prefix = prefix || 'psdFilter';
     psdDateFilters.dateField = psdGetSelectVal(prefix + 'DateField') || 'UploadDate';
-    psdDateFilters.mode = psdGetSelectVal(prefix + 'DateMode') || '';
     psdDateFilters.from = psdGetSelectVal(prefix + 'DateFrom');
     psdDateFilters.to = psdGetSelectVal(prefix + 'DateTo');
     psdDateFilters.specific = psdGetSelectVal(prefix + 'DateSpecific');
-    psdDateFilters.year = psdGetSelectVal(prefix + 'DateYear');
-    psdDateFilters.quarter = psdGetSelectVal(prefix + 'DateQuarter');
-    psdDateFilters.month = psdGetSelectVal(prefix + 'DateMonth');
-    psdDateFilters.week = psdGetSelectVal(prefix + 'DateWeek');
+    psdDateFilters.years = psdGetMsValues(prefix + 'DateYearDropdown');
+    psdDateFilters.quarters = psdGetMsValues(prefix + 'DateQuarterDropdown');
+    psdDateFilters.months = psdGetMsValues(prefix + 'DateMonthDropdown');
+    psdDateFilters.weeks = psdGetMsValues(prefix + 'DateWeekDropdown');
 }
 
 function psdResetDateFiltersState() {
-    psdDateFilters = { mode: '', dateField: 'UploadDate', from: '', to: '', specific: '', year: '', quarter: '', month: '', week: '' };
+    psdDateFilters = { dateField: 'UploadDate', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
 }
 
 function psdCollectDateMetas(items, field) {
@@ -202,88 +192,163 @@ function psdCollectDateMetas(items, field) {
     return metas;
 }
 
-function psdUpdateDateFilterOptions(prefix, items) {
-    prefix = prefix || 'psdFilter';
-    var field = psdGetSelectVal(prefix + 'DateField') || psdDateFilters.dateField || 'UploadDate';
-    var yearEl = document.getElementById(prefix + 'DateYear');
-    var qEl = document.getElementById(prefix + 'DateQuarter');
-    var mEl = document.getElementById(prefix + 'DateMonth');
-    var wEl = document.getElementById(prefix + 'DateWeek');
-    if (!yearEl || !qEl || !mEl || !wEl) return;
-
-    var metas = psdCollectDateMetas(items, field);
-    var yKeep = yearEl.value, qKeep = qEl.value, mKeep = mEl.value, wKeep = wEl.value;
-    var ySel = yKeep ? parseInt(yKeep, 10) : null;
-    var qSel = qKeep ? parseInt(qKeep, 10) : null;
-    var mSel = (mKeep !== '') ? parseInt(mKeep, 10) : null;
-
-    var years = new Set();
-    metas.forEach(function (m) { years.add(m.year); });
-    yearEl.innerHTML = '<option value="">All Years</option>';
-    Array.from(years).sort(function (a, b) { return b - a; }).forEach(function (y) {
-        yearEl.innerHTML += '<option value="' + y + '">' + y + '</option>';
-    });
-
-    var quartersC = new Set();
-    metas.forEach(function (m) { if (!ySel || m.year === ySel) quartersC.add(m.quarter); });
-    qEl.innerHTML = '<option value="">All Quarters</option>';
-    Array.from(quartersC).sort(function (a, b) { return a - b; }).forEach(function (q) {
-        qEl.innerHTML += '<option value="' + q + '">Q' + q + '</option>';
-    });
-
-    var monthsC = new Set();
-    metas.forEach(function (m) {
-        if (ySel && m.year !== ySel) return;
-        if (qSel && m.quarter !== qSel) return;
-        monthsC.add(m.monthIndex);
-    });
-    mEl.innerHTML = '<option value="">All Months</option>';
-    Array.from(monthsC).sort(function (a, b) { return a - b; }).forEach(function (mi) {
-        mEl.innerHTML += '<option value="' + mi + '">' + PSD_MONTHS[mi] + '</option>';
-    });
-
-    var weeksC = new Set();
-    metas.forEach(function (m) {
-        if (ySel && m.year !== ySel) return;
-        if (qSel && m.quarter !== qSel) return;
-        if (mSel != null && m.monthIndex !== mSel) return;
-        if (m.week != null) weeksC.add(m.week);
-    });
-    wEl.innerHTML = '<option value="">All Weeks</option>';
-    Array.from(weeksC).sort(function (a, b) { return a - b; }).forEach(function (w) {
-        wEl.innerHTML += '<option value="' + w + '">W' + w + '</option>';
-    });
-
-    if (yKeep && Array.from(yearEl.options).some(function (o) { return o.value === yKeep; })) yearEl.value = yKeep; else yearEl.value = '';
-    if (qKeep && Array.from(qEl.options).some(function (o) { return o.value === qKeep; })) qEl.value = qKeep; else qEl.value = '';
-    if (mKeep && Array.from(mEl.options).some(function (o) { return o.value === mKeep; })) mEl.value = mKeep; else mEl.value = '';
-    if (wKeep && Array.from(wEl.options).some(function (o) { return o.value === wKeep; })) wEl.value = wKeep; else wEl.value = '';
+function psdGetMsValues(dropdownId) {
+    var el = document.getElementById(dropdownId);
+    if (!el) return [];
+    return Array.prototype.slice.call(el.querySelectorAll('input[type="checkbox"]:checked')).map(function (cb) { return cb.value; });
 }
 
-window.psdOnDateFilterModeChange = function (prefix) {
-    prefix = prefix || 'psdFilter';
-    var mode = psdGetSelectVal(prefix + 'DateMode');
-    var showYear = mode === 'year' || mode === 'quarter' || mode === 'month' || mode === 'week';
-    var showMonth = mode === 'month' || mode === 'week';
-    var map = {
-        range: prefix + 'DateRangeWrap',
-        specific: prefix + 'DateSpecificWrap',
-        year: prefix + 'DateYearWrap',
-        quarter: prefix + 'DateQuarterWrap',
-        month: prefix + 'DateMonthWrap',
-        week: prefix + 'DateWeekWrap'
-    };
-    Object.keys(map).forEach(function (k) {
-        var el = document.getElementById(map[k]);
-        if (!el) return;
-        if (k === 'year') el.style.display = showYear ? 'flex' : 'none';
-        else if (k === 'month') el.style.display = showMonth ? 'flex' : 'none';
-        else el.style.display = (mode === k ? 'flex' : 'none');
+window.psdToggleMsDropdown = function (dropdownId) {
+    document.querySelectorAll('.psd-ms .multiselect-dropdown').forEach(function (d) {
+        if (d.id !== dropdownId) d.style.display = 'none';
     });
+    var dd = document.getElementById(dropdownId);
+    if (dd) dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
 };
 
-function psdSafeUpdateDateFilterOptions(prefix, items) {
-    try { psdUpdateDateFilterOptions(prefix, items); } catch (e) { console.warn('[PSD] date filter options', e); }
+window.psdUpdateMsText = function (textId, label, dropdownId) {
+    var selected = psdGetMsValues(dropdownId);
+    var el = document.getElementById(textId);
+    if (!el) return;
+    if (selected.length === 0) {
+        el.textContent = 'All ' + label;
+        return;
+    }
+    if (selected.length === 1) {
+        var v = selected[0];
+        if (dropdownId.indexOf('DateQuarter') >= 0) el.textContent = 'Q' + v;
+        else if (dropdownId.indexOf('DateMonth') >= 0) el.textContent = PSD_MONTHS[parseInt(v, 10)] || v;
+        else if (dropdownId.indexOf('DateWeek') >= 0) el.textContent = 'W' + v;
+        else el.textContent = v;
+        return;
+    }
+    el.textContent = selected.length + ' selected';
+};
+
+function psdBuildMsDropdown(dropdownId, textId, label, values, selected, onChangeFn, labelFn) {
+    var dd = document.getElementById(dropdownId);
+    if (!dd) return;
+    var selSet = {};
+    (selected || []).forEach(function (v) { selSet[String(v)] = true; });
+    dd.innerHTML = values.map(function (val) {
+        var disp = labelFn ? labelFn(val) : val;
+        var safeId = dropdownId + '_' + String(val).replace(/\W/g, '_');
+        var checked = selSet[String(val)] ? ' checked' : '';
+        return '<div class="multiselect-option" onclick="event.stopPropagation()">' +
+            '<input type="checkbox" id="' + safeId + '" value="' + psdEsc(val) + '"' + checked +
+            ' onchange="' + onChangeFn + '();psdUpdateMsText(\'' + textId + '\',\'' + label + '\',\'' + dropdownId + '\')">' +
+            '<label for="' + safeId + '">' + psdEsc(disp) + '</label></div>';
+    }).join('');
+    psdUpdateMsText(textId, label, dropdownId);
+}
+
+function psdMsFilterHTML(prefix, key, label) {
+    return '<div class="fb-group"><div class="fb-group-label">' + psdEsc(label) + '</div>' +
+        '<div class="custom-multiselect psd-ms">' +
+            '<div class="multiselect-selected" onclick="event.stopPropagation();psdToggleMsDropdown(\'' + prefix + key + 'Dropdown\')">' +
+                '<span id="' + prefix + key + 'Text">All ' + psdEsc(label) + '</span>' +
+                '<span style="opacity:.75;">▾</span></div>' +
+            '<div class="multiselect-dropdown" id="' + prefix + key + 'Dropdown" style="display:none;"></div>' +
+        '</div></div>';
+}
+
+function psdBindMsOutsideClick() {
+    if (window._psdMsClickBound) return;
+    window._psdMsClickBound = true;
+    document.addEventListener('click', function () {
+        document.querySelectorAll('.psd-ms .multiselect-dropdown').forEach(function (d) { d.style.display = 'none'; });
+    }, true);
+}
+
+function psdPopulateDateMsDropdowns(prefix, items, onChangeFn) {
+    prefix = prefix || 'psdFilter';
+    onChangeFn = onChangeFn || 'psdApplyDashboardFilters';
+    var field = psdDateFilters.dateField || 'UploadDate';
+    var metas = psdCollectDateMetas(items, field);
+    var ySel = psdDateFilters.years || [];
+    var qSel = psdDateFilters.quarters || [];
+    var mSel = psdDateFilters.months || [];
+
+    var years = [], quarters = [], months = [], weeks = [];
+    metas.forEach(function (m) {
+        var ys = String(m.year);
+        if (years.indexOf(ys) < 0) years.push(ys);
+    });
+    years.sort(function (a, b) { return parseInt(b, 10) - parseInt(a, 10); });
+
+    metas.forEach(function (m) {
+        if (ySel.length && ySel.indexOf(String(m.year)) < 0) return;
+        var qs = String(m.quarter);
+        if (quarters.indexOf(qs) < 0) quarters.push(qs);
+    });
+    quarters.sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+
+    metas.forEach(function (m) {
+        if (ySel.length && ySel.indexOf(String(m.year)) < 0) return;
+        if (qSel.length && qSel.indexOf(String(m.quarter)) < 0) return;
+        var ms = String(m.monthIndex);
+        if (months.indexOf(ms) < 0) months.push(ms);
+    });
+    months.sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+
+    metas.forEach(function (m) {
+        if (ySel.length && ySel.indexOf(String(m.year)) < 0) return;
+        if (qSel.length && qSel.indexOf(String(m.quarter)) < 0) return;
+        if (mSel.length && mSel.indexOf(String(m.monthIndex)) < 0) return;
+        if (m.week != null) {
+            var ws = String(m.week);
+            if (weeks.indexOf(ws) < 0) weeks.push(ws);
+        }
+    });
+    weeks.sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+
+    psdBuildMsDropdown(prefix + 'DateYearDropdown', prefix + 'DateYearText', 'Years', years, psdDateFilters.years, onChangeFn);
+    psdBuildMsDropdown(prefix + 'DateQuarterDropdown', prefix + 'DateQuarterText', 'Quarters', quarters, psdDateFilters.quarters, onChangeFn, function (v) { return 'Q' + v; });
+    psdBuildMsDropdown(prefix + 'DateMonthDropdown', prefix + 'DateMonthText', 'Months', months, psdDateFilters.months, onChangeFn, function (v) { return PSD_MONTHS[parseInt(v, 10)] || v; });
+    psdBuildMsDropdown(prefix + 'DateWeekDropdown', prefix + 'DateWeekText', 'Weeks', weeks, psdDateFilters.weeks, onChangeFn, function (v) { return 'W' + v; });
+}
+
+function psdSafeUpdateDateFilterOptions(prefix, items, onChangeFn) {
+    try { psdPopulateDateMsDropdowns(prefix, items, onChangeFn); } catch (e) { console.warn('[PSD] date filter options', e); }
+}
+
+function psdMatchMulti(val, arr) {
+    if (!arr || !arr.length) return true;
+    var s = val == null ? '' : String(val);
+    return arr.some(function (a) { return String(a) === s; });
+}
+
+function psdPopulateMainMsDropdowns(prefix, items, filters, onChangeFn) {
+    prefix = prefix || 'psdFilter';
+    onChangeFn = onChangeFn || 'psdApplyDashboardFilters';
+    filters = filters || psdDashFilters;
+    var cats = psdUniqueValues(items, 'Category');
+    var products = psdUniqueValues(items, 'Product');
+    if (prefix === 'psdFilter') {
+        var statuses = [PSD_STATUS.PENDING, PSD_STATUS.INPROGRESS, PSD_STATUS.COMPLETED];
+        var agents = psdAllAgents.map(function (a) { return a.name; });
+        psdBuildMsDropdown(prefix + 'StatusDropdown', prefix + 'StatusText', 'Statuses', statuses, filters.status, onChangeFn);
+        psdBuildMsDropdown(prefix + 'CategoryDropdown', prefix + 'CategoryText', 'Categories', cats, filters.category, onChangeFn);
+        psdBuildMsDropdown(prefix + 'AgentDropdown', prefix + 'AgentText', 'Agents', agents, filters.agent, onChangeFn);
+        psdBuildMsDropdown(prefix + 'ProductDropdown', prefix + 'ProductText', 'Products', products, filters.product, onChangeFn);
+        return;
+    }
+    if (prefix === 'psdAssignF') {
+        psdBuildMsDropdown(prefix + 'CategoryDropdown', prefix + 'CategoryText', 'Categories', cats, filters.category, onChangeFn);
+        psdBuildMsDropdown(prefix + 'ProductDropdown', prefix + 'ProductText', 'Products', products, filters.product, onChangeFn);
+        return;
+    }
+    if (prefix === 'psdAssignedF') {
+        var agentSet = {};
+        psdUniqueValues(items, 'AssignedToName').forEach(function (n) {
+            var canon = psdCanonicalAgentName(n);
+            if (canon) agentSet[canon] = true;
+        });
+        var agents = Object.keys(agentSet).sort();
+        psdBuildMsDropdown(prefix + 'CategoryDropdown', prefix + 'CategoryText', 'Categories', cats, filters.category, onChangeFn);
+        psdBuildMsDropdown(prefix + 'ProductDropdown', prefix + 'ProductText', 'Products', products, filters.product, onChangeFn);
+        psdBuildMsDropdown(prefix + 'AgentDropdown', prefix + 'AgentText', 'Agents', agents, filters.agent, onChangeFn);
+    }
 }
 
 function psdShowInitError(loadingEl, contentEl, message) {
@@ -303,41 +368,19 @@ function psdDateFilterRowHTML(prefix, onChangeFn) {
     var fieldOpts = PSD_DATE_FIELD_OPTS.map(function (o) {
         return '<option value="' + o.key + '"' + (f.dateField === o.key ? ' selected' : '') + '>' + o.label + '</option>';
     }).join('');
-    var mode = f.mode || '';
     return '<div class="filter-bar-grid" style="margin-top:.55rem;padding-top:.55rem;border-top:1px dashed var(--border);">' +
         '<div class="fb-group"><div class="fb-group-label">Date Basis</div>' +
             '<select class="fb-select" id="' + prefix + 'DateField" onchange="' + onChangeFn + '()">' + fieldOpts + '</select></div>' +
-        '<div class="fb-group"><div class="fb-group-label">Period</div>' +
-            '<select class="fb-select" id="' + prefix + 'DateMode" onchange="psdOnDateFilterModeChange(\'' + prefix + '\');' + onChangeFn + '()">' +
-                '<option value="">All Time</option>' +
-                '<option value="range"' + (mode === 'range' ? ' selected' : '') + '>From – To</option>' +
-                '<option value="specific"' + (mode === 'specific' ? ' selected' : '') + '>Specific Date</option>' +
-                '<option value="year"' + (mode === 'year' ? ' selected' : '') + '>Year</option>' +
-                '<option value="quarter"' + (mode === 'quarter' ? ' selected' : '') + '>Quarter</option>' +
-                '<option value="month"' + (mode === 'month' ? ' selected' : '') + '>Month</option>' +
-                '<option value="week"' + (mode === 'week' ? ' selected' : '') + '>Week</option>' +
-            '</select></div>' +
-        '<div class="fb-group" id="' + prefix + 'DateRangeWrap" style="display:' + (mode === 'range' ? 'flex' : 'none') + ';flex-direction:column;gap:.2rem;grid-column:span 2;">' +
-            '<div class="fb-group-label">From – To</div>' +
-            '<div style="display:flex;gap:.45rem;">' +
-                '<input type="date" class="fb-select" id="' + prefix + 'DateFrom" value="' + psdEsc(f.from) + '" onchange="' + onChangeFn + '()" style="cursor:text;">' +
-                '<input type="date" class="fb-select" id="' + prefix + 'DateTo" value="' + psdEsc(f.to) + '" onchange="' + onChangeFn + '()" style="cursor:text;">' +
-            '</div></div>' +
-        '<div class="fb-group" id="' + prefix + 'DateSpecificWrap" style="display:' + (mode === 'specific' ? 'flex' : 'none') + ';">' +
-            '<div class="fb-group-label">Date</div>' +
+        '<div class="fb-group"><div class="fb-group-label">From</div>' +
+            '<input type="date" class="fb-select" id="' + prefix + 'DateFrom" value="' + psdEsc(f.from) + '" onchange="' + onChangeFn + '()" style="cursor:text;"></div>' +
+        '<div class="fb-group"><div class="fb-group-label">To</div>' +
+            '<input type="date" class="fb-select" id="' + prefix + 'DateTo" value="' + psdEsc(f.to) + '" onchange="' + onChangeFn + '()" style="cursor:text;"></div>' +
+        '<div class="fb-group"><div class="fb-group-label">Specific Date</div>' +
             '<input type="date" class="fb-select" id="' + prefix + 'DateSpecific" value="' + psdEsc(f.specific) + '" onchange="' + onChangeFn + '()" style="cursor:text;"></div>' +
-        '<div class="fb-group" id="' + prefix + 'DateYearWrap" style="display:' + (mode === 'year' || mode === 'quarter' || mode === 'month' || mode === 'week' ? 'flex' : 'none') + ';">' +
-            '<div class="fb-group-label">Year</div>' +
-            '<select class="fb-select" id="' + prefix + 'DateYear" onchange="' + onChangeFn + '()"><option value="">All Years</option></select></div>' +
-        '<div class="fb-group" id="' + prefix + 'DateQuarterWrap" style="display:' + (mode === 'quarter' ? 'flex' : 'none') + ';">' +
-            '<div class="fb-group-label">Quarter</div>' +
-            '<select class="fb-select" id="' + prefix + 'DateQuarter" onchange="' + onChangeFn + '()"><option value="">All Quarters</option></select></div>' +
-        '<div class="fb-group" id="' + prefix + 'DateMonthWrap" style="display:' + (mode === 'month' || mode === 'week' ? 'flex' : 'none') + ';">' +
-            '<div class="fb-group-label">Month</div>' +
-            '<select class="fb-select" id="' + prefix + 'DateMonth" onchange="' + onChangeFn + '()"><option value="">All Months</option></select></div>' +
-        '<div class="fb-group" id="' + prefix + 'DateWeekWrap" style="display:' + (mode === 'week' ? 'flex' : 'none') + ';">' +
-            '<div class="fb-group-label">Week</div>' +
-            '<select class="fb-select" id="' + prefix + 'DateWeek" onchange="' + onChangeFn + '()"><option value="">All Weeks</option></select></div>' +
+        psdMsFilterHTML(prefix, 'DateYear', 'Years') +
+        psdMsFilterHTML(prefix, 'DateQuarter', 'Quarters') +
+        psdMsFilterHTML(prefix, 'DateMonth', 'Months') +
+        psdMsFilterHTML(prefix, 'DateWeek', 'Weeks') +
     '</div>';
 }
 
@@ -354,7 +397,7 @@ function psdDateFilterBarOnlyHTML(prefix) {
 
 window.psdApplyAgentDateFilters = function () {
     psdReadDateFiltersFromDom('psdAgentF');
-    psdRenderTabBody();
+    psdRefreshMyQueueContent();
 };
 
 window.psdResetAgentDateFilters = function () {
@@ -475,7 +518,16 @@ function psdInjectStyles() {
         '.psd-agent-tile.selected{border-color:var(--acc);box-shadow:0 0 0 2px var(--glow)}' +
         '.psd-agent-tile-head{display:flex;align-items:center;gap:.55rem;margin-bottom:.55rem}' +
         '.psd-agent-avatar{width:36px;height:36px;border-radius:50%;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.78rem;flex-shrink:0}' +
-        '.psd-agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.85rem;margin:1rem 0}';
+        '.psd-agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.85rem;margin:1rem 0}' +
+        '.psd-ms.custom-multiselect{position:relative;z-index:120;width:100%}' +
+        '.psd-ms .multiselect-selected{padding:.38rem .65rem;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--t1);font-size:.8rem;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;box-sizing:border-box}' +
+        '.psd-ms .multiselect-selected:hover{border-color:var(--acc);box-shadow:0 0 0 2px var(--glow)}' +
+        '.psd-ms .multiselect-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--ch);max-height:240px;overflow-y:auto;z-index:9999}' +
+        '.psd-ms .multiselect-option{padding:8px 12px;display:flex;align-items:center;cursor:pointer;border-bottom:1px solid var(--border)}' +
+        '.psd-ms .multiselect-option:last-child{border-bottom:none}' +
+        '.psd-ms .multiselect-option:hover{background:var(--bg-hover,rgba(148,163,184,.12))}' +
+        '.psd-ms .multiselect-option input[type=checkbox]{margin-right:10px;width:15px;height:15px;cursor:pointer;accent-color:var(--acc)}' +
+        '.psd-ms .multiselect-option label{cursor:pointer;flex:1;font-size:.8rem;color:var(--t1);margin:0}';
     document.head.appendChild(s);
 }
 
@@ -858,10 +910,10 @@ function psdUniqueValues(items, field) {
 function psdApplyDashFilters(items) {
     var f = psdDashFilters;
     return items.filter(function (it) {
-        if (f.status && it.PSDStatus !== f.status) return false;
-        if (f.category && it.Category !== f.category) return false;
-        if (f.agent && psdCanonicalAgentName(it.AssignedToName) !== f.agent) return false;
-        if (f.product && it.Product !== f.product) return false;
+        if (!psdMatchMulti(it.PSDStatus, f.status)) return false;
+        if (!psdMatchMulti(it.Category, f.category)) return false;
+        if (f.agent && f.agent.length && !psdMatchMulti(psdCanonicalAgentName(it.AssignedToName), f.agent)) return false;
+        if (!psdMatchMulti(it.Product, f.product)) return false;
         if (f.search) {
             var q = f.search.toLowerCase();
             var blob = [it.ActivityNumber, it.OrderNumber, it.CustomerAccount, it.Description, it.Category, it.AssignedToName].join(' ').toLowerCase();
@@ -876,56 +928,52 @@ function psdFilterItems(items) {
 }
 
 function psdReadDashFiltersFromDom() {
-    psdDashFilters.status   = (document.getElementById('psdFilterStatus')   || {}).value || '';
-    psdDashFilters.category = (document.getElementById('psdFilterCategory') || {}).value || '';
-    psdDashFilters.agent    = (document.getElementById('psdFilterAgent')    || {}).value || '';
-    psdDashFilters.product  = (document.getElementById('psdFilterProduct')  || {}).value || '';
-    psdDashFilters.search   = (document.getElementById('psdFilterSearch')   || {}).value || '';
+    psdDashFilters.status   = psdGetMsValues('psdFilterStatusDropdown');
+    psdDashFilters.category = psdGetMsValues('psdFilterCategoryDropdown');
+    psdDashFilters.agent    = psdGetMsValues('psdFilterAgentDropdown');
+    psdDashFilters.product  = psdGetMsValues('psdFilterProductDropdown');
+    psdDashFilters.search   = (document.getElementById('psdFilterSearch') || {}).value || '';
     psdReadDateFiltersFromDom('psdFilter');
-    psdSelectedAgent = psdDashFilters.agent || null;
+    psdSelectedAgent = psdDashFilters.agent.length === 1 ? psdDashFilters.agent[0] : null;
 }
 
 window.psdApplyDashboardFilters = function () {
     psdReadDashFiltersFromDom();
-    psdRenderTabBody();
+    psdRefreshDashboardContent();
 };
 
 window.psdResetDashboardFilters = function () {
-    psdDashFilters = { status: '', category: '', agent: '', product: '', search: '' };
+    psdDashFilters = { status: [], category: [], agent: [], product: [], search: '' };
     psdResetDateFiltersState();
     psdSelectedAgent = null;
     psdRenderTabBody();
 };
 
 window.psdSelectAgentTile = function (name) {
-    psdSelectedAgent = psdSelectedAgent === name ? null : name;
-    psdDashFilters.agent = psdSelectedAgent || '';
-    psdRenderTabBody();
+    if (psdDashFilters.agent.length === 1 && psdDashFilters.agent[0] === name) {
+        psdDashFilters.agent = [];
+        psdSelectedAgent = null;
+    } else {
+        psdDashFilters.agent = [name];
+        psdSelectedAgent = name;
+    }
+    psdBuildMsDropdown('psdFilterAgentDropdown', 'psdFilterAgentText', 'Agents',
+        psdAllAgents.map(function (a) { return a.name; }), psdDashFilters.agent, 'psdApplyDashboardFilters');
+    psdRefreshDashboardContent();
 };
 
 function psdFilterBarHTML(items, prefix) {
     prefix = prefix || 'psdFilter';
-    var statuses = [PSD_STATUS.PENDING, PSD_STATUS.INPROGRESS, PSD_STATUS.COMPLETED];
-    var cats = psdUniqueValues(items, 'Category');
-    var agents = psdAllAgents.map(function (a) { return a.name; });
-    var products = psdUniqueValues(items, 'Product');
-    function sel(id, label, opts, val) {
-        return '<div class="fb-group"><div class="fb-group-label">' + label + '</div>' +
-            '<select class="fb-select" id="' + prefix + id + '" onchange="psdApplyDashboardFilters()">' +
-            '<option value="">All</option>' + opts.map(function (o) {
-                return '<option value="' + psdEsc(o) + '"' + (val === o ? ' selected' : '') + '>' + psdEsc(o) + '</option>';
-            }).join('') + '</select></div>';
-    }
     return '<div class="filter-bar" style="margin-bottom:.85rem;">' +
         '<div class="filter-bar-header">' +
             '<span class="filter-bar-label">Filters</span>' +
             '<button type="button" class="reset-btn" onclick="psdResetDashboardFilters()">Reset</button>' +
         '</div>' +
         '<div class="filter-bar-grid">' +
-            sel('Status', 'Status', statuses, psdDashFilters.status) +
-            sel('Category', 'Category', cats, psdDashFilters.category) +
-            sel('Agent', 'Assigned To', agents, psdDashFilters.agent) +
-            sel('Product', 'Product', products, psdDashFilters.product) +
+            psdMsFilterHTML(prefix, 'Status', 'Statuses') +
+            psdMsFilterHTML(prefix, 'Category', 'Categories') +
+            psdMsFilterHTML(prefix, 'Agent', 'Agents') +
+            psdMsFilterHTML(prefix, 'Product', 'Products') +
             '<div class="fb-group"><div class="fb-group-label">Search</div>' +
             '<input type="text" class="fb-select" id="' + prefix + 'Search" placeholder="Activity, Order, Customer…" value="' + psdEsc(psdDashFilters.search) + '" oninput="psdApplyDashboardFilters()" style="cursor:text;"></div>' +
         '</div>' +
@@ -933,60 +981,57 @@ function psdFilterBarHTML(items, prefix) {
         '</div>';
 }
 
-var psdAssignFilters = { category: '', product: '' };
-var psdAssignedFilters = { category: '', product: '', agent: '' };
+var psdAssignFilters = { category: [], product: [] };
+var psdAssignedFilters = { category: [], product: [], agent: [] };
 
 function psdQueueFilterBarHTML(type, items) {
     var prefix = type === 'assign' ? 'psdAssignF' : 'psdAssignedF';
     var f = type === 'assign' ? psdAssignFilters : psdAssignedFilters;
     var fn = type === 'assign' ? 'psdApplyAssignFilters' : 'psdApplyAssignedFilters';
     var resetFn = type === 'assign' ? 'psdResetAssignFilters' : 'psdResetAssignedFilters';
-    var cats = psdUniqueValues(items, 'Category');
-    var products = psdUniqueValues(items, 'Product');
-    var agentSet = {};
-    psdUniqueValues(items, 'AssignedToName').forEach(function (n) {
-        var canon = psdCanonicalAgentName(n);
-        if (canon) agentSet[canon] = true;
-    });
-    var agents = Object.keys(agentSet).sort();
-    function sel(id, label, opts, val) {
-        return '<div class="fb-group"><div class="fb-group-label">' + label + '</div>' +
-            '<select class="fb-select" id="' + prefix + id + '" onchange="' + fn + '()">' +
-            '<option value="">All</option>' + opts.map(function (o) {
-                return '<option value="' + psdEsc(o) + '"' + (val === o ? ' selected' : '') + '>' + psdEsc(o) + '</option>';
-            }).join('') + '</select></div>';
-    }
-    var agentCol = type === 'assigned' ? sel('Agent', 'Assigned To', agents, f.agent) : '';
+    var agentCol = type === 'assigned' ? psdMsFilterHTML(prefix, 'Agent', 'Agents') : '';
     return '<div class="filter-bar" style="margin-bottom:.85rem;">' +
         '<div class="filter-bar-header"><span class="filter-bar-label">Filters</span>' +
         '<button type="button" class="reset-btn" onclick="' + resetFn + '()">Reset</button></div>' +
-        '<div class="filter-bar-grid">' + sel('Category', 'Category', cats, f.category) + sel('Product', 'Product', products, f.product) + agentCol + '</div>' +
+        '<div class="filter-bar-grid">' +
+            psdMsFilterHTML(prefix, 'Category', 'Categories') +
+            psdMsFilterHTML(prefix, 'Product', 'Products') +
+            agentCol +
+        '</div>' +
         psdDateFilterRowHTML(prefix, fn) +
         '</div>';
 }
 
 window.psdApplyAssignFilters = function () {
-    psdAssignFilters.category = (document.getElementById('psdAssignFCategory') || {}).value || '';
-    psdAssignFilters.product = (document.getElementById('psdAssignFProduct') || {}).value || '';
+    psdAssignFilters.category = psdGetMsValues('psdAssignFCategoryDropdown');
+    psdAssignFilters.product = psdGetMsValues('psdAssignFProductDropdown');
     psdReadDateFiltersFromDom('psdAssignF');
+    psdRefreshAssignContent();
+};
+window.psdResetAssignFilters = function () {
+    psdAssignFilters = { category: [], product: [] };
+    psdResetDateFiltersState();
     psdRenderTabBody();
 };
-window.psdResetAssignFilters = function () { psdAssignFilters = { category: '', product: '' }; psdResetDateFiltersState(); psdRenderTabBody(); };
 window.psdApplyAssignedFilters = function () {
-    psdAssignedFilters.category = (document.getElementById('psdAssignedFCategory') || {}).value || '';
-    psdAssignedFilters.product = (document.getElementById('psdAssignedFProduct') || {}).value || '';
-    psdAssignedFilters.agent = (document.getElementById('psdAssignedFAgent') || {}).value || '';
+    psdAssignedFilters.category = psdGetMsValues('psdAssignedFCategoryDropdown');
+    psdAssignedFilters.product = psdGetMsValues('psdAssignedFProductDropdown');
+    psdAssignedFilters.agent = psdGetMsValues('psdAssignedFAgentDropdown');
     psdReadDateFiltersFromDom('psdAssignedF');
+    psdRefreshAssignedContent();
+};
+window.psdResetAssignedFilters = function () {
+    psdAssignedFilters = { category: [], product: [], agent: [] };
+    psdResetDateFiltersState();
     psdRenderTabBody();
 };
-window.psdResetAssignedFilters = function () { psdAssignedFilters = { category: '', product: '', agent: '' }; psdResetDateFiltersState(); psdRenderTabBody(); };
 
 function psdApplyQueueFilters(items, f, includeAgent) {
     items = psdApplyDateFilters(items, psdDateFilters);
     return items.filter(function (it) {
-        if (f.category && it.Category !== f.category) return false;
-        if (f.product && it.Product !== f.product) return false;
-        if (includeAgent && f.agent && psdCanonicalAgentName(it.AssignedToName) !== f.agent) return false;
+        if (!psdMatchMulti(it.Category, f.category)) return false;
+        if (!psdMatchMulti(it.Product, f.product)) return false;
+        if (includeAgent && f.agent && f.agent.length && !psdMatchMulti(psdCanonicalAgentName(it.AssignedToName), f.agent)) return false;
         return true;
     });
 }
@@ -1048,7 +1093,7 @@ function psdAgentTilesHTML(items) {
         rows.map(function (st) {
             var avgSla = st.slaN ? Math.round(st.slaSum / st.slaN) : 0;
             var rate = st.assigned ? Math.round((st.completed / st.assigned) * 100) : 0;
-            var sel = psdSelectedAgent === st.name ? ' selected' : '';
+            var sel = (psdDashFilters.agent.indexOf(st.name) >= 0 || psdSelectedAgent === st.name) ? ' selected' : '';
             return '<div class="psd-agent-tile' + sel + '" onclick="psdSelectAgentTile(\'' + psdEsc(st.name).replace(/'/g, "\\'") + '\')">' +
                 '<div class="psd-agent-tile-head"><div class="psd-agent-avatar">' + psdEsc(psdInitials(st.name)) + '</div>' +
                 '<div><div style="font-weight:800;font-size:.88rem;color:var(--t1);">' + psdEsc(st.name) + '</div>' +
@@ -1451,18 +1496,8 @@ function psdUploadSectionHTML() {
         '<div id="psdUploadPreview" style="margin-top:1rem;"></div></div>';
 }
 
-function psdRenderDashboard(body) {
-    var base = psdAllItems;
-    var dateFiltered = psdApplyDateFilters(base, psdDateFilters);
-    var items = psdApplyDashFilters(dateFiltered);
-    var s = psdSummary(items);
-    psdChartsBuilt = false;
-    psdLastChartItems = items;
-    psdLastChartSummary = s;
-
-    body.innerHTML =
-        psdFilterBarHTML(dateFiltered) +
-        '<div class="top-stats">' +
+function psdDashboardMainHTML(dateFiltered, items, s) {
+    return '<div class="top-stats">' +
             psdTile('Total', s.total, 'Filtered view', 'var(--acc)') +
             psdTile('Pending', s.pending, 'Awaiting assign', psdStatusColor(PSD_STATUS.PENDING)) +
             psdTile('In Progress', s.inprogress, 'With agents', psdStatusColor(PSD_STATUS.INPROGRESS)) +
@@ -1482,10 +1517,10 @@ function psdRenderDashboard(body) {
         '<div style="text-align:center;margin:1rem 0;">' +
             '<button type="button" id="psdToggleChartsBtn" class="export-btn" onclick="psdToggleCharts()" style="padding:12px 24px;font-size:14px;">' +
                 '<i data-lucide="eye" id="psdChartsIcon" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>' +
-                '<span id="psdChartsText">Show Analytics Charts</span>' +
+                '<span id="psdChartsText">' + (psdChartsBuilt ? 'Hide Analytics Charts' : 'Show Analytics Charts') + '</span>' +
             '</button>' +
         '</div>' +
-        '<div id="psdChartsSection" class="psd-chart-grid" style="display:none;">' +
+        '<div id="psdChartsSection" class="psd-chart-grid" style="display:' + (psdChartsBuilt ? 'grid' : 'none') + ';">' +
             psdChartCard('Status Breakdown', 'psdChartStatus', 'Pipeline mix', true) +
             psdChartCard('Completed by Agent', 'psdChartAgent', 'Throughput', true) +
             psdChartCard('By Category', 'psdChartCategory', 'Excel tabs', false) +
@@ -1493,14 +1528,119 @@ function psdRenderDashboard(body) {
         '</div>' +
         psdUploadSectionHTML() +
         psdGridSectionHTML('All Records', 'psdGrid', 'psdDashCount', 'psdDashSearch', 'psdExportDashCsv()', items.length);
+}
 
+function psdRefreshDashboardContent() {
+    var body = document.getElementById('psdTabBody');
+    var base = psdAllItems;
+    var dateFiltered = psdApplyDateFilters(base, psdDateFilters);
+    var items = psdApplyDashFilters(dateFiltered);
+    var s = psdSummary(items);
+    psdLastChartItems = items;
+    psdLastChartSummary = s;
+
+    var main = document.getElementById('psdDashMain');
+    if (!main) {
+        if (body) psdRenderDashboard(body);
+        return;
+    }
+
+    main.innerHTML = psdDashboardMainHTML(dateFiltered, items, s);
     psdRenderGrid('dash', 'psdGrid', 'psdDashCount', items, 'records');
-    psdSafeUpdateDateFilterOptions('psdFilter', dateFiltered);
-    psdOnDateFilterModeChange('psdFilter');
+    psdSafeUpdateDateFilterOptions('psdFilter', dateFiltered, 'psdApplyDashboardFilters');
+
+    if (psdChartsBuilt) {
+        psdDestroyCharts();
+        psdBuildDashboardCharts(items, s);
+    }
+
     if (typeof lucide !== 'undefined') lucide.createIcons();
     if (psdAgentsVisible) {
         var agIcon = document.getElementById('psdAgentsIcon');
         if (agIcon) agIcon.setAttribute('data-lucide', 'eye-off');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+function psdRefreshAssignContent() {
+    var pendingAll = psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.PENDING; });
+    var pending = psdApplyQueueFilters(pendingAll, psdAssignFilters, false);
+    var main = document.getElementById('psdAssignMain');
+    if (!main) {
+        var body = document.getElementById('psdTabBody');
+        if (body) psdRenderAssignQueue(body);
+        return;
+    }
+    main.innerHTML = psdBulkBarHTML('assign') +
+        psdGridSectionHTML('Assign Queue — Pending', 'psdAssignGrid', 'psdAssignCount', 'psdAssignSearch', 'psdExportAssignCsv()', pending.length);
+    psdRenderGrid('assign', 'psdAssignGrid', 'psdAssignCount', pending, 'assign');
+    psdSafeUpdateDateFilterOptions('psdAssignF', pendingAll, 'psdApplyAssignFilters');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function psdRefreshAssignedContent() {
+    var assignedAll = psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.INPROGRESS; });
+    var assigned = psdApplyQueueFilters(assignedAll, psdAssignedFilters, true);
+    var main = document.getElementById('psdAssignedMain');
+    if (!main) {
+        var body = document.getElementById('psdTabBody');
+        if (body) psdRenderAssignedQueue(body);
+        return;
+    }
+    main.innerHTML = psdBulkBarHTML('reassign') +
+        psdGridSectionHTML('Assigned Queue — In Progress', 'psdAssignedGrid', 'psdAssignedCount', 'psdAssignedSearch', 'psdExportAssignedCsv()', assigned.length);
+    psdRenderGrid('assigned', 'psdAssignedGrid', 'psdAssignedCount', assigned, 'assigned');
+    psdSafeUpdateDateFilterOptions('psdAssignedF', assignedAll, 'psdApplyAssignedFilters');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function psdRefreshMyQueueContent() {
+    var mine = psdApplyDateFilters(psdScopedItems(), psdDateFilters);
+    var s = psdSummary(mine);
+    var inq = mine.filter(function (it) { return it.PSDStatus === PSD_STATUS.INPROGRESS; });
+    var main = document.getElementById('psdMyQueueMain');
+    if (!main) {
+        var body = document.getElementById('psdTabBody');
+        if (body) psdRenderMyQueue(body);
+        return;
+    }
+    main.innerHTML =
+        '<div class="top-stats">' +
+            psdTile('In Queue', s.inprogress, 'Open', psdStatusColor(PSD_STATUS.INPROGRESS)) +
+            psdTile('Completed', s.completed, 'By you', psdStatusColor(PSD_STATUS.COMPLETED)) +
+            psdTile('Total Assigned', mine.length, 'All time', 'var(--acc)') +
+            psdTile('Avg SLA', s.avgTtc + ' d', 'Assign/Reassign → done', 'var(--acc2)') +
+        '</div>' +
+        psdGridSectionHTML('My Queue — In Progress', 'psdAgentQueueGrid', 'psdAgentQueueCount', 'psdAgentSearch', 'psdExportAgentQueueCsv()', inq.length) +
+        psdGridSectionHTML('My Records', 'psdAgentGrid', 'psdAgentRecCount', 'psdAgentRecSearch', 'psdExportAgentRecordsCsv()', mine.length);
+    psdRenderGrid('agentQueue', 'psdAgentQueueGrid', 'psdAgentQueueCount', inq, 'agentqueue');
+    psdRenderGrid('agentRecords', 'psdAgentGrid', 'psdAgentRecCount', mine, 'records');
+    psdSafeUpdateDateFilterOptions('psdAgentF', psdScopedItems(), 'psdApplyAgentDateFilters');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function psdRenderDashboard(body) {
+    var base = psdAllItems;
+    var dateFiltered = psdApplyDateFilters(base, psdDateFilters);
+    var items = psdApplyDashFilters(dateFiltered);
+    var s = psdSummary(items);
+    psdChartsBuilt = false;
+    psdLastChartItems = items;
+    psdLastChartSummary = s;
+
+    body.innerHTML =
+        psdFilterBarHTML(dateFiltered) +
+        '<div id="psdDashMain">' + psdDashboardMainHTML(dateFiltered, items, s) + '</div>';
+
+    psdRenderGrid('dash', 'psdGrid', 'psdDashCount', items, 'records');
+    psdBindMsOutsideClick();
+    psdPopulateMainMsDropdowns('psdFilter', dateFiltered, psdDashFilters, 'psdApplyDashboardFilters');
+    psdSafeUpdateDateFilterOptions('psdFilter', dateFiltered, 'psdApplyDashboardFilters');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    if (psdAgentsVisible) {
+        var agIcon = document.getElementById('psdAgentsIcon');
+        if (agIcon) agIcon.setAttribute('data-lucide', 'eye-off');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 }
 
@@ -1658,11 +1798,14 @@ function psdRenderAssignQueue(body) {
     var pendingAll = psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.PENDING; });
     var pending = psdApplyQueueFilters(pendingAll, psdAssignFilters, false);
     body.innerHTML = psdQueueFilterBarHTML('assign', pendingAll) +
+        '<div id="psdAssignMain">' +
         psdBulkBarHTML('assign') +
-        psdGridSectionHTML('Assign Queue — Pending', 'psdAssignGrid', 'psdAssignCount', 'psdAssignSearch', 'psdExportAssignCsv()', pending.length);
+        psdGridSectionHTML('Assign Queue — Pending', 'psdAssignGrid', 'psdAssignCount', 'psdAssignSearch', 'psdExportAssignCsv()', pending.length) +
+        '</div>';
     psdRenderGrid('assign', 'psdAssignGrid', 'psdAssignCount', pending, 'assign');
-    psdSafeUpdateDateFilterOptions('psdAssignF', pendingAll);
-    psdOnDateFilterModeChange('psdAssignF');
+    psdBindMsOutsideClick();
+    psdPopulateMainMsDropdowns('psdAssignF', pendingAll, psdAssignFilters, 'psdApplyAssignFilters');
+    psdSafeUpdateDateFilterOptions('psdAssignF', pendingAll, 'psdApplyAssignFilters');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -1671,11 +1814,14 @@ function psdRenderAssignedQueue(body) {
     var assignedAll = psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.INPROGRESS; });
     var assigned = psdApplyQueueFilters(assignedAll, psdAssignedFilters, true);
     body.innerHTML = psdQueueFilterBarHTML('assigned', assignedAll) +
+        '<div id="psdAssignedMain">' +
         psdBulkBarHTML('reassign') +
-        psdGridSectionHTML('Assigned Queue — In Progress', 'psdAssignedGrid', 'psdAssignedCount', 'psdAssignedSearch', 'psdExportAssignedCsv()', assigned.length);
+        psdGridSectionHTML('Assigned Queue — In Progress', 'psdAssignedGrid', 'psdAssignedCount', 'psdAssignedSearch', 'psdExportAssignedCsv()', assigned.length) +
+        '</div>';
     psdRenderGrid('assigned', 'psdAssignedGrid', 'psdAssignedCount', assigned, 'assigned');
-    psdSafeUpdateDateFilterOptions('psdAssignedF', assignedAll);
-    psdOnDateFilterModeChange('psdAssignedF');
+    psdBindMsOutsideClick();
+    psdPopulateMainMsDropdowns('psdAssignedF', assignedAll, psdAssignedFilters, 'psdApplyAssignedFilters');
+    psdSafeUpdateDateFilterOptions('psdAssignedF', assignedAll, 'psdApplyAssignedFilters');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -1789,6 +1935,7 @@ function psdRenderMyQueue(body) {
 
     body.innerHTML =
         psdDateFilterBarOnlyHTML('psdAgentF') +
+        '<div id="psdMyQueueMain">' +
         '<div class="top-stats">' +
             psdTile('In Queue', s.inprogress, 'Open', psdStatusColor(PSD_STATUS.INPROGRESS)) +
             psdTile('Completed', s.completed, 'By you', psdStatusColor(PSD_STATUS.COMPLETED)) +
@@ -1796,12 +1943,13 @@ function psdRenderMyQueue(body) {
             psdTile('Avg SLA', s.avgTtc + ' d', 'Assign/Reassign → done', 'var(--acc2)') +
         '</div>' +
         psdGridSectionHTML('My Queue — In Progress', 'psdAgentQueueGrid', 'psdAgentQueueCount', 'psdAgentSearch', 'psdExportAgentQueueCsv()', inq.length) +
-        psdGridSectionHTML('My Records', 'psdAgentGrid', 'psdAgentRecCount', 'psdAgentRecSearch', 'psdExportAgentRecordsCsv()', mine.length);
+        psdGridSectionHTML('My Records', 'psdAgentGrid', 'psdAgentRecCount', 'psdAgentRecSearch', 'psdExportAgentRecordsCsv()', mine.length) +
+        '</div>';
 
     psdRenderGrid('agentQueue', 'psdAgentQueueGrid', 'psdAgentQueueCount', inq, 'agentqueue');
     psdRenderGrid('agentRecords', 'psdAgentGrid', 'psdAgentRecCount', mine, 'records');
-    psdSafeUpdateDateFilterOptions('psdAgentF', psdScopedItems());
-    psdOnDateFilterModeChange('psdAgentF');
+    psdBindMsOutsideClick();
+    psdSafeUpdateDateFilterOptions('psdAgentF', psdScopedItems(), 'psdApplyAgentDateFilters');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
