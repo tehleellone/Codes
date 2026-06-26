@@ -3886,7 +3886,8 @@ let charts = {};
                     return {
                         name: name,
                         team: idx % 2 === 0 ? 'DSM' : 'TSM_ME',
-                        email: name.toLowerCase().replace(/ /g, '.') + '@du.ae'
+                        email: name.toLowerCase().replace(/ /g, '.') + '@du.ae',
+                        userId: String(100 + idx)
                     };
                 });
                 return;
@@ -3915,6 +3916,7 @@ let charts = {};
                         name: name,
                         team: item.Team || '',
                         email: item.Email_ID || '',
+                        userId: item.User_ID || '',
                         status: item.Status || ''
                     });
                 });
@@ -3922,6 +3924,60 @@ let charts = {};
                 console.log('Account Mapping loaded:', SM_MAPPING_DATA.length, 'records');
             } catch (e) {
                 console.warn('Account Mapping fetch failed:', e);
+            }
+        }
+
+        function smNormalizePersonName(name) {
+            return (name || '').trim().replace(/\s+/g, ' ');
+        }
+
+        async function smResolvePersonId(name) {
+            const norm = smNormalizePersonName(name);
+            if (!norm) return null;
+
+            const mapped = SM_MAPPING_DATA.find(function(a) {
+                return smNormalizePersonName(a.name) === norm;
+            });
+            if (mapped && mapped.userId) {
+                const uid = parseInt(String(mapped.userId).trim(), 10);
+                if (!isNaN(uid) && uid > 0) return uid;
+            }
+
+            if (typeof getUserId === 'function') {
+                const byTitle = await getUserId(name);
+                if (byTitle) return byTitle;
+            }
+
+            if (mapped && mapped.email) {
+                const eUrl = SP_URL + "/_api/web/siteusers?$filter=Email eq '" + mapped.email.replace(/'/g, "''") + "'&$select=Id&$top=1";
+                const eRes = await fetch(eUrl, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
+                if (eRes.ok) {
+                    const eData = await eRes.json();
+                    if (eData.d.results && eData.d.results.length > 0) return eData.d.results[0].Id;
+                }
+            }
+            return null;
+        }
+
+        async function smPatchListItem(itemId, digest, fields) {
+            const updateUrl = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items(" + itemId + ")";
+            const res = await fetch(updateUrl, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json;odata=verbose',
+                    'Content-Type': 'application/json;odata=verbose',
+                    'X-RequestDigest': digest,
+                    'IF-MATCH': '*',
+                    'X-HTTP-Method': 'MERGE'
+                },
+                credentials: 'include',
+                body: JSON.stringify(Object.assign({
+                    __metadata: { type: 'SP.Data.Service_x0020_Manager_x0020_RequestListItem' }
+                }, fields))
+            });
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error('Update failed: ' + errorText);
             }
         }
 
@@ -3972,17 +4028,18 @@ let charts = {};
             const inp = document.getElementById('editSecondarySMInput');
             const dd = document.getElementById('editSecondarySMDD');
             const tag = document.getElementById('editSecondarySMTag');
-            if (hidden) hidden.value = name || '';
+            const normalized = smNormalizePersonName(name);
+            if (hidden) hidden.value = normalized;
             if (inp) inp.value = '';
             if (dd) dd.style.display = 'none';
             if (tag) {
-                if (!name) {
+                if (!normalized) {
                     tag.innerHTML = '';
                     tag.style.display = 'none';
                     return;
                 }
                 tag.innerHTML = '<span style="display:inline-flex;align-items:center;gap:.35rem;background:var(--nab);border:1px solid var(--nab2);border-radius:20px;padding:.22rem .65rem;font-size:.78rem;font-weight:600;color:var(--acc);">' +
-                    name + (team ? ' <span style="font-size:.65rem;opacity:.7;">(' + team + ')</span>' : '') +
+                    normalized + (team ? ' <span style="font-size:.65rem;opacity:.7;">(' + team + ')</span>' : '') +
                     '<span style="cursor:pointer;margin-left:.2rem;font-size:.95rem;" onclick="smClearSecondarySm()">×</span></span>';
                 tag.style.display = 'block';
             }
@@ -8900,7 +8957,13 @@ async function ownerFetchUserRole(email) {
                 renderEditPocFields();
 
                 if (account.secondarySm) {
-                    smSelectSecondarySm(account.secondarySm, '');
+                    const mappedExisting = SM_MAPPING_DATA.find(function(a) {
+                        return smNormalizePersonName(a.name) === smNormalizePersonName(account.secondarySm);
+                    });
+                    smSelectSecondarySm(
+                        mappedExisting ? mappedExisting.name : account.secondarySm,
+                        mappedExisting ? mappedExisting.team : ''
+                    );
                 } else {
                     smClearSecondarySm();
                 }
@@ -9077,7 +9140,8 @@ async function ownerFetchUserRole(email) {
         function reviewEditRequest() {
             const newAM = document.getElementById('editAM').value;
             const newAD = document.getElementById('editAD').value;
-            const newSecondarySm = (document.getElementById('editSecondarySM') || {}).value || '';
+            const newSecondarySm = smNormalizePersonName((document.getElementById('editSecondarySM') || {}).value);
+            const oldSecondarySm = smNormalizePersonName(EDIT_ACCOUNT_DATA.secondarySm);
 
             if (!newAM || !newAD) {
                 alert('Please fill in all required fields');
@@ -9119,7 +9183,7 @@ async function ownerFetchUserRole(email) {
 
             const amChanged = newAM !== EDIT_ACCOUNT_DATA.am;
             const adChanged = newAD !== EDIT_ACCOUNT_DATA.ad;
-            const secondarySmChanged = newSecondarySm !== (EDIT_ACCOUNT_DATA.secondarySm || '');
+            const secondarySmChanged = newSecondarySm !== oldSecondarySm;
             const revenueChanged = newRevenue !== null && newRevenue !== (EDIT_ACCOUNT_DATA.allMonths[revenueField] || 0);
             let newRnpsEligibility = EDIT_ACCOUNT_DATA.rnpsEligibility || '';
             let rnpsChanged = false;
@@ -9198,7 +9262,8 @@ async function ownerFetchUserRole(email) {
             try {
                 const newAM = document.getElementById('editAM').value;
                 const newAD = document.getElementById('editAD').value;
-                const newSecondarySm = (document.getElementById('editSecondarySM') || {}).value || '';
+                const newSecondarySm = smNormalizePersonName((document.getElementById('editSecondarySM') || {}).value);
+                const oldSecondarySm = smNormalizePersonName(EDIT_ACCOUNT_DATA.secondarySm);
 
                 // Find item ID
                 const searchUrl = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items?" +
@@ -9220,21 +9285,10 @@ async function ownerFetchUserRole(email) {
                 // Get user IDs
                 const amId = await getUserId(newAM);
                 const adId = await getUserId(newAD);
-                const secondarySmChanged = newSecondarySm !== (EDIT_ACCOUNT_DATA.secondarySm || '');
+                const secondarySmChanged = newSecondarySm !== oldSecondarySm;
                 let secondarySmId = null;
                 if (secondarySmChanged && newSecondarySm) {
-                    secondarySmId = await getUserId(newSecondarySm);
-                    if (!secondarySmId) {
-                        const mapped = SM_MAPPING_DATA.find(function(a) { return a.name === newSecondarySm; });
-                        if (mapped && mapped.email) {
-                            const eUrl = SP_URL + "/_api/web/siteusers?$filter=Email eq '" + mapped.email.replace(/'/g, "''") + "'&$select=Id&$top=1";
-                            const eRes = await fetch(eUrl, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
-                            if (eRes.ok) {
-                                const eData = await eRes.json();
-                                if (eData.d.results && eData.d.results.length > 0) secondarySmId = eData.d.results[0].Id;
-                            }
-                        }
-                    }
+                    secondarySmId = await smResolvePersonId(newSecondarySm);
                     if (!secondarySmId) throw new Error('Could not resolve Secondary SM user: ' + newSecondarySm);
                 }
 
@@ -9260,7 +9314,14 @@ async function ownerFetchUserRole(email) {
                     Account_x0020_DirectorId: adId
                 };
                 if (secondarySmChanged) {
-                    updateData.Secondary_x0020_Service_x0020_MaId = newSecondarySm ? secondarySmId : null;
+                    const replacingExisting = !!oldSecondarySm && !!newSecondarySm;
+                    if (replacingExisting) {
+                        // SharePoint on-prem person fields often fail on direct swap — clear first, then set new
+                        await smPatchListItem(itemId, digest, { Secondary_x0020_Service_x0020_MaId: null });
+                        updateData.Secondary_x0020_Service_x0020_MaId = secondarySmId;
+                    } else {
+                        updateData.Secondary_x0020_Service_x0020_MaId = newSecondarySm ? secondarySmId : null;
+                    }
                 }
 
                 if (window.EDIT_REVENUE_DATA && window.EDIT_REVENUE_DATA.field) {
