@@ -17,10 +17,26 @@ var psdCharts        = {};
 var psdGrids         = { dash: null, assign: null, assigned: null, agentQueue: null, agentRecords: null };
 var psdUploadRows    = [];
 var psdSelectedAgent = null;
-var psdDashFilters   = { status: '', category: '', agent: '', product: '', search: '' };
+window.PSD_MODULE_VERSION = '2.2.1';
+
+var psdDashFilters   = { status: [], category: [], agent: [], product: [], search: '' };
+var psdDateFilters   = { dateField: 'UploadDate', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
 var psdChartsBuilt   = false;
 var psdLastChartItems = null;
 var psdLastChartSummary = null;
+var psdAgentsVisible = false;
+var psdAdminEmailsCache = null;
+var psdInitInFlight = null;
+
+var PSD_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+var PSD_DATE_FIELD_OPTS = [
+    { key: 'UploadDate', label: 'Upload Date' },
+    { key: 'AssignmentDate', label: 'Assignment Date' },
+    { key: 'ReassignDate', label: 'Reassign Date' },
+    { key: 'CompletedDate', label: 'Completed Date' },
+    { key: 'CreatedOn', label: 'Created' },
+    { key: 'OrderCreatedDate', label: 'Order Created' }
+];
 
 var PSD_COLS = [
     { key: 'ActivityNumber',     header: 'Activity #' },
@@ -65,6 +81,329 @@ function psdEsc(s) {
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function psdOdata(s) { return String(s == null ? '' : s).replace(/'/g, "''"); }
+
+function psdNormAgentName(name) {
+    return String(name || '').trim().replace(/\s+/g, ' ');
+}
+
+function psdAgentNameKey(name) {
+    return psdNormAgentName(name).toLowerCase();
+}
+
+function psdCanonicalAgentName(name) {
+    var key = psdAgentNameKey(name);
+    if (!key) return '';
+    for (var i = 0; i < psdAllAgents.length; i++) {
+        if (psdAgentNameKey(psdAllAgents[i].name) === key) return psdAllAgents[i].name;
+    }
+    return psdNormAgentName(name);
+}
+
+function psdGetSelectVal(id) {
+    var el = document.getElementById(id);
+    return el ? String(el.value || '').trim() : '';
+}
+
+function psdWeekOfMonth(d) {
+    if (!(d instanceof Date) || isNaN(d.getTime())) return null;
+    return Math.ceil(d.getDate() / 7);
+}
+
+function psdDateMeta(iso) {
+    if (!iso) return null;
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    var y = d.getFullYear(), mi = d.getMonth();
+    return {
+        year: y,
+        quarter: Math.floor(mi / 3) + 1,
+        monthIndex: mi,
+        week: psdWeekOfMonth(d),
+        dayStart: new Date(y, mi, d.getDate()).getTime()
+    };
+}
+
+function psdItemDateValue(item, field) {
+    if (!item || !field) return null;
+    return item[field] || null;
+}
+
+function psdApplyDateFilters(items, f) {
+    f = f || psdDateFilters;
+    var field = f.dateField || 'UploadDate';
+    var hasDate = f.from || f.to || f.specific ||
+        (f.years && f.years.length) || (f.quarters && f.quarters.length) ||
+        (f.months && f.months.length) || (f.weeks && f.weeks.length);
+    if (!hasDate) return items;
+    return items.filter(function (it) {
+        var meta = psdDateMeta(psdItemDateValue(it, field));
+        if (!meta) return false;
+        if (f.from) {
+            var fromD = new Date(f.from);
+            if (!isNaN(fromD.getTime())) {
+                fromD.setHours(0, 0, 0, 0);
+                if (meta.dayStart < fromD.getTime()) return false;
+            }
+        }
+        if (f.to) {
+            var toD = new Date(f.to);
+            if (!isNaN(toD.getTime())) {
+                toD.setHours(23, 59, 59, 999);
+                if (meta.dayStart > toD.getTime()) return false;
+            }
+        }
+        if (f.specific) {
+            var spec = new Date(f.specific);
+            if (!isNaN(spec.getTime())) {
+                spec.setHours(0, 0, 0, 0);
+                if (meta.dayStart !== spec.getTime()) return false;
+            }
+        }
+        if (f.years && f.years.length && f.years.indexOf(String(meta.year)) < 0) return false;
+        if (f.quarters && f.quarters.length && f.quarters.indexOf(String(meta.quarter)) < 0) return false;
+        if (f.months && f.months.length && f.months.indexOf(String(meta.monthIndex)) < 0) return false;
+        if (f.weeks && f.weeks.length && f.weeks.indexOf(String(meta.week)) < 0) return false;
+        return true;
+    });
+}
+
+function psdReadDateFiltersFromDom(prefix) {
+    prefix = prefix || 'psdFilter';
+    psdDateFilters.dateField = psdGetSelectVal(prefix + 'DateField') || 'UploadDate';
+    psdDateFilters.from = psdGetSelectVal(prefix + 'DateFrom');
+    psdDateFilters.to = psdGetSelectVal(prefix + 'DateTo');
+    psdDateFilters.specific = psdGetSelectVal(prefix + 'DateSpecific');
+    psdDateFilters.years = psdGetMsValues(prefix + 'DateYearDropdown');
+    psdDateFilters.quarters = psdGetMsValues(prefix + 'DateQuarterDropdown');
+    psdDateFilters.months = psdGetMsValues(prefix + 'DateMonthDropdown');
+    psdDateFilters.weeks = psdGetMsValues(prefix + 'DateWeekDropdown');
+}
+
+function psdResetDateFiltersState() {
+    psdDateFilters = { dateField: 'UploadDate', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
+}
+
+function psdCollectDateMetas(items, field) {
+    var metas = [];
+    (items || []).forEach(function (it) {
+        var meta = psdDateMeta(psdItemDateValue(it, field));
+        if (meta) metas.push(meta);
+    });
+    return metas;
+}
+
+function psdGetMsValues(dropdownId) {
+    var el = document.getElementById(dropdownId);
+    if (!el) return [];
+    return Array.prototype.slice.call(el.querySelectorAll('input[type="checkbox"]:checked')).map(function (cb) { return cb.value; });
+}
+
+window.psdToggleMsDropdown = function (dropdownId) {
+    document.querySelectorAll('.psd-ms .multiselect-dropdown').forEach(function (d) {
+        if (d.id !== dropdownId) d.style.display = 'none';
+    });
+    var dd = document.getElementById(dropdownId);
+    if (dd) dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+};
+
+window.psdUpdateMsText = function (textId, label, dropdownId) {
+    var selected = psdGetMsValues(dropdownId);
+    var el = document.getElementById(textId);
+    if (!el) return;
+    if (selected.length === 0) {
+        el.textContent = 'All ' + label;
+        return;
+    }
+    if (selected.length === 1) {
+        var v = selected[0];
+        if (dropdownId.indexOf('DateQuarter') >= 0) el.textContent = 'Q' + v;
+        else if (dropdownId.indexOf('DateMonth') >= 0) el.textContent = PSD_MONTHS[parseInt(v, 10)] || v;
+        else if (dropdownId.indexOf('DateWeek') >= 0) el.textContent = 'W' + v;
+        else el.textContent = v;
+        return;
+    }
+    el.textContent = selected.length + ' selected';
+};
+
+function psdBuildMsDropdown(dropdownId, textId, label, values, selected, onChangeFn, labelFn) {
+    var dd = document.getElementById(dropdownId);
+    if (!dd) return;
+    var selSet = {};
+    (selected || []).forEach(function (v) { selSet[String(v)] = true; });
+    dd.innerHTML = values.map(function (val) {
+        var disp = labelFn ? labelFn(val) : val;
+        var safeId = dropdownId + '_' + String(val).replace(/\W/g, '_');
+        var checked = selSet[String(val)] ? ' checked' : '';
+        return '<div class="multiselect-option" onclick="event.stopPropagation()">' +
+            '<input type="checkbox" id="' + safeId + '" value="' + psdEsc(val) + '"' + checked +
+            ' onchange="' + onChangeFn + '();psdUpdateMsText(\'' + textId + '\',\'' + label + '\',\'' + dropdownId + '\')">' +
+            '<label for="' + safeId + '">' + psdEsc(disp) + '</label></div>';
+    }).join('');
+    psdUpdateMsText(textId, label, dropdownId);
+}
+
+function psdMsFilterHTML(prefix, key, label) {
+    return '<div class="fb-group"><div class="fb-group-label">' + psdEsc(label) + '</div>' +
+        '<div class="custom-multiselect psd-ms">' +
+            '<div class="multiselect-selected" onclick="event.stopPropagation();psdToggleMsDropdown(\'' + prefix + key + 'Dropdown\')">' +
+                '<span id="' + prefix + key + 'Text">All ' + psdEsc(label) + '</span>' +
+                '<span style="opacity:.75;">▾</span></div>' +
+            '<div class="multiselect-dropdown" id="' + prefix + key + 'Dropdown" style="display:none;"></div>' +
+        '</div></div>';
+}
+
+function psdBindMsOutsideClick() {
+    if (window._psdMsClickBound) return;
+    window._psdMsClickBound = true;
+    document.addEventListener('click', function () {
+        document.querySelectorAll('.psd-ms .multiselect-dropdown').forEach(function (d) { d.style.display = 'none'; });
+    }, true);
+}
+
+function psdPopulateDateMsDropdowns(prefix, items, onChangeFn) {
+    prefix = prefix || 'psdFilter';
+    onChangeFn = onChangeFn || 'psdApplyDashboardFilters';
+    var field = psdDateFilters.dateField || 'UploadDate';
+    var metas = psdCollectDateMetas(items, field);
+    var ySel = psdDateFilters.years || [];
+    var qSel = psdDateFilters.quarters || [];
+    var mSel = psdDateFilters.months || [];
+
+    var years = [], quarters = [], months = [], weeks = [];
+    metas.forEach(function (m) {
+        var ys = String(m.year);
+        if (years.indexOf(ys) < 0) years.push(ys);
+    });
+    years.sort(function (a, b) { return parseInt(b, 10) - parseInt(a, 10); });
+
+    metas.forEach(function (m) {
+        if (ySel.length && ySel.indexOf(String(m.year)) < 0) return;
+        var qs = String(m.quarter);
+        if (quarters.indexOf(qs) < 0) quarters.push(qs);
+    });
+    quarters.sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+
+    metas.forEach(function (m) {
+        if (ySel.length && ySel.indexOf(String(m.year)) < 0) return;
+        if (qSel.length && qSel.indexOf(String(m.quarter)) < 0) return;
+        var ms = String(m.monthIndex);
+        if (months.indexOf(ms) < 0) months.push(ms);
+    });
+    months.sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+
+    metas.forEach(function (m) {
+        if (ySel.length && ySel.indexOf(String(m.year)) < 0) return;
+        if (qSel.length && qSel.indexOf(String(m.quarter)) < 0) return;
+        if (mSel.length && mSel.indexOf(String(m.monthIndex)) < 0) return;
+        if (m.week != null) {
+            var ws = String(m.week);
+            if (weeks.indexOf(ws) < 0) weeks.push(ws);
+        }
+    });
+    weeks.sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+
+    psdBuildMsDropdown(prefix + 'DateYearDropdown', prefix + 'DateYearText', 'Years', years, psdDateFilters.years, onChangeFn);
+    psdBuildMsDropdown(prefix + 'DateQuarterDropdown', prefix + 'DateQuarterText', 'Quarters', quarters, psdDateFilters.quarters, onChangeFn, function (v) { return 'Q' + v; });
+    psdBuildMsDropdown(prefix + 'DateMonthDropdown', prefix + 'DateMonthText', 'Months', months, psdDateFilters.months, onChangeFn, function (v) { return PSD_MONTHS[parseInt(v, 10)] || v; });
+    psdBuildMsDropdown(prefix + 'DateWeekDropdown', prefix + 'DateWeekText', 'Weeks', weeks, psdDateFilters.weeks, onChangeFn, function (v) { return 'W' + v; });
+}
+
+function psdSafeUpdateDateFilterOptions(prefix, items, onChangeFn) {
+    try { psdPopulateDateMsDropdowns(prefix, items, onChangeFn); } catch (e) { console.warn('[PSD] date filter options', e); }
+}
+
+function psdMatchMulti(val, arr) {
+    if (!arr || !arr.length) return true;
+    var s = val == null ? '' : String(val);
+    return arr.some(function (a) { return String(a) === s; });
+}
+
+function psdPopulateMainMsDropdowns(prefix, items, filters, onChangeFn) {
+    prefix = prefix || 'psdFilter';
+    onChangeFn = onChangeFn || 'psdApplyDashboardFilters';
+    filters = filters || psdDashFilters;
+    var cats = psdUniqueValues(items, 'Category');
+    var products = psdUniqueValues(items, 'Product');
+    if (prefix === 'psdFilter') {
+        var statuses = [PSD_STATUS.PENDING, PSD_STATUS.INPROGRESS, PSD_STATUS.COMPLETED];
+        var agents = psdAllAgents.map(function (a) { return a.name; });
+        psdBuildMsDropdown(prefix + 'StatusDropdown', prefix + 'StatusText', 'Statuses', statuses, filters.status, onChangeFn);
+        psdBuildMsDropdown(prefix + 'CategoryDropdown', prefix + 'CategoryText', 'Categories', cats, filters.category, onChangeFn);
+        psdBuildMsDropdown(prefix + 'AgentDropdown', prefix + 'AgentText', 'Agents', agents, filters.agent, onChangeFn);
+        psdBuildMsDropdown(prefix + 'ProductDropdown', prefix + 'ProductText', 'Products', products, filters.product, onChangeFn);
+        return;
+    }
+    if (prefix === 'psdAssignF') {
+        psdBuildMsDropdown(prefix + 'CategoryDropdown', prefix + 'CategoryText', 'Categories', cats, filters.category, onChangeFn);
+        psdBuildMsDropdown(prefix + 'ProductDropdown', prefix + 'ProductText', 'Products', products, filters.product, onChangeFn);
+        return;
+    }
+    if (prefix === 'psdAssignedF') {
+        var agentSet = {};
+        psdUniqueValues(items, 'AssignedToName').forEach(function (n) {
+            var canon = psdCanonicalAgentName(n);
+            if (canon) agentSet[canon] = true;
+        });
+        var agents = Object.keys(agentSet).sort();
+        psdBuildMsDropdown(prefix + 'CategoryDropdown', prefix + 'CategoryText', 'Categories', cats, filters.category, onChangeFn);
+        psdBuildMsDropdown(prefix + 'ProductDropdown', prefix + 'ProductText', 'Products', products, filters.product, onChangeFn);
+        psdBuildMsDropdown(prefix + 'AgentDropdown', prefix + 'AgentText', 'Agents', agents, filters.agent, onChangeFn);
+    }
+}
+
+function psdShowInitError(loadingEl, contentEl, message) {
+    if (contentEl) contentEl.style.display = 'none';
+    if (loadingEl) {
+        loadingEl.style.display = 'block';
+        loadingEl.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-weight:700;color:var(--t1);">Could not load PSD Assignment</div>' +
+            '<div style="font-size:.82rem;color:var(--t3);margin:8px 0;">' + psdEsc(message || 'Unknown error') + '</div>' +
+            '<button type="button" class="export-btn" onclick="psdInit()">Retry</button></div>';
+    }
+}
+
+function psdDateFilterRowHTML(prefix, onChangeFn) {
+    prefix = prefix || 'psdFilter';
+    onChangeFn = onChangeFn || 'psdApplyDashboardFilters';
+    var f = psdDateFilters;
+    var fieldOpts = PSD_DATE_FIELD_OPTS.map(function (o) {
+        return '<option value="' + o.key + '"' + (f.dateField === o.key ? ' selected' : '') + '>' + o.label + '</option>';
+    }).join('');
+    return '<div class="filter-bar-grid" style="margin-top:.55rem;padding-top:.55rem;border-top:1px dashed var(--border);">' +
+        '<div class="fb-group"><div class="fb-group-label">Date Basis</div>' +
+            '<select class="fb-select" id="' + prefix + 'DateField" onchange="' + onChangeFn + '()">' + fieldOpts + '</select></div>' +
+        '<div class="fb-group"><div class="fb-group-label">From</div>' +
+            '<input type="date" class="fb-select" id="' + prefix + 'DateFrom" value="' + psdEsc(f.from) + '" onchange="' + onChangeFn + '()" style="cursor:text;"></div>' +
+        '<div class="fb-group"><div class="fb-group-label">To</div>' +
+            '<input type="date" class="fb-select" id="' + prefix + 'DateTo" value="' + psdEsc(f.to) + '" onchange="' + onChangeFn + '()" style="cursor:text;"></div>' +
+        '<div class="fb-group"><div class="fb-group-label">Specific Date</div>' +
+            '<input type="date" class="fb-select" id="' + prefix + 'DateSpecific" value="' + psdEsc(f.specific) + '" onchange="' + onChangeFn + '()" style="cursor:text;"></div>' +
+        psdMsFilterHTML(prefix, 'DateYear', 'Years') +
+        psdMsFilterHTML(prefix, 'DateQuarter', 'Quarters') +
+        psdMsFilterHTML(prefix, 'DateMonth', 'Months') +
+        psdMsFilterHTML(prefix, 'DateWeek', 'Weeks') +
+    '</div>';
+}
+
+function psdDateFilterBarOnlyHTML(prefix) {
+    prefix = prefix || 'psdAgentF';
+    return '<div class="filter-bar" style="margin-bottom:.85rem;">' +
+        '<div class="filter-bar-header">' +
+            '<span class="filter-bar-label">Date Filters</span>' +
+            '<button type="button" class="reset-btn" onclick="psdResetAgentDateFilters()">Reset</button>' +
+        '</div>' +
+        psdDateFilterRowHTML(prefix, 'psdApplyAgentDateFilters') +
+    '</div>';
+}
+
+window.psdApplyAgentDateFilters = function () {
+    psdReadDateFiltersFromDom('psdAgentF');
+    psdRefreshMyQueueContent();
+};
+
+window.psdResetAgentDateFilters = function () {
+    psdResetDateFiltersState();
+    psdRenderTabBody();
+};
 
 function psdDaysBetween(a, b) {
     if (!a || !b) return null;
@@ -180,6 +519,15 @@ function psdInjectStyles() {
         '.psd-agent-tile-head{display:flex;align-items:center;gap:.55rem;margin-bottom:.55rem}' +
         '.psd-agent-avatar{width:36px;height:36px;border-radius:50%;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.78rem;flex-shrink:0}' +
         '.psd-agent-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.85rem;margin:1rem 0}' +
+        '.psd-ms.custom-multiselect{position:relative;z-index:120;width:100%}' +
+        '.psd-ms .multiselect-selected{padding:.38rem .65rem;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--t1);font-size:.8rem;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;box-sizing:border-box}' +
+        '.psd-ms .multiselect-selected:hover{border-color:var(--acc);box-shadow:0 0 0 2px var(--glow)}' +
+        '.psd-ms .multiselect-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--ch);max-height:240px;overflow-y:auto;z-index:9999}' +
+        '.psd-ms .multiselect-option{padding:8px 12px;display:flex;align-items:center;cursor:pointer;border-bottom:1px solid var(--border)}' +
+        '.psd-ms .multiselect-option:last-child{border-bottom:none}' +
+        '.psd-ms .multiselect-option:hover{background:var(--bg-hover,rgba(148,163,184,.12))}' +
+        '.psd-ms .multiselect-option input[type=checkbox]{margin-right:10px;width:15px;height:15px;cursor:pointer;accent-color:var(--acc)}' +
+        '.psd-ms .multiselect-option label{cursor:pointer;flex:1;font-size:.8rem;color:var(--t1);margin:0}';
     document.head.appendChild(s);
 }
 
@@ -277,9 +625,11 @@ async function psdFetchAgents() {
     var seen = {}, data = await r.json();
     psdAllAgents = [];
     (data.d.results || []).forEach(function (it) {
-        var name = (it.Service_Manager_Name || '').trim();
-        if (!name || seen[name]) return;
-        seen[name] = true;
+        var name = psdNormAgentName(it.Service_Manager_Name || '');
+        if (!name) return;
+        var key = psdAgentNameKey(name);
+        if (seen[key]) return;
+        seen[key] = true;
         psdAllAgents.push({ name: name, email: it.Email_ID || '' });
     });
 }
@@ -335,35 +685,128 @@ async function psdUpdateItem(id, fields, digest) {
     if (!r.ok) throw new Error('Update failed: ' + r.status);
 }
 
+async function psdFetchAdminEmails() {
+    if (psdAdminEmailsCache) return psdAdminEmailsCache.slice();
+    var emails = [];
+    try {
+        var url = SP_URL + "/_api/web/lists/getbytitle('Access_Control')/items?" +
+            "$select=Role,UserEmailID&$filter=(Role eq 'PSD Admin' or Role eq 'Admin')&$top=500";
+        var r = await fetch(url, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
+        if (r.ok) {
+            var data = await r.json();
+            (data.d.results || []).forEach(function (it) {
+                var em = String(it.UserEmailID || '').trim();
+                if (em && emails.indexOf(em) < 0) emails.push(em);
+            });
+        }
+    } catch (e) { console.warn('[PSD] Admin email fetch failed', e); }
+    psdAdminEmailsCache = emails;
+    return emails.slice();
+}
+
+function psdOpenMail(to, subject, body) {
+    var href = 'mailto:';
+    if (to) href += encodeURIComponent(to);
+    href += '?subject=' + encodeURIComponent(subject);
+    href += '&body=' + encodeURIComponent(body);
+    var link = document.createElement('a');
+    link.href = href;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+async function psdSendCompletionEmail(item) {
+    if (!item) return;
+    var admins = await psdFetchAdminEmails();
+    if (!admins.length) {
+        console.warn('[PSD] No PSD Admin emails found in Access_Control');
+        return;
+    }
+    var agentName = psdCanonicalAgentName(item.AssignedToName) || psdUserName() || 'PSD Agent';
+    var subject = '[PSD] Activity Completed — ' + (item.ActivityNumber || ('ID ' + item.ID));
+    var body =
+        'Dear PSD Admin,\n\n' +
+        'A PSD activity has been marked completed by an agent.\n\n' +
+        'Activity #: ' + (item.ActivityNumber || '—') + '\n' +
+        'Order #: ' + (item.OrderNumber || '—') + '\n' +
+        'Customer/Account: ' + (item.CustomerAccount || '—') + '\n' +
+        'Category: ' + (item.Category || '—') + '\n' +
+        'Product: ' + (item.Product || '—') + '\n' +
+        'Completed By: ' + agentName + '\n' +
+        'Completed On: ' + psdFmtDate(new Date().toISOString()) + '\n' +
+        'Upload Date: ' + psdFmtDate(item.UploadDate) + '\n\n' +
+        'Please review in the PSD Assignment dashboard.\n\n' +
+        'This is an automated notification from the Service Management Portal.';
+    try {
+        var digest = await psdGetDigest();
+        var payload = {
+            properties: {
+                To: { results: admins },
+                Subject: subject,
+                Body: body.replace(/\n/g, '<br/>')
+            }
+        };
+        var r = await fetch(SP_URL + '/_api/SP.Utilities.Utility.SendEmail', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'Accept': 'application/json;odata=verbose',
+                'Content-Type': 'application/json;odata=verbose',
+                'X-RequestDigest': digest
+            },
+            body: JSON.stringify(payload)
+        });
+        if (r.ok) return;
+    } catch (e) { console.warn('[PSD] SendEmail failed, opening mail client', e); }
+    psdOpenMail(admins.join(';'), subject, body);
+}
+
 // ============================================================
 // ENTRY + SHELL
 // ============================================================
 window.psdInit = async function () {
-    psdInjectStyles();
-    if (typeof injectAGGridThemeStyles === 'function') injectAGGridThemeStyles();
-    psdSetFullLayout(true);
-    var loadingEl = document.getElementById('psdLoading');
-    var contentEl = document.getElementById('psdContent');
-    if (loadingEl) loadingEl.style.display = 'block';
-    if (contentEl) contentEl.style.display = 'none';
-
-    if (!psdHasAccess()) {
-        if (loadingEl) loadingEl.innerHTML = '<div style="text-align:center;padding:50px;"><div style="font-size:2rem;">🔒</div><div style="font-weight:800;color:var(--t1);">Access Restricted</div></div>';
-        return;
+    if (psdInitInFlight) {
+        try { await psdInitInFlight; return; } catch (e) { /* allow retry below */ }
     }
 
+    var loadingEl = document.getElementById('psdLoading');
+    var contentEl = document.getElementById('psdContent');
+
+    var runInit = async function () {
+        try {
+            psdInjectStyles();
+            if (typeof injectAGGridThemeStyles === 'function') injectAGGridThemeStyles();
+            psdSetFullLayout(true);
+            if (loadingEl) loadingEl.style.display = 'block';
+            if (contentEl) contentEl.style.display = 'none';
+
+            if (!psdHasAccess()) {
+                if (loadingEl) loadingEl.innerHTML = '<div style="text-align:center;padding:50px;"><div style="font-size:2rem;">🔒</div><div style="font-weight:800;color:var(--t1);">Access Restricted</div></div>';
+                return;
+            }
+
+            await Promise.race([
+                Promise.all([psdFetchItems(), psdFetchAgents()]),
+                new Promise(function (_, rej) { setTimeout(function () { rej(new Error('Request timed out after 15s')); }, 15000); })
+            ]);
+
+            if (loadingEl) loadingEl.style.display = 'none';
+            if (contentEl) contentEl.style.display = 'block';
+            psdActiveTab = psdIsAgent() ? 'myqueue' : 'dashboard';
+            psdRenderShell();
+        } catch (e) {
+            console.error('[PSD] init failed', e);
+            psdShowInitError(loadingEl, contentEl, e && e.message ? e.message : String(e));
+        }
+    };
+
+    psdInitInFlight = runInit();
     try {
-        await Promise.race([
-            Promise.all([psdFetchItems(), psdFetchAgents()]),
-            new Promise(function (_, rej) { setTimeout(function () { rej(new Error('Request timed out')); }, 15000); })
-        ]);
-        if (loadingEl) loadingEl.style.display = 'none';
-        if (contentEl) contentEl.style.display = 'block';
-        psdActiveTab = psdIsAgent() ? 'myqueue' : 'dashboard';
-        psdRenderShell();
-    } catch (e) {
-        console.error('[PSD]', e);
-        if (loadingEl) loadingEl.innerHTML = '<div style="text-align:center;padding:40px;"><div style="font-weight:700;color:var(--t1);">Could not load PSD data</div><div style="font-size:.82rem;color:var(--t3);margin:8px 0;">' + psdEsc(e.message) + '</div><button type="button" class="export-btn" onclick="psdInit()">Retry</button></div>';
+        await psdInitInFlight;
+    } finally {
+        psdInitInFlight = null;
     }
 };
 
@@ -394,7 +837,6 @@ function psdRenderShell() {
             '<div><h2 style="font-size:1.15rem;font-weight:900;color:var(--t1);display:flex;align-items:center;gap:.5rem;">' +
             '<i data-lucide="clipboard-list" style="width:24px;height:24px;color:var(--acc);"></i>PSD Assignment</h2>' +
             '<div style="font-size:.76rem;color:var(--t3);margin-top:3px;">' + psdEsc(psdRoleLabel()) + ' · ' + psdEsc(psdUserName()) + '</div></div>' +
-            '<button type="button" class="export-btn" onclick="psdInit()" style="padding:9px 18px;"><i data-lucide="refresh-cw" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Refresh</button>' +
         '</div>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1.1rem;">' +
         tabs.map(function (t) {
@@ -420,12 +862,17 @@ window.psdSwitchTab = function (id) { psdActiveTab = id; psdRenderShell(); };
 function psdRenderTabBody() {
     var body = document.getElementById('psdTabBody');
     if (!body) return;
-    psdDestroyCharts();
-    psdDestroyAllGrids();
-    if (psdActiveTab === 'dashboard') return psdRenderDashboard(body);
-    if (psdActiveTab === 'assign')    return psdRenderAssignQueue(body);
-    if (psdActiveTab === 'assigned')  return psdRenderAssignedQueue(body);
-    if (psdActiveTab === 'myqueue')   return psdRenderMyQueue(body);
+    try {
+        psdDestroyCharts();
+        psdDestroyAllGrids();
+        if (psdActiveTab === 'dashboard') return psdRenderDashboard(body);
+        if (psdActiveTab === 'assign')    return psdRenderAssignQueue(body);
+        if (psdActiveTab === 'assigned')  return psdRenderAssignedQueue(body);
+        if (psdActiveTab === 'myqueue')   return psdRenderMyQueue(body);
+    } catch (e) {
+        console.error('[PSD] tab render failed', e);
+        body.innerHTML = psdErrBox('Could not render PSD view: ' + psdEsc(e && e.message ? e.message : String(e)));
+    }
 }
 
 function psdDestroyCharts() {
@@ -462,10 +909,10 @@ function psdUniqueValues(items, field) {
 function psdApplyDashFilters(items) {
     var f = psdDashFilters;
     return items.filter(function (it) {
-        if (f.status && it.PSDStatus !== f.status) return false;
-        if (f.category && it.Category !== f.category) return false;
-        if (f.agent && it.AssignedToName !== f.agent) return false;
-        if (f.product && it.Product !== f.product) return false;
+        if (!psdMatchMulti(it.PSDStatus, f.status)) return false;
+        if (!psdMatchMulti(it.Category, f.category)) return false;
+        if (f.agent && f.agent.length && !psdMatchMulti(psdCanonicalAgentName(it.AssignedToName), f.agent)) return false;
+        if (!psdMatchMulti(it.Product, f.product)) return false;
         if (f.search) {
             var q = f.search.toLowerCase();
             var blob = [it.ActivityNumber, it.OrderNumber, it.CustomerAccount, it.Description, it.Category, it.AssignedToName].join(' ').toLowerCase();
@@ -475,104 +922,115 @@ function psdApplyDashFilters(items) {
     });
 }
 
+function psdFilterItems(items) {
+    return psdApplyDashFilters(psdApplyDateFilters(items, psdDateFilters));
+}
+
 function psdReadDashFiltersFromDom() {
-    psdDashFilters.status   = (document.getElementById('psdFilterStatus')   || {}).value || '';
-    psdDashFilters.category = (document.getElementById('psdFilterCategory') || {}).value || '';
-    psdDashFilters.agent    = (document.getElementById('psdFilterAgent')    || {}).value || '';
-    psdDashFilters.product  = (document.getElementById('psdFilterProduct')  || {}).value || '';
-    psdDashFilters.search   = (document.getElementById('psdFilterSearch')   || {}).value || '';
-    psdSelectedAgent = psdDashFilters.agent || null;
+    psdDashFilters.status   = psdGetMsValues('psdFilterStatusDropdown');
+    psdDashFilters.category = psdGetMsValues('psdFilterCategoryDropdown');
+    psdDashFilters.agent    = psdGetMsValues('psdFilterAgentDropdown');
+    psdDashFilters.product  = psdGetMsValues('psdFilterProductDropdown');
+    psdDashFilters.search   = (document.getElementById('psdFilterSearch') || {}).value || '';
+    psdReadDateFiltersFromDom('psdFilter');
+    psdSelectedAgent = psdDashFilters.agent.length === 1 ? psdDashFilters.agent[0] : null;
 }
 
 window.psdApplyDashboardFilters = function () {
     psdReadDashFiltersFromDom();
-    psdRenderTabBody();
+    psdRefreshDashboardContent();
 };
 
 window.psdResetDashboardFilters = function () {
-    psdDashFilters = { status: '', category: '', agent: '', product: '', search: '' };
+    psdDashFilters = { status: [], category: [], agent: [], product: [], search: '' };
+    psdResetDateFiltersState();
     psdSelectedAgent = null;
     psdRenderTabBody();
 };
 
 window.psdSelectAgentTile = function (name) {
-    psdSelectedAgent = psdSelectedAgent === name ? null : name;
-    psdDashFilters.agent = psdSelectedAgent || '';
-    psdRenderTabBody();
+    if (psdDashFilters.agent.length === 1 && psdDashFilters.agent[0] === name) {
+        psdDashFilters.agent = [];
+        psdSelectedAgent = null;
+    } else {
+        psdDashFilters.agent = [name];
+        psdSelectedAgent = name;
+    }
+    psdBuildMsDropdown('psdFilterAgentDropdown', 'psdFilterAgentText', 'Agents',
+        psdAllAgents.map(function (a) { return a.name; }), psdDashFilters.agent, 'psdApplyDashboardFilters');
+    psdRefreshDashboardContent();
 };
 
 function psdFilterBarHTML(items, prefix) {
     prefix = prefix || 'psdFilter';
-    var statuses = [PSD_STATUS.PENDING, PSD_STATUS.INPROGRESS, PSD_STATUS.COMPLETED];
-    var cats = psdUniqueValues(items, 'Category');
-    var agents = psdAllAgents.map(function (a) { return a.name; });
-    var products = psdUniqueValues(items, 'Product');
-    function sel(id, label, opts, val) {
-        return '<div class="fb-group"><div class="fb-group-label">' + label + '</div>' +
-            '<select class="fb-select" id="' + prefix + id + '" onchange="psdApplyDashboardFilters()">' +
-            '<option value="">All</option>' + opts.map(function (o) {
-                return '<option value="' + psdEsc(o) + '"' + (val === o ? ' selected' : '') + '>' + psdEsc(o) + '</option>';
-            }).join('') + '</select></div>';
-    }
     return '<div class="filter-bar" style="margin-bottom:.85rem;">' +
         '<div class="filter-bar-header">' +
             '<span class="filter-bar-label">Filters</span>' +
             '<button type="button" class="reset-btn" onclick="psdResetDashboardFilters()">Reset</button>' +
         '</div>' +
         '<div class="filter-bar-grid">' +
-            sel('Status', 'Status', statuses, psdDashFilters.status) +
-            sel('Category', 'Category', cats, psdDashFilters.category) +
-            sel('Agent', 'Assigned To', agents, psdDashFilters.agent) +
-            sel('Product', 'Product', products, psdDashFilters.product) +
+            psdMsFilterHTML(prefix, 'Status', 'Statuses') +
+            psdMsFilterHTML(prefix, 'Category', 'Categories') +
+            psdMsFilterHTML(prefix, 'Agent', 'Agents') +
+            psdMsFilterHTML(prefix, 'Product', 'Products') +
             '<div class="fb-group"><div class="fb-group-label">Search</div>' +
             '<input type="text" class="fb-select" id="' + prefix + 'Search" placeholder="Activity, Order, Customer…" value="' + psdEsc(psdDashFilters.search) + '" oninput="psdApplyDashboardFilters()" style="cursor:text;"></div>' +
-        '</div></div>';
+        '</div>' +
+        psdDateFilterRowHTML(prefix, 'psdApplyDashboardFilters') +
+        '</div>';
 }
 
-var psdAssignFilters = { category: '', product: '' };
-var psdAssignedFilters = { category: '', product: '', agent: '' };
+var psdAssignFilters = { category: [], product: [] };
+var psdAssignedFilters = { category: [], product: [], agent: [] };
 
 function psdQueueFilterBarHTML(type, items) {
     var prefix = type === 'assign' ? 'psdAssignF' : 'psdAssignedF';
     var f = type === 'assign' ? psdAssignFilters : psdAssignedFilters;
     var fn = type === 'assign' ? 'psdApplyAssignFilters' : 'psdApplyAssignedFilters';
     var resetFn = type === 'assign' ? 'psdResetAssignFilters' : 'psdResetAssignedFilters';
-    var cats = psdUniqueValues(items, 'Category');
-    var products = psdUniqueValues(items, 'Product');
-    var agents = psdUniqueValues(items, 'AssignedToName');
-    function sel(id, label, opts, val) {
-        return '<div class="fb-group"><div class="fb-group-label">' + label + '</div>' +
-            '<select class="fb-select" id="' + prefix + id + '" onchange="' + fn + '()">' +
-            '<option value="">All</option>' + opts.map(function (o) {
-                return '<option value="' + psdEsc(o) + '"' + (val === o ? ' selected' : '') + '>' + psdEsc(o) + '</option>';
-            }).join('') + '</select></div>';
-    }
-    var agentCol = type === 'assigned' ? sel('Agent', 'Assigned To', agents, f.agent) : '';
+    var agentCol = type === 'assigned' ? psdMsFilterHTML(prefix, 'Agent', 'Agents') : '';
     return '<div class="filter-bar" style="margin-bottom:.85rem;">' +
         '<div class="filter-bar-header"><span class="filter-bar-label">Filters</span>' +
         '<button type="button" class="reset-btn" onclick="' + resetFn + '()">Reset</button></div>' +
-        '<div class="filter-bar-grid">' + sel('Category', 'Category', cats, f.category) + sel('Product', 'Product', products, f.product) + agentCol + '</div></div>';
+        '<div class="filter-bar-grid">' +
+            psdMsFilterHTML(prefix, 'Category', 'Categories') +
+            psdMsFilterHTML(prefix, 'Product', 'Products') +
+            agentCol +
+        '</div>' +
+        psdDateFilterRowHTML(prefix, fn) +
+        '</div>';
 }
 
 window.psdApplyAssignFilters = function () {
-    psdAssignFilters.category = (document.getElementById('psdAssignFCategory') || {}).value || '';
-    psdAssignFilters.product = (document.getElementById('psdAssignFProduct') || {}).value || '';
+    psdAssignFilters.category = psdGetMsValues('psdAssignFCategoryDropdown');
+    psdAssignFilters.product = psdGetMsValues('psdAssignFProductDropdown');
+    psdReadDateFiltersFromDom('psdAssignF');
+    psdRefreshAssignContent();
+};
+window.psdResetAssignFilters = function () {
+    psdAssignFilters = { category: [], product: [] };
+    psdResetDateFiltersState();
     psdRenderTabBody();
 };
-window.psdResetAssignFilters = function () { psdAssignFilters = { category: '', product: '' }; psdRenderTabBody(); };
 window.psdApplyAssignedFilters = function () {
-    psdAssignedFilters.category = (document.getElementById('psdAssignedFCategory') || {}).value || '';
-    psdAssignedFilters.product = (document.getElementById('psdAssignedFProduct') || {}).value || '';
-    psdAssignedFilters.agent = (document.getElementById('psdAssignedFAgent') || {}).value || '';
+    psdAssignedFilters.category = psdGetMsValues('psdAssignedFCategoryDropdown');
+    psdAssignedFilters.product = psdGetMsValues('psdAssignedFProductDropdown');
+    psdAssignedFilters.agent = psdGetMsValues('psdAssignedFAgentDropdown');
+    psdReadDateFiltersFromDom('psdAssignedF');
+    psdRefreshAssignedContent();
+};
+window.psdResetAssignedFilters = function () {
+    psdAssignedFilters = { category: [], product: [], agent: [] };
+    psdResetDateFiltersState();
     psdRenderTabBody();
 };
-window.psdResetAssignedFilters = function () { psdAssignedFilters = { category: '', product: '', agent: '' }; psdRenderTabBody(); };
 
 function psdApplyQueueFilters(items, f, includeAgent) {
+    items = psdApplyDateFilters(items, psdDateFilters);
     return items.filter(function (it) {
-        if (f.category && it.Category !== f.category) return false;
-        if (f.product && it.Product !== f.product) return false;
-        if (includeAgent && f.agent && it.AssignedToName !== f.agent) return false;
+        if (!psdMatchMulti(it.Category, f.category)) return false;
+        if (!psdMatchMulti(it.Product, f.product)) return false;
+        if (includeAgent && f.agent && f.agent.length && !psdMatchMulti(psdCanonicalAgentName(it.AssignedToName), f.agent)) return false;
         return true;
     });
 }
@@ -605,11 +1063,16 @@ function psdInitials(name) {
 
 function psdAgentStats(items) {
     var stats = {};
-    psdAllAgents.forEach(function (a) { stats[a.name] = { name: a.name, email: a.email, assigned: 0, inprogress: 0, completed: 0, slaSum: 0, slaN: 0 }; });
+    psdAllAgents.forEach(function (a) {
+        stats[psdAgentNameKey(a.name)] = { name: a.name, email: a.email, assigned: 0, inprogress: 0, completed: 0, slaSum: 0, slaN: 0 };
+    });
     items.forEach(function (it) {
         if (!it.AssignedToName) return;
-        if (!stats[it.AssignedToName]) stats[it.AssignedToName] = { name: it.AssignedToName, email: it.AssignedToEmail || '', assigned: 0, inprogress: 0, completed: 0, slaSum: 0, slaN: 0 };
-        var st = stats[it.AssignedToName];
+        var canon = psdCanonicalAgentName(it.AssignedToName);
+        var key = psdAgentNameKey(canon);
+        if (!key) return;
+        if (!stats[key]) stats[key] = { name: canon, email: it.AssignedToEmail || '', assigned: 0, inprogress: 0, completed: 0, slaSum: 0, slaN: 0 };
+        var st = stats[key];
         st.assigned++;
         if (it.PSDStatus === PSD_STATUS.INPROGRESS) st.inprogress++;
         if (it.PSDStatus === PSD_STATUS.COMPLETED) {
@@ -629,7 +1092,7 @@ function psdAgentTilesHTML(items) {
         rows.map(function (st) {
             var avgSla = st.slaN ? Math.round(st.slaSum / st.slaN) : 0;
             var rate = st.assigned ? Math.round((st.completed / st.assigned) * 100) : 0;
-            var sel = psdSelectedAgent === st.name ? ' selected' : '';
+            var sel = (psdDashFilters.agent.indexOf(st.name) >= 0 || psdSelectedAgent === st.name) ? ' selected' : '';
             return '<div class="psd-agent-tile' + sel + '" onclick="psdSelectAgentTile(\'' + psdEsc(st.name).replace(/'/g, "\\'") + '\')">' +
                 '<div class="psd-agent-tile-head"><div class="psd-agent-avatar">' + psdEsc(psdInitials(st.name)) + '</div>' +
                 '<div><div style="font-weight:800;font-size:.88rem;color:var(--t1);">' + psdEsc(st.name) + '</div>' +
@@ -829,6 +1292,7 @@ function psdReassignActionRenderer(params) {
     if (!params.data) return null;
     var wrap = document.createElement('div');
     wrap.className = 'psd-grid-action';
+    wrap.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
     var sel = psdAgentSelectEl(params.data.assignedTo === '—' ? '' : params.data.assignedTo);
     var btn = document.createElement('button');
     btn.type = 'button';
@@ -839,6 +1303,15 @@ function psdReassignActionRenderer(params) {
     };
     wrap.appendChild(sel);
     wrap.appendChild(btn);
+    if (params.data.psdStatus === PSD_STATUS.INPROGRESS) {
+        var cBtn = document.createElement('button');
+        cBtn.type = 'button';
+        cBtn.className = 'export-btn';
+        cBtn.style.cssText = 'padding:4px 10px;font-size:.68rem;';
+        cBtn.textContent = 'Complete';
+        cBtn.onclick = function () { psdComplete(params.data.id); };
+        wrap.appendChild(cBtn);
+    }
     return wrap;
 }
 
@@ -907,9 +1380,11 @@ function psdBuildColDefs(mode) {
     if (mode === 'assign') {
         cols.push({ headerName: 'Action', width: 210, minWidth: 190, pinned: 'right', sortable: false, filter: false, cellRenderer: psdAssignActionRenderer });
     } else if (mode === 'assigned') {
-        cols.push({ headerName: 'Reassign', width: 220, minWidth: 200, pinned: 'right', sortable: false, filter: false, cellRenderer: psdReassignActionRenderer });
+        cols.push({ headerName: 'Actions', width: 300, minWidth: 260, pinned: 'right', sortable: false, filter: false, cellRenderer: psdReassignActionRenderer });
     } else if (mode === 'agentqueue') {
         cols.push({ headerName: 'Action', width: 120, minWidth: 100, pinned: 'right', sortable: false, filter: false, cellRenderer: psdCompleteActionRenderer });
+    } else if (mode === 'records' && psdIsAdminLike()) {
+        cols.push({ headerName: 'Complete', width: 120, minWidth: 100, pinned: 'right', sortable: false, filter: false, cellRenderer: psdCompleteActionRenderer });
     }
     return cols.map(function (col) { return col.colId === 'psd_select' ? col : psdEnhanceColDef(col); });
 }
@@ -1032,17 +1507,8 @@ function psdUploadSectionHTML() {
         '<div id="psdUploadPreview" style="margin-top:1rem;"></div></div>';
 }
 
-function psdRenderDashboard(body) {
-    var base = psdAllItems;
-    var items = psdApplyDashFilters(base);
-    var s = psdSummary(items);
-    psdChartsBuilt = false;
-    psdLastChartItems = items;
-    psdLastChartSummary = s;
-
-    body.innerHTML =
-        psdFilterBarHTML(base) +
-        '<div class="top-stats">' +
+function psdDashboardMainHTML(dateFiltered, items, s) {
+    return '<div class="top-stats">' +
             psdTile('Total', s.total, 'Filtered view', 'var(--acc)') +
             psdTile('Pending', s.pending, 'Awaiting assign', psdStatusColor(PSD_STATUS.PENDING)) +
             psdTile('In Progress', s.inprogress, 'With agents', psdStatusColor(PSD_STATUS.INPROGRESS)) +
@@ -1050,14 +1516,22 @@ function psdRenderDashboard(body) {
             psdTile('Avg Aging', s.avgAging + ' d', 'Upload → now/done', 'var(--acc2)') +
             psdTile('Avg SLA', s.avgTtc + ' d', 'Assign/Reassign → done', 'var(--acc2)') +
         '</div>' +
-        psdAgentTilesHTML(base) +
+        '<div style="text-align:center;margin:1rem 0;">' +
+            '<button type="button" id="psdToggleAgentsBtn" class="export-btn" onclick="psdToggleAgents()" style="padding:12px 24px;font-size:14px;">' +
+                '<i data-lucide="eye" id="psdAgentsIcon" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>' +
+                '<span id="psdAgentsText">' + (psdAgentsVisible ? 'Hide PSD Agents' : 'Show PSD Agents') + '</span>' +
+            '</button>' +
+        '</div>' +
+        '<div id="psdAgentsSection" style="display:' + (psdAgentsVisible ? 'block' : 'none') + ';">' +
+            psdAgentTilesHTML(dateFiltered) +
+        '</div>' +
         '<div style="text-align:center;margin:1rem 0;">' +
             '<button type="button" id="psdToggleChartsBtn" class="export-btn" onclick="psdToggleCharts()" style="padding:12px 24px;font-size:14px;">' +
                 '<i data-lucide="eye" id="psdChartsIcon" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>' +
-                '<span id="psdChartsText">Show Analytics Charts</span>' +
+                '<span id="psdChartsText">' + (psdChartsBuilt ? 'Hide Analytics Charts' : 'Show Analytics Charts') + '</span>' +
             '</button>' +
         '</div>' +
-        '<div id="psdChartsSection" class="psd-chart-grid" style="display:none;">' +
+        '<div id="psdChartsSection" class="psd-chart-grid" style="display:' + (psdChartsBuilt ? 'grid' : 'none') + ';">' +
             psdChartCard('Status Breakdown', 'psdChartStatus', 'Pipeline mix', true) +
             psdChartCard('Completed by Agent', 'psdChartAgent', 'Throughput', true) +
             psdChartCard('By Category', 'psdChartCategory', 'Excel tabs', false) +
@@ -1065,10 +1539,140 @@ function psdRenderDashboard(body) {
         '</div>' +
         psdUploadSectionHTML() +
         psdGridSectionHTML('All Records', 'psdGrid', 'psdDashCount', 'psdDashSearch', 'psdExportDashCsv()', items.length);
+}
 
+function psdRefreshDashboardContent() {
+    var body = document.getElementById('psdTabBody');
+    var base = psdAllItems;
+    var dateFiltered = psdApplyDateFilters(base, psdDateFilters);
+    var items = psdApplyDashFilters(dateFiltered);
+    var s = psdSummary(items);
+    psdLastChartItems = items;
+    psdLastChartSummary = s;
+
+    var main = document.getElementById('psdDashMain');
+    if (!main) {
+        if (body) psdRenderDashboard(body);
+        return;
+    }
+
+    main.innerHTML = psdDashboardMainHTML(dateFiltered, items, s);
     psdRenderGrid('dash', 'psdGrid', 'psdDashCount', items, 'records');
+    psdSafeUpdateDateFilterOptions('psdFilter', dateFiltered, 'psdApplyDashboardFilters');
+
+    if (psdChartsBuilt) {
+        psdDestroyCharts();
+        psdBuildDashboardCharts(items, s);
+    }
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    if (psdAgentsVisible) {
+        var agIcon = document.getElementById('psdAgentsIcon');
+        if (agIcon) agIcon.setAttribute('data-lucide', 'eye-off');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+function psdRefreshAssignContent() {
+    var pendingAll = psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.PENDING; });
+    var pending = psdApplyQueueFilters(pendingAll, psdAssignFilters, false);
+    var main = document.getElementById('psdAssignMain');
+    if (!main) {
+        var body = document.getElementById('psdTabBody');
+        if (body) psdRenderAssignQueue(body);
+        return;
+    }
+    main.innerHTML = psdBulkBarHTML('assign') +
+        psdGridSectionHTML('Assign Queue — Pending', 'psdAssignGrid', 'psdAssignCount', 'psdAssignSearch', 'psdExportAssignCsv()', pending.length);
+    psdRenderGrid('assign', 'psdAssignGrid', 'psdAssignCount', pending, 'assign');
+    psdSafeUpdateDateFilterOptions('psdAssignF', pendingAll, 'psdApplyAssignFilters');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
+
+function psdRefreshAssignedContent() {
+    var assignedAll = psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.INPROGRESS; });
+    var assigned = psdApplyQueueFilters(assignedAll, psdAssignedFilters, true);
+    var main = document.getElementById('psdAssignedMain');
+    if (!main) {
+        var body = document.getElementById('psdTabBody');
+        if (body) psdRenderAssignedQueue(body);
+        return;
+    }
+    main.innerHTML = psdBulkBarHTML('reassign') +
+        psdGridSectionHTML('Assigned Queue — In Progress', 'psdAssignedGrid', 'psdAssignedCount', 'psdAssignedSearch', 'psdExportAssignedCsv()', assigned.length);
+    psdRenderGrid('assigned', 'psdAssignedGrid', 'psdAssignedCount', assigned, 'assigned');
+    psdSafeUpdateDateFilterOptions('psdAssignedF', assignedAll, 'psdApplyAssignedFilters');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function psdRefreshMyQueueContent() {
+    var mine = psdApplyDateFilters(psdScopedItems(), psdDateFilters);
+    var s = psdSummary(mine);
+    var inq = mine.filter(function (it) { return it.PSDStatus === PSD_STATUS.INPROGRESS; });
+    var main = document.getElementById('psdMyQueueMain');
+    if (!main) {
+        var body = document.getElementById('psdTabBody');
+        if (body) psdRenderMyQueue(body);
+        return;
+    }
+    main.innerHTML =
+        '<div class="top-stats">' +
+            psdTile('In Queue', s.inprogress, 'Open', psdStatusColor(PSD_STATUS.INPROGRESS)) +
+            psdTile('Completed', s.completed, 'By you', psdStatusColor(PSD_STATUS.COMPLETED)) +
+            psdTile('Total Assigned', mine.length, 'All time', 'var(--acc)') +
+            psdTile('Avg SLA', s.avgTtc + ' d', 'Assign/Reassign → done', 'var(--acc2)') +
+        '</div>' +
+        psdGridSectionHTML('My Queue — In Progress', 'psdAgentQueueGrid', 'psdAgentQueueCount', 'psdAgentSearch', 'psdExportAgentQueueCsv()', inq.length) +
+        psdGridSectionHTML('My Records', 'psdAgentGrid', 'psdAgentRecCount', 'psdAgentRecSearch', 'psdExportAgentRecordsCsv()', mine.length);
+    psdRenderGrid('agentQueue', 'psdAgentQueueGrid', 'psdAgentQueueCount', inq, 'agentqueue');
+    psdRenderGrid('agentRecords', 'psdAgentGrid', 'psdAgentRecCount', mine, 'records');
+    psdSafeUpdateDateFilterOptions('psdAgentF', psdScopedItems(), 'psdApplyAgentDateFilters');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function psdRenderDashboard(body) {
+    var base = psdAllItems;
+    var dateFiltered = psdApplyDateFilters(base, psdDateFilters);
+    var items = psdApplyDashFilters(dateFiltered);
+    var s = psdSummary(items);
+    psdChartsBuilt = false;
+    psdLastChartItems = items;
+    psdLastChartSummary = s;
+
+    body.innerHTML =
+        psdFilterBarHTML(dateFiltered) +
+        '<div id="psdDashMain">' + psdDashboardMainHTML(dateFiltered, items, s) + '</div>';
+
+    psdRenderGrid('dash', 'psdGrid', 'psdDashCount', items, 'records');
+    psdBindMsOutsideClick();
+    psdPopulateMainMsDropdowns('psdFilter', dateFiltered, psdDashFilters, 'psdApplyDashboardFilters');
+    psdSafeUpdateDateFilterOptions('psdFilter', dateFiltered, 'psdApplyDashboardFilters');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    if (psdAgentsVisible) {
+        var agIcon = document.getElementById('psdAgentsIcon');
+        if (agIcon) agIcon.setAttribute('data-lucide', 'eye-off');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+window.psdToggleAgents = function () {
+    var section = document.getElementById('psdAgentsSection');
+    var icon = document.getElementById('psdAgentsIcon');
+    var text = document.getElementById('psdAgentsText');
+    if (!section) return;
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        psdAgentsVisible = true;
+        if (icon) icon.setAttribute('data-lucide', 'eye-off');
+        if (text) text.textContent = 'Hide PSD Agents';
+    } else {
+        section.style.display = 'none';
+        psdAgentsVisible = false;
+        if (icon) icon.setAttribute('data-lucide', 'eye');
+        if (text) text.textContent = 'Show PSD Agents';
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+};
 
 window.psdToggleCharts = function () {
     var section = document.getElementById('psdChartsSection');
@@ -1122,7 +1726,12 @@ function psdBuildDashboardCharts(items, s) {
     }
 
     var byAgent = {};
-    items.forEach(function (it) { if (it.PSDStatus === PSD_STATUS.COMPLETED && it.AssignedToName) byAgent[it.AssignedToName] = (byAgent[it.AssignedToName] || 0) + 1; });
+    items.forEach(function (it) {
+        if (it.PSDStatus !== PSD_STATUS.COMPLETED || !it.AssignedToName) return;
+        var agent = psdCanonicalAgentName(it.AssignedToName);
+        if (!agent) return;
+        byAgent[agent] = (byAgent[agent] || 0) + 1;
+    });
     var names = Object.keys(byAgent).sort(function (a, b) { return byAgent[b] - byAgent[a]; });
     var ac = document.getElementById('psdChartAgent');
     if (ac) psdCharts.agent = new Chart(ac, {
@@ -1197,23 +1806,33 @@ function psdBuildDashboardCharts(items, s) {
 // ============================================================
 function psdRenderAssignQueue(body) {
     if (!psdAllAgents.length) { body.innerHTML = psdErrBox('No PSD agents in Account Mapping (Team = PSD).'); return; }
-    var pending = psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.PENDING; });
-    pending = psdApplyQueueFilters(pending, psdAssignFilters, false);
-    body.innerHTML = psdQueueFilterBarHTML('assign', psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.PENDING; })) +
+    var pendingAll = psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.PENDING; });
+    var pending = psdApplyQueueFilters(pendingAll, psdAssignFilters, false);
+    body.innerHTML = psdQueueFilterBarHTML('assign', pendingAll) +
+        '<div id="psdAssignMain">' +
         psdBulkBarHTML('assign') +
-        psdGridSectionHTML('Assign Queue — Pending', 'psdAssignGrid', 'psdAssignCount', 'psdAssignSearch', 'psdExportAssignCsv()', pending.length);
+        psdGridSectionHTML('Assign Queue — Pending', 'psdAssignGrid', 'psdAssignCount', 'psdAssignSearch', 'psdExportAssignCsv()', pending.length) +
+        '</div>';
     psdRenderGrid('assign', 'psdAssignGrid', 'psdAssignCount', pending, 'assign');
+    psdBindMsOutsideClick();
+    psdPopulateMainMsDropdowns('psdAssignF', pendingAll, psdAssignFilters, 'psdApplyAssignFilters');
+    psdSafeUpdateDateFilterOptions('psdAssignF', pendingAll, 'psdApplyAssignFilters');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function psdRenderAssignedQueue(body) {
     if (!psdAllAgents.length) { body.innerHTML = psdErrBox('No PSD agents in Account Mapping (Team = PSD).'); return; }
-    var assigned = psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.INPROGRESS; });
-    assigned = psdApplyQueueFilters(assigned, psdAssignedFilters, true);
-    body.innerHTML = psdQueueFilterBarHTML('assigned', psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.INPROGRESS; })) +
+    var assignedAll = psdAllItems.filter(function (it) { return it.PSDStatus === PSD_STATUS.INPROGRESS; });
+    var assigned = psdApplyQueueFilters(assignedAll, psdAssignedFilters, true);
+    body.innerHTML = psdQueueFilterBarHTML('assigned', assignedAll) +
+        '<div id="psdAssignedMain">' +
         psdBulkBarHTML('reassign') +
-        psdGridSectionHTML('Assigned Queue — In Progress', 'psdAssignedGrid', 'psdAssignedCount', 'psdAssignedSearch', 'psdExportAssignedCsv()', assigned.length);
+        psdGridSectionHTML('Assigned Queue — In Progress', 'psdAssignedGrid', 'psdAssignedCount', 'psdAssignedSearch', 'psdExportAssignedCsv()', assigned.length) +
+        '</div>';
     psdRenderGrid('assigned', 'psdAssignedGrid', 'psdAssignedCount', assigned, 'assigned');
+    psdBindMsOutsideClick();
+    psdPopulateMainMsDropdowns('psdAssignedF', assignedAll, psdAssignedFilters, 'psdApplyAssignedFilters');
+    psdSafeUpdateDateFilterOptions('psdAssignedF', assignedAll, 'psdApplyAssignedFilters');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -1321,11 +1940,13 @@ function psdErrBox(msg) {
 // MY QUEUE (Agent)
 // ============================================================
 function psdRenderMyQueue(body) {
-    var mine = psdScopedItems();
+    var mine = psdApplyDateFilters(psdScopedItems(), psdDateFilters);
     var s = psdSummary(mine);
     var inq = mine.filter(function (it) { return it.PSDStatus === PSD_STATUS.INPROGRESS; });
 
     body.innerHTML =
+        psdDateFilterBarOnlyHTML('psdAgentF') +
+        '<div id="psdMyQueueMain">' +
         '<div class="top-stats">' +
             psdTile('In Queue', s.inprogress, 'Open', psdStatusColor(PSD_STATUS.INPROGRESS)) +
             psdTile('Completed', s.completed, 'By you', psdStatusColor(PSD_STATUS.COMPLETED)) +
@@ -1333,19 +1954,27 @@ function psdRenderMyQueue(body) {
             psdTile('Avg SLA', s.avgTtc + ' d', 'Assign/Reassign → done', 'var(--acc2)') +
         '</div>' +
         psdGridSectionHTML('My Queue — In Progress', 'psdAgentQueueGrid', 'psdAgentQueueCount', 'psdAgentSearch', 'psdExportAgentQueueCsv()', inq.length) +
-        psdGridSectionHTML('My Records', 'psdAgentGrid', 'psdAgentRecCount', 'psdAgentRecSearch', 'psdExportAgentRecordsCsv()', mine.length);
+        psdGridSectionHTML('My Records', 'psdAgentGrid', 'psdAgentRecCount', 'psdAgentRecSearch', 'psdExportAgentRecordsCsv()', mine.length) +
+        '</div>';
 
     psdRenderGrid('agentQueue', 'psdAgentQueueGrid', 'psdAgentQueueCount', inq, 'agentqueue');
     psdRenderGrid('agentRecords', 'psdAgentGrid', 'psdAgentRecCount', mine, 'records');
+    psdBindMsOutsideClick();
+    psdSafeUpdateDateFilterOptions('psdAgentF', psdScopedItems(), 'psdApplyAgentDateFilters');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 window.psdComplete = async function (id) {
+    var item = psdAllItems.find(function (it) { return it.ID === id; });
     var digest;
     try { digest = await psdGetDigest(); } catch (e) { psdToast('Digest error', 'error'); return; }
     try {
         await psdUpdateItem(id, { PSDStatus: PSD_STATUS.COMPLETED, CompletedDate: new Date().toISOString() }, digest);
-        psdToast('Marked completed', 'success');
+        if (item && !psdIsAdminLike()) {
+            var notifyItem = Object.assign({}, item, { PSDStatus: PSD_STATUS.COMPLETED, CompletedDate: new Date().toISOString() });
+            try { await psdSendCompletionEmail(notifyItem); } catch (mailErr) { console.warn('[PSD] completion email', mailErr); }
+        }
+        psdToast(psdIsAdminLike() ? 'Marked completed' : 'Marked completed — admin notified', 'success');
         await psdFetchItems();
         psdRenderTabBody();
     } catch (e) { psdToast('Could not complete', 'error'); }
