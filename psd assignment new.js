@@ -1,5 +1,5 @@
 // ============================================================
-// psd-assignment.js — PSD Assignment Module v2
+// psd-assignment.js — PSD Assignment Module v2.3.0
 // List: PSD_Assignments | Agents: Account Mapping (Team = PSD)
 // ============================================================
 
@@ -17,10 +17,11 @@ var psdCharts        = {};
 var psdGrids         = { dash: null, assign: null, assigned: null, agentQueue: null, agentRecords: null };
 var psdUploadRows    = [];
 var psdSelectedAgent = null;
-window.PSD_MODULE_VERSION = '2.2.1';
+window.PSD_MODULE_VERSION = '2.3.0';
 
 var psdDashFilters   = { status: [], category: [], agent: [], product: [], search: '' };
-var psdDateFilters   = { dateField: 'UploadDate', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
+var psdDateFilters   = { dateField: 'UploadDate', dateMode: 'any', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
+var psdTrendGranularity = 'monthly';
 var psdChartsBuilt   = false;
 var psdLastChartItems = null;
 var psdLastChartSummary = null;
@@ -130,39 +131,43 @@ function psdItemDateValue(item, field) {
 
 function psdApplyDateFilters(items, f) {
     f = f || psdDateFilters;
+    var mode = f.dateMode || 'any';
+    if (mode === 'any') return items;
     var field = f.dateField || 'UploadDate';
-    var hasDate = f.from || f.to || f.specific ||
-        (f.years && f.years.length) || (f.quarters && f.quarters.length) ||
-        (f.months && f.months.length) || (f.weeks && f.weeks.length);
-    if (!hasDate) return items;
     return items.filter(function (it) {
         var meta = psdDateMeta(psdItemDateValue(it, field));
         if (!meta) return false;
-        if (f.from) {
-            var fromD = new Date(f.from);
-            if (!isNaN(fromD.getTime())) {
-                fromD.setHours(0, 0, 0, 0);
-                if (meta.dayStart < fromD.getTime()) return false;
+        if (mode === 'range') {
+            if (f.from) {
+                var fromD = new Date(f.from);
+                if (!isNaN(fromD.getTime())) {
+                    fromD.setHours(0, 0, 0, 0);
+                    if (meta.dayStart < fromD.getTime()) return false;
+                }
             }
-        }
-        if (f.to) {
-            var toD = new Date(f.to);
-            if (!isNaN(toD.getTime())) {
-                toD.setHours(23, 59, 59, 999);
-                if (meta.dayStart > toD.getTime()) return false;
+            if (f.to) {
+                var toD = new Date(f.to);
+                if (!isNaN(toD.getTime())) {
+                    toD.setHours(23, 59, 59, 999);
+                    if (meta.dayStart > toD.getTime()) return false;
+                }
             }
+            return true;
         }
-        if (f.specific) {
+        if (mode === 'single') {
+            if (!f.specific) return true;
             var spec = new Date(f.specific);
-            if (!isNaN(spec.getTime())) {
-                spec.setHours(0, 0, 0, 0);
-                if (meta.dayStart !== spec.getTime()) return false;
-            }
+            if (isNaN(spec.getTime())) return true;
+            spec.setHours(0, 0, 0, 0);
+            return meta.dayStart === spec.getTime();
         }
-        if (f.years && f.years.length && f.years.indexOf(String(meta.year)) < 0) return false;
-        if (f.quarters && f.quarters.length && f.quarters.indexOf(String(meta.quarter)) < 0) return false;
-        if (f.months && f.months.length && f.months.indexOf(String(meta.monthIndex)) < 0) return false;
-        if (f.weeks && f.weeks.length && f.weeks.indexOf(String(meta.week)) < 0) return false;
+        if (mode === 'period') {
+            if (f.years && f.years.length && f.years.indexOf(String(meta.year)) < 0) return false;
+            if (f.quarters && f.quarters.length && f.quarters.indexOf(String(meta.quarter)) < 0) return false;
+            if (f.months && f.months.length && f.months.indexOf(String(meta.monthIndex)) < 0) return false;
+            if (f.weeks && f.weeks.length && f.weeks.indexOf(String(meta.week)) < 0) return false;
+            return true;
+        }
         return true;
     });
 }
@@ -170,6 +175,7 @@ function psdApplyDateFilters(items, f) {
 function psdReadDateFiltersFromDom(prefix) {
     prefix = prefix || 'psdFilter';
     psdDateFilters.dateField = psdGetSelectVal(prefix + 'DateField') || 'UploadDate';
+    psdDateFilters.dateMode = psdGetSelectVal(prefix + 'DateMode') || 'any';
     psdDateFilters.from = psdGetSelectVal(prefix + 'DateFrom');
     psdDateFilters.to = psdGetSelectVal(prefix + 'DateTo');
     psdDateFilters.specific = psdGetSelectVal(prefix + 'DateSpecific');
@@ -180,7 +186,32 @@ function psdReadDateFiltersFromDom(prefix) {
 }
 
 function psdResetDateFiltersState() {
-    psdDateFilters = { dateField: 'UploadDate', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
+    psdDateFilters = { dateField: 'UploadDate', dateMode: 'any', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
+}
+
+function psdDateModeHint(mode) {
+    if (mode === 'range') return 'Pick a start date and end date — both days are included.';
+    if (mode === 'single') return 'Shows records on exactly one day (uses the date field above).';
+    if (mode === 'period') return 'Pick year, quarter, month, and/or week — combine as needed.';
+    return 'All dates shown — change “How to filter” below to narrow by date.';
+}
+
+window.psdOnDateModeChange = function (prefix, onChangeFn) {
+    psdDateFilters.dateMode = psdGetSelectVal(prefix + 'DateMode') || 'any';
+    psdSyncDateModeUI(prefix);
+};
+
+function psdSyncDateModeUI(prefix) {
+    prefix = prefix || 'psdFilter';
+    var mode = psdGetSelectVal(prefix + 'DateMode') || psdDateFilters.dateMode || 'any';
+    var rangeG = document.getElementById(prefix + 'DateRangeGroup');
+    var singleG = document.getElementById(prefix + 'DateSingleGroup');
+    var periodG = document.getElementById(prefix + 'DatePeriodGroup');
+    var hint = document.getElementById(prefix + 'DateHint');
+    if (rangeG) rangeG.style.display = mode === 'range' ? 'grid' : 'none';
+    if (singleG) singleG.style.display = mode === 'single' ? 'grid' : 'none';
+    if (periodG) periodG.style.display = mode === 'period' ? 'grid' : 'none';
+    if (hint) hint.textContent = psdDateModeHint(mode);
 }
 
 function psdCollectDateMetas(items, field) {
@@ -365,22 +396,42 @@ function psdDateFilterRowHTML(prefix, onChangeFn) {
     prefix = prefix || 'psdFilter';
     onChangeFn = onChangeFn || 'psdApplyDashboardFilters';
     var f = psdDateFilters;
+    var mode = f.dateMode || 'any';
     var fieldOpts = PSD_DATE_FIELD_OPTS.map(function (o) {
         return '<option value="' + o.key + '"' + (f.dateField === o.key ? ' selected' : '') + '>' + o.label + '</option>';
     }).join('');
-    return '<div class="filter-bar-grid" style="margin-top:.55rem;padding-top:.55rem;border-top:1px dashed var(--border);">' +
-        '<div class="fb-group"><div class="fb-group-label">Date Basis</div>' +
-            '<select class="fb-select" id="' + prefix + 'DateField" onchange="' + onChangeFn + '()">' + fieldOpts + '</select></div>' +
-        '<div class="fb-group"><div class="fb-group-label">From</div>' +
-            '<input type="date" class="fb-select" id="' + prefix + 'DateFrom" value="' + psdEsc(f.from) + '" onchange="' + onChangeFn + '()" style="cursor:text;"></div>' +
-        '<div class="fb-group"><div class="fb-group-label">To</div>' +
-            '<input type="date" class="fb-select" id="' + prefix + 'DateTo" value="' + psdEsc(f.to) + '" onchange="' + onChangeFn + '()" style="cursor:text;"></div>' +
-        '<div class="fb-group"><div class="fb-group-label">Specific Date</div>' +
-            '<input type="date" class="fb-select" id="' + prefix + 'DateSpecific" value="' + psdEsc(f.specific) + '" onchange="' + onChangeFn + '()" style="cursor:text;"></div>' +
-        psdMsFilterHTML(prefix, 'DateYear', 'Years') +
-        psdMsFilterHTML(prefix, 'DateQuarter', 'Quarters') +
-        psdMsFilterHTML(prefix, 'DateMonth', 'Months') +
-        psdMsFilterHTML(prefix, 'DateWeek', 'Weeks') +
+    var modeOpts = [
+        { v: 'any', l: 'Show all dates' },
+        { v: 'range', l: 'Between two dates' },
+        { v: 'single', l: 'One specific day' },
+        { v: 'period', l: 'Year / quarter / month / week' }
+    ].map(function (o) {
+        return '<option value="' + o.v + '"' + (mode === o.v ? ' selected' : '') + '>' + o.l + '</option>';
+    }).join('');
+    return '<div style="grid-column:1/-1;margin-top:.55rem;padding-top:.55rem;border-top:1px dashed var(--border);">' +
+        '<div class="filter-bar-grid">' +
+            '<div class="fb-group"><div class="fb-group-label">Which date field?</div>' +
+                '<select class="fb-select" id="' + prefix + 'DateField" onchange="' + onChangeFn + '()">' + fieldOpts + '</select></div>' +
+            '<div class="fb-group"><div class="fb-group-label">How to filter</div>' +
+                '<select class="fb-select" id="' + prefix + 'DateMode" onchange="psdOnDateModeChange(\'' + prefix + '\',\'' + onChangeFn + '\');' + onChangeFn + '()">' + modeOpts + '</select></div>' +
+        '</div>' +
+        '<div id="' + prefix + 'DateHint" class="psd-date-hint">' + psdEsc(psdDateModeHint(mode)) + '</div>' +
+        '<div id="' + prefix + 'DateRangeGroup" class="filter-bar-grid" style="display:' + (mode === 'range' ? 'grid' : 'none') + ';margin-top:.45rem;">' +
+            '<div class="fb-group"><div class="fb-group-label">Start date</div>' +
+                '<input type="date" class="fb-select" id="' + prefix + 'DateFrom" value="' + psdEsc(f.from) + '" onchange="' + onChangeFn + '()" style="cursor:text;"></div>' +
+            '<div class="fb-group"><div class="fb-group-label">End date</div>' +
+                '<input type="date" class="fb-select" id="' + prefix + 'DateTo" value="' + psdEsc(f.to) + '" onchange="' + onChangeFn + '()" style="cursor:text;"></div>' +
+        '</div>' +
+        '<div id="' + prefix + 'DateSingleGroup" class="filter-bar-grid" style="display:' + (mode === 'single' ? 'grid' : 'none') + ';margin-top:.45rem;">' +
+            '<div class="fb-group"><div class="fb-group-label">Pick a day</div>' +
+                '<input type="date" class="fb-select" id="' + prefix + 'DateSpecific" value="' + psdEsc(f.specific) + '" onchange="' + onChangeFn + '()" style="cursor:text;"></div>' +
+        '</div>' +
+        '<div id="' + prefix + 'DatePeriodGroup" class="filter-bar-grid" style="display:' + (mode === 'period' ? 'grid' : 'none') + ';margin-top:.45rem;">' +
+            psdMsFilterHTML(prefix, 'DateYear', 'Years') +
+            psdMsFilterHTML(prefix, 'DateQuarter', 'Quarters') +
+            psdMsFilterHTML(prefix, 'DateMonth', 'Months') +
+            psdMsFilterHTML(prefix, 'DateWeek', 'Weeks') +
+        '</div>' +
     '</div>';
 }
 
@@ -478,7 +529,12 @@ function psdInjectStyles() {
     s.textContent =
         '.psd-root{width:100%;max-width:none;box-sizing:border-box}' +
         '.psd-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-top:1rem;width:100%}' +
-        '@media(max-width:1100px){.psd-chart-grid{grid-template-columns:1fr}}' +
+        '@media(max-width:1100px){.psd-chart-grid{grid-template-columns:1fr}.psd-chart-card.psd-chart-wide{grid-column:span 1}}' +
+        '.psd-chart-card.psd-chart-wide{grid-column:span 2}' +
+        '.psd-trend-toggles{display:flex;gap:6px;flex-wrap:wrap}' +
+        '.psd-trend-toggle{padding:5px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--t2);font-size:.72rem;font-weight:700;cursor:pointer}' +
+        '.psd-trend-toggle.active{background:var(--grad);color:#fff;border-color:transparent}' +
+        '.psd-date-hint{font-size:.72rem;color:var(--t3);margin-top:.45rem;line-height:1.4}' +
         '.psd-chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1rem 1.1rem;box-shadow:var(--cs);position:relative;overflow:hidden}' +
         '.psd-chart-card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad);opacity:.85}' +
         '.psd-chart-head{display:flex;align-items:flex-end;justify-content:space-between;gap:.5rem;margin-bottom:.85rem}' +
@@ -510,9 +566,10 @@ function psdInjectStyles() {
         '.psd-badge-inprogress{background:rgba(245,158,11,.15);color:#d97706}' +
         '.psd-badge-completed{background:rgba(34,197,94,.15);color:#16a34a}' +
         '[id^="psdGrid"] .ag-checkbox-input-wrapper,[id^="psdAssign"] .ag-checkbox-input-wrapper,[id^="psdAssigned"] .ag-checkbox-input-wrapper,[id^="psdAgent"] .ag-checkbox-input-wrapper{opacity:1!important;width:16px;height:16px}' +
-        '.psd-grid-action{display:flex;align-items:center;gap:6px}' +
-        '.psd-grid-action .fb-select{font-size:.72rem;padding:4px 6px;max-width:130px}' +
-        '.psd-grid-action button{padding:4px 10px;font-size:.68rem;border:none;border-radius:6px;background:var(--grad);color:#fff;font-weight:700;cursor:pointer}' +
+        '.psd-grid-action{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;width:100%;min-width:0}' +
+        '.psd-grid-action .fb-select{font-size:.72rem;padding:4px 6px;flex:1;min-width:90px;max-width:140px}' +
+        '.psd-grid-action .psd-action-btn{padding:4px 10px;font-size:.68rem;border:none;border-radius:6px;background:var(--grad);color:#fff;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0}' +
+        '.psd-grid-action .psd-complete-btn{padding:4px 10px;font-size:.68rem;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--t1);font-weight:700;cursor:pointer;white-space:nowrap}' +
         '.psd-agent-tile{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.85rem 1rem;cursor:pointer;transition:transform .15s,box-shadow .15s,border-color .15s;box-shadow:var(--cs)}' +
         '.psd-agent-tile:hover{transform:translateY(-2px);box-shadow:var(--ch)}' +
         '.psd-agent-tile.selected{border-color:var(--acc);box-shadow:0 0 0 2px var(--glow)}' +
@@ -1292,10 +1349,10 @@ function psdReassignActionRenderer(params) {
     if (!params.data) return null;
     var wrap = document.createElement('div');
     wrap.className = 'psd-grid-action';
-    wrap.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
     var sel = psdAgentSelectEl(params.data.assignedTo === '—' ? '' : params.data.assignedTo);
     var btn = document.createElement('button');
     btn.type = 'button';
+    btn.className = 'psd-action-btn';
     btn.textContent = 'Reassign';
     btn.onclick = function () {
         if (!sel.value) { psdToast('Pick an agent to reassign', 'warn'); return; }
@@ -1303,24 +1360,14 @@ function psdReassignActionRenderer(params) {
     };
     wrap.appendChild(sel);
     wrap.appendChild(btn);
-    if (params.data.psdStatus === PSD_STATUS.INPROGRESS) {
-        var cBtn = document.createElement('button');
-        cBtn.type = 'button';
-        cBtn.className = 'export-btn';
-        cBtn.style.cssText = 'padding:4px 10px;font-size:.68rem;';
-        cBtn.textContent = 'Complete';
-        cBtn.onclick = function () { psdComplete(params.data.id); };
-        wrap.appendChild(cBtn);
-    }
     return wrap;
 }
 
 function psdCompleteActionRenderer(params) {
-    if (!params.data || params.data.psdStatus !== PSD_STATUS.INPROGRESS) return null;
+    if (!params.data || params.data.psdStatus !== PSD_STATUS.INPROGRESS) return document.createTextNode('');
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'export-btn';
-    btn.style.cssText = 'padding:4px 12px;font-size:.68rem;';
+    btn.className = 'psd-complete-btn';
     btn.textContent = 'Complete';
     btn.onclick = function () { psdComplete(params.data.id); };
     return btn;
@@ -1380,7 +1427,8 @@ function psdBuildColDefs(mode) {
     if (mode === 'assign') {
         cols.push({ headerName: 'Action', width: 210, minWidth: 190, pinned: 'right', sortable: false, filter: false, cellRenderer: psdAssignActionRenderer });
     } else if (mode === 'assigned') {
-        cols.push({ headerName: 'Actions', width: 300, minWidth: 260, pinned: 'right', sortable: false, filter: false, cellRenderer: psdReassignActionRenderer });
+        cols.push({ headerName: 'Reassign', width: 240, minWidth: 220, pinned: 'right', sortable: false, filter: false, cellRenderer: psdReassignActionRenderer });
+        cols.push({ headerName: 'Complete', width: 110, minWidth: 100, pinned: 'right', sortable: false, filter: false, cellRenderer: psdCompleteActionRenderer });
     } else if (mode === 'agentqueue') {
         cols.push({ headerName: 'Action', width: 120, minWidth: 100, pinned: 'right', sortable: false, filter: false, cellRenderer: psdCompleteActionRenderer });
     } else if (mode === 'records' && psdIsAdminLike()) {
@@ -1532,10 +1580,11 @@ function psdDashboardMainHTML(dateFiltered, items, s) {
             '</button>' +
         '</div>' +
         '<div id="psdChartsSection" class="psd-chart-grid" style="display:' + (psdChartsBuilt ? 'grid' : 'none') + ';">' +
+            psdTrendChartCardHTML() +
             psdChartCard('Status Breakdown', 'psdChartStatus', 'Pipeline mix', true) +
-            psdChartCard('Completed by Agent', 'psdChartAgent', 'Throughput', true) +
+            psdChartCard('Agent Workload', 'psdChartAgent', 'Completed vs in progress', true) +
             psdChartCard('By Category', 'psdChartCategory', 'Excel tabs', false) +
-            psdChartCard('Aging Distribution', 'psdChartAging', 'Days since upload', false) +
+            psdChartCard('SLA Distribution', 'psdChartAging', 'Days assign → done/now', false) +
         '</div>' +
         psdUploadSectionHTML() +
         psdGridSectionHTML('All Records', 'psdGrid', 'psdDashCount', 'psdDashSearch', 'psdExportDashCsv()', items.length);
@@ -1559,6 +1608,7 @@ function psdRefreshDashboardContent() {
     main.innerHTML = psdDashboardMainHTML(dateFiltered, items, s);
     psdRenderGrid('dash', 'psdGrid', 'psdDashCount', items, 'records');
     psdSafeUpdateDateFilterOptions('psdFilter', dateFiltered, 'psdApplyDashboardFilters');
+    psdSyncDateModeUI('psdFilter');
 
     if (psdChartsBuilt) {
         psdDestroyCharts();
@@ -1586,6 +1636,7 @@ function psdRefreshAssignContent() {
         psdGridSectionHTML('Assign Queue — Pending', 'psdAssignGrid', 'psdAssignCount', 'psdAssignSearch', 'psdExportAssignCsv()', pending.length);
     psdRenderGrid('assign', 'psdAssignGrid', 'psdAssignCount', pending, 'assign');
     psdSafeUpdateDateFilterOptions('psdAssignF', pendingAll, 'psdApplyAssignFilters');
+    psdSyncDateModeUI('psdAssignF');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -1602,6 +1653,7 @@ function psdRefreshAssignedContent() {
         psdGridSectionHTML('Assigned Queue — In Progress', 'psdAssignedGrid', 'psdAssignedCount', 'psdAssignedSearch', 'psdExportAssignedCsv()', assigned.length);
     psdRenderGrid('assigned', 'psdAssignedGrid', 'psdAssignedCount', assigned, 'assigned');
     psdSafeUpdateDateFilterOptions('psdAssignedF', assignedAll, 'psdApplyAssignedFilters');
+    psdSyncDateModeUI('psdAssignedF');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -1627,6 +1679,7 @@ function psdRefreshMyQueueContent() {
     psdRenderGrid('agentQueue', 'psdAgentQueueGrid', 'psdAgentQueueCount', inq, 'agentqueue');
     psdRenderGrid('agentRecords', 'psdAgentGrid', 'psdAgentRecCount', mine, 'records');
     psdSafeUpdateDateFilterOptions('psdAgentF', psdScopedItems(), 'psdApplyAgentDateFilters');
+    psdSyncDateModeUI('psdAgentF');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -1647,6 +1700,7 @@ function psdRenderDashboard(body) {
     psdBindMsOutsideClick();
     psdPopulateMainMsDropdowns('psdFilter', dateFiltered, psdDashFilters, 'psdApplyDashboardFilters');
     psdSafeUpdateDateFilterOptions('psdFilter', dateFiltered, 'psdApplyDashboardFilters');
+    psdSyncDateModeUI('psdFilter');
     if (typeof lucide !== 'undefined') lucide.createIcons();
     if (psdAgentsVisible) {
         var agIcon = document.getElementById('psdAgentsIcon');
@@ -1700,12 +1754,118 @@ function psdChartCard(title, canvasId, subtitle, tall) {
         '<div class="psd-chart-body" style="height:' + (tall ? '300px' : '280px') + ';"><canvas id="' + canvasId + '"></canvas></div></div>';
 }
 
+function psdTrendChartCardHTML() {
+    var g = psdTrendGranularity || 'monthly';
+    function tb(id, label) {
+        return '<button type="button" class="psd-trend-toggle' + (g === id ? ' active' : '') + '" data-gran="' + id + '" onclick="psdSetTrendGranularity(\'' + id + '\')">' + label + '</button>';
+    }
+    return '<div class="psd-chart-card psd-chart-wide"><div class="psd-chart-head">' +
+        '<div><h3>Activity Trend</h3><span>Records over time · uses “Which date field?” from filters</span></div>' +
+        '<div class="psd-trend-toggles">' + tb('daily', 'Daily') + tb('weekly', 'Weekly') + tb('monthly', 'Monthly') + '</div>' +
+        '</div><div class="psd-chart-body" style="height:280px;"><canvas id="psdChartTrend"></canvas></div></div>';
+}
+
+function psdTrendBucketKey(iso, granularity) {
+    if (!iso) return null;
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    var y = d.getFullYear(), m = d.getMonth(), day = d.getDate();
+    if (granularity === 'daily') {
+        return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    }
+    if (granularity === 'weekly') {
+        var start = new Date(y, 0, 1);
+        var week = Math.ceil((((d - start) / 86400000) + start.getDay() + 1) / 7);
+        return y + '-W' + String(Math.min(week, 53)).padStart(2, '0');
+    }
+    return y + '-' + String(m + 1).padStart(2, '0');
+}
+
+function psdTrendLabel(key, granularity) {
+    if (!key) return '';
+    if (granularity === 'daily') {
+        var p = key.split('-');
+        return p[2] + ' ' + PSD_MONTHS[parseInt(p[1], 10) - 1] + ' ' + p[0];
+    }
+    if (granularity === 'weekly') return key.replace('-W', ' W');
+    var mp = key.split('-');
+    return PSD_MONTHS[parseInt(mp[1], 10) - 1] + ' ' + mp[0];
+}
+
+function psdSlaBucketKey(sla) {
+    if (sla == null || sla < 0) return null;
+    if (sla < 1) return '0-1d';
+    if (sla < 2) return '1-2d';
+    if (sla < 3) return '2-3d';
+    if (sla < 5) return '3-5d';
+    return '5d+';
+}
+
+window.psdSetTrendGranularity = function (granularity) {
+    psdTrendGranularity = granularity || 'monthly';
+    document.querySelectorAll('.psd-trend-toggle').forEach(function (btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-gran') === psdTrendGranularity);
+    });
+    if (psdChartsBuilt && psdLastChartItems) {
+        if (psdCharts.trend) { try { psdCharts.trend.destroy(); } catch (e) {} psdCharts.trend = null; }
+        psdBuildTrendChart(psdLastChartItems);
+    }
+};
+
+function psdBuildTrendChart(items) {
+    if (typeof Chart === 'undefined') return;
+    var canvas = document.getElementById('psdChartTrend');
+    if (!canvas) return;
+    var granularity = psdTrendGranularity || 'monthly';
+    var field = psdDateFilters.dateField || 'UploadDate';
+    var counts = {};
+    (items || []).forEach(function (it) {
+        var key = psdTrendBucketKey(psdItemDateValue(it, field), granularity);
+        if (!key) return;
+        counts[key] = (counts[key] || 0) + 1;
+    });
+    var keys = Object.keys(counts).sort();
+    var labels = keys.map(function (k) { return psdTrendLabel(k, granularity); });
+    var data = keys.map(function (k) { return counts[k]; });
+    if (!keys.length) { labels = ['No data']; data = [0]; }
+    var grid = 'rgba(148,163,184,0.12)';
+    psdCharts.trend = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Activities',
+                data: data,
+                borderColor: psdCssVar('--acc'),
+                backgroundColor: 'rgba(99,102,241,0.12)',
+                fill: true,
+                tension: 0.35,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointBackgroundColor: psdCssVar('--acc2'),
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: psdChartTooltip() },
+            scales: {
+                x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 0, font: { size: 10 } } },
+                y: { beginAtZero: true, grid: { color: grid }, ticks: { precision: 0 } }
+            }
+        }
+    });
+}
+
 function psdBuildDashboardCharts(items, s) {
     if (typeof Chart === 'undefined') return;
     Chart.defaults.color = psdCssVar('--t2');
     Chart.defaults.font.family = 'Inter,sans-serif';
     var grid = 'rgba(148,163,184,0.12)';
     var legend = { position: 'bottom', labels: { usePointStyle: true, padding: 16, font: { size: 11, weight: '600' } } };
+
+    psdBuildTrendChart(items);
 
     var sc = document.getElementById('psdChartStatus');
     if (sc) {
@@ -1725,31 +1885,51 @@ function psdBuildDashboardCharts(items, s) {
         });
     }
 
-    var byAgent = {};
+    var agentMap = {};
+    psdAllAgents.forEach(function (a) { agentMap[a.name] = { completed: 0, inprogress: 0 }; });
     items.forEach(function (it) {
-        if (it.PSDStatus !== PSD_STATUS.COMPLETED || !it.AssignedToName) return;
+        if (!it.AssignedToName) return;
         var agent = psdCanonicalAgentName(it.AssignedToName);
         if (!agent) return;
-        byAgent[agent] = (byAgent[agent] || 0) + 1;
+        if (!agentMap[agent]) agentMap[agent] = { completed: 0, inprogress: 0 };
+        if (it.PSDStatus === PSD_STATUS.COMPLETED) agentMap[agent].completed++;
+        else if (it.PSDStatus === PSD_STATUS.INPROGRESS) agentMap[agent].inprogress++;
     });
-    var names = Object.keys(byAgent).sort(function (a, b) { return byAgent[b] - byAgent[a]; });
+    var names = Object.keys(agentMap).filter(function (n) {
+        return agentMap[n].completed + agentMap[n].inprogress > 0;
+    }).sort(function (a, b) {
+        var ta = agentMap[a].completed + agentMap[a].inprogress;
+        var tb = agentMap[b].completed + agentMap[b].inprogress;
+        return tb - ta;
+    });
     var ac = document.getElementById('psdChartAgent');
     if (ac) psdCharts.agent = new Chart(ac, {
         type: 'bar',
         data: {
             labels: names.length ? names : ['No data'],
-            datasets: [{
-                label: 'Completed',
-                data: names.length ? names.map(function (n) { return byAgent[n]; }) : [0],
-                backgroundColor: function (ctx) {
-                    if (ctx.dataIndex == null || ctx.dataIndex < 0) return psdCssVar('--acc');
-                    return psdLinearGradient(ctx.chart, PSD_CHART_PALETTE.agents[ctx.dataIndex % 6], psdCssVar('--acc2'));
+            datasets: [
+                {
+                    label: 'Completed',
+                    data: names.length ? names.map(function (n) { return agentMap[n].completed; }) : [0],
+                    backgroundColor: psdCssVar('--acc2') || '#22c55e',
+                    borderRadius: 6, maxBarThickness: 40
                 },
-                borderRadius: 8, maxBarThickness: 48
-            }]
+                {
+                    label: 'In Progress',
+                    data: names.length ? names.map(function (n) { return agentMap[n].inprogress; }) : [0],
+                    backgroundColor: psdCssVar('--acc') || '#f59e0b',
+                    borderRadius: 6, maxBarThickness: 40
+                }
+            ]
         },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: psdChartTooltip() },
-            scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { color: grid }, ticks: { precision: 0 } } } }
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: legend, tooltip: psdChartTooltip() },
+            scales: {
+                x: { stacked: false, grid: { display: false } },
+                y: { beginAtZero: true, grid: { color: grid }, ticks: { precision: 0 } }
+            }
+        }
     });
 
     var byCat = {};
@@ -1774,23 +1954,25 @@ function psdBuildDashboardCharts(items, s) {
             scales: { x: { beginAtZero: true, grid: { color: grid } }, y: { grid: { display: false } } } }
     });
 
-    var keys = ['0-2d', '3-5d', '6-10d', '11-20d', '20d+'], buckets = {};
-    keys.forEach(function (k) { buckets[k] = 0; });
+    var slaKeys = ['0-1d', '1-2d', '2-3d', '3-5d', '5d+'], slaBuckets = {};
+    slaKeys.forEach(function (k) { slaBuckets[k] = 0; });
     items.forEach(function (it) {
-        var ag = psdAging(it); if (ag == null) return;
-        if (ag <= 2) buckets['0-2d']++; else if (ag <= 5) buckets['3-5d']++; else if (ag <= 10) buckets['6-10d']++;
-        else if (ag <= 20) buckets['11-20d']++; else buckets['20d+']++;
+        if (it.PSDStatus === PSD_STATUS.PENDING) return;
+        var sla = psdSlaDays(it);
+        var bk = psdSlaBucketKey(sla);
+        if (bk && slaBuckets[bk] != null) slaBuckets[bk]++;
     });
     var agc = document.getElementById('psdChartAging');
     if (agc) psdCharts.aging = new Chart(agc, {
         type: 'bar',
         data: {
-            labels: keys,
+            labels: slaKeys,
             datasets: [{
-                data: keys.map(function (k) { return buckets[k]; }),
+                label: 'Activities',
+                data: slaKeys.map(function (k) { return slaBuckets[k]; }),
                 backgroundColor: function (ctx) {
-                    if (ctx.dataIndex == null || ctx.dataIndex < 0) return '#eab308';
-                    var col = PSD_CHART_PALETTE.aging[ctx.dataIndex] || '#eab308';
+                    if (ctx.dataIndex == null || ctx.dataIndex < 0) return '#22c55e';
+                    var col = PSD_CHART_PALETTE.aging[ctx.dataIndex] || '#22c55e';
                     return psdLinearGradient(ctx.chart, col, psdCssVar('--acc'));
                 },
                 borderRadius: 10, maxBarThickness: 56
@@ -1817,6 +1999,7 @@ function psdRenderAssignQueue(body) {
     psdBindMsOutsideClick();
     psdPopulateMainMsDropdowns('psdAssignF', pendingAll, psdAssignFilters, 'psdApplyAssignFilters');
     psdSafeUpdateDateFilterOptions('psdAssignF', pendingAll, 'psdApplyAssignFilters');
+    psdSyncDateModeUI('psdAssignF');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -1833,6 +2016,7 @@ function psdRenderAssignedQueue(body) {
     psdBindMsOutsideClick();
     psdPopulateMainMsDropdowns('psdAssignedF', assignedAll, psdAssignedFilters, 'psdApplyAssignedFilters');
     psdSafeUpdateDateFilterOptions('psdAssignedF', assignedAll, 'psdApplyAssignedFilters');
+    psdSyncDateModeUI('psdAssignedF');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -1961,6 +2145,7 @@ function psdRenderMyQueue(body) {
     psdRenderGrid('agentRecords', 'psdAgentGrid', 'psdAgentRecCount', mine, 'records');
     psdBindMsOutsideClick();
     psdSafeUpdateDateFilterOptions('psdAgentF', psdScopedItems(), 'psdApplyAgentDateFilters');
+    psdSyncDateModeUI('psdAgentF');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
