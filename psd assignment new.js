@@ -18,6 +18,9 @@ var psdGrids         = { dash: null, assign: null, assigned: null, agentQueue: n
 var psdUploadRows    = [];
 var psdSelectedAgent = null;
 var psdDashFilters   = { status: '', category: '', agent: '', product: '', search: '' };
+var psdChartsBuilt   = false;
+var psdLastChartItems = null;
+var psdLastChartSummary = null;
 
 var PSD_COLS = [
     { key: 'ActivityNumber',     header: 'Activity #' },
@@ -648,16 +651,29 @@ function psdAgentTilesHTML(items) {
 // ============================================================
 function psdMapRow(it) {
     if (!it) return null;
+    function v(x) { return (x === null || x === undefined || x === '') ? '—' : String(x); }
     return {
         id: it.ID,
-        activityNumber: it.ActivityNumber || '—',
-        orderNumber: it.OrderNumber || '—',
-        category: it.Category || '—',
-        status: it.PSDStatus || '—',
-        assignedTo: it.AssignedToName || '—',
-        customer: it.CustomerAccount || '—',
-        description: it.Description || '—',
-        product: it.Product || '—',
+        activityNumber: v(it.ActivityNumber),
+        orderNumber: v(it.OrderNumber),
+        orderStatus: v(it.OrderStatus),
+        activityType: v(it.ActivityTypeText),
+        description: v(it.Description),
+        owner: v(it.Owner),
+        customer: v(it.CustomerAccount),
+        createdOn: it.CreatedOn || null,
+        orderCreatedDate: it.OrderCreatedDate || null,
+        product: v(it.Product),
+        buStatus: v(it.BUStatus),
+        dnsStatus: v(it.DNSStatus),
+        provOwner: v(it.ProvisioningOwner),
+        provType: v(it.ProvisioningType),
+        provStatus: v(it.ProvisioningStatus),
+        dnsActivityRef: v(it.DNSActivityRef),
+        buActivityRef: v(it.BUActivityRef),
+        category: v(it.Category),
+        psdStatus: it.PSDStatus || '—',
+        assignedTo: v(it.AssignedToName),
         uploadDate: it.UploadDate || null,
         assignmentDate: it.AssignmentDate || null,
         reassignDate: it.ReassignDate || null,
@@ -745,9 +761,13 @@ PsdSetColumnFilter.prototype.setModel = function (model) {
 PsdSetColumnFilter.prototype.destroy = function () {};
 
 var PSD_MS_FILTER_FIELDS = new Set([
-    'activityNumber', 'orderNumber', 'category', 'status', 'assignedTo', 'customer', 'description', 'product'
+    'activityNumber', 'orderNumber', 'orderStatus', 'activityType', 'description', 'owner', 'customer',
+    'product', 'buStatus', 'dnsStatus', 'provOwner', 'provType', 'provStatus', 'dnsActivityRef', 'buActivityRef',
+    'category', 'psdStatus', 'assignedTo'
 ]);
-var PSD_DATE_FILTER_FIELDS = new Set(['uploadDate', 'assignmentDate', 'reassignDate', 'completedDate']);
+var PSD_DATE_FILTER_FIELDS = new Set([
+    'createdOn', 'orderCreatedDate', 'uploadDate', 'assignmentDate', 'reassignDate', 'completedDate'
+]);
 
 function psdEnhanceColDef(col) {
     if (PSD_MS_FILTER_FIELDS.has(col.field)) col.filter = PsdSetColumnFilter;
@@ -823,7 +843,7 @@ function psdReassignActionRenderer(params) {
 }
 
 function psdCompleteActionRenderer(params) {
-    if (!params.data || params.data.status !== PSD_STATUS.INPROGRESS) return null;
+    if (!params.data || params.data.psdStatus !== PSD_STATUS.INPROGRESS) return null;
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'export-btn';
@@ -831,6 +851,38 @@ function psdCompleteActionRenderer(params) {
     btn.textContent = 'Complete';
     btn.onclick = function () { psdComplete(params.data.id); };
     return btn;
+}
+
+function psdDataColumnDefs() {
+    var fmtD = function (p) { return psdFmtGridDate(p.value); };
+    return [
+        { field: 'activityNumber', headerName: 'Activity #', width: 130, minWidth: 120, pinned: 'left', suppressSizeToFit: true },
+        { field: 'orderNumber', headerName: 'Order #', width: 150, minWidth: 130 },
+        { field: 'orderStatus', headerName: 'Status', width: 110, minWidth: 90 },
+        { field: 'activityType', headerName: 'Type', width: 120, minWidth: 100 },
+        { field: 'description', headerName: 'Description', width: 220, minWidth: 160 },
+        { field: 'owner', headerName: 'Owner', width: 130, minWidth: 110 },
+        { field: 'customer', headerName: 'Customer/Account', width: 200, minWidth: 160 },
+        { field: 'createdOn', headerName: 'Created', width: 120, minWidth: 110, valueFormatter: fmtD },
+        { field: 'orderCreatedDate', headerName: 'Order Created Date', width: 140, minWidth: 120, valueFormatter: fmtD },
+        { field: 'product', headerName: 'Product', width: 100, minWidth: 90 },
+        { field: 'buStatus', headerName: 'BU', width: 90, minWidth: 80 },
+        { field: 'dnsStatus', headerName: 'DNS', width: 90, minWidth: 80 },
+        { field: 'provOwner', headerName: 'Owner (Prov.)', width: 130, minWidth: 110 },
+        { field: 'provType', headerName: 'Type (Prov.)', width: 120, minWidth: 100 },
+        { field: 'provStatus', headerName: 'Status (Prov.)', width: 120, minWidth: 100 },
+        { field: 'dnsActivityRef', headerName: 'DNS Activity Ref', width: 150, minWidth: 120 },
+        { field: 'buActivityRef', headerName: 'BU Activity Ref', width: 150, minWidth: 120 },
+        { field: 'category', headerName: 'Category', width: 130, minWidth: 110 },
+        { field: 'psdStatus', headerName: 'PSD Status', width: 125, minWidth: 110, cellRenderer: function (p) { return psdStatusBadge(p.value); } },
+        { field: 'assignedTo', headerName: 'Assigned To', width: 140, minWidth: 120 },
+        { field: 'uploadDate', headerName: 'Upload Date', width: 120, minWidth: 110, valueFormatter: fmtD },
+        { field: 'assignmentDate', headerName: 'Assigned Date', width: 125, minWidth: 110, valueFormatter: fmtD },
+        { field: 'reassignDate', headerName: 'Reassign Date', width: 125, minWidth: 110, valueFormatter: fmtD },
+        { field: 'completedDate', headerName: 'Completed Date', width: 130, minWidth: 110, valueFormatter: fmtD },
+        { field: 'slaDays', headerName: 'SLA (d)', width: 90, minWidth: 80, type: 'numericColumn' },
+        { field: 'agingDays', headerName: 'Aging (d)', width: 90, minWidth: 80, type: 'numericColumn' }
+    ];
 }
 
 function psdBuildColDefs(mode) {
@@ -851,22 +903,7 @@ function psdBuildColDefs(mode) {
             cellStyle: { display: 'flex', alignItems: 'center', justifyContent: 'center' }
         });
     }
-    cols.push(
-        { field: 'activityNumber', headerName: 'Activity #', width: 130, minWidth: 120, pinned: 'left', suppressSizeToFit: true },
-        { field: 'orderNumber', headerName: 'Order #', width: 150, minWidth: 130 },
-        { field: 'category', headerName: 'Category', width: 130, minWidth: 110 },
-        { field: 'status', headerName: 'Status', width: 125, minWidth: 110, cellRenderer: function (p) { return psdStatusBadge(p.value); } },
-        { field: 'assignedTo', headerName: 'Assigned To', width: 140, minWidth: 120 },
-        { field: 'customer', headerName: 'Customer/Account', width: 200, minWidth: 160 },
-        { field: 'description', headerName: 'Description', width: 240, minWidth: 180 },
-        { field: 'product', headerName: 'Product', width: 100, minWidth: 90 },
-        { field: 'uploadDate', headerName: 'Upload Date', width: 120, minWidth: 110, valueFormatter: function (p) { return psdFmtGridDate(p.value); } },
-        { field: 'assignmentDate', headerName: 'Assigned Date', width: 125, minWidth: 110, valueFormatter: function (p) { return psdFmtGridDate(p.value); } },
-        { field: 'reassignDate', headerName: 'Reassign Date', width: 125, minWidth: 110, valueFormatter: function (p) { return psdFmtGridDate(p.value); } },
-        { field: 'completedDate', headerName: 'Completed Date', width: 130, minWidth: 110, valueFormatter: function (p) { return psdFmtGridDate(p.value); } },
-        { field: 'slaDays', headerName: 'SLA (d)', width: 90, minWidth: 80, type: 'numericColumn' },
-        { field: 'agingDays', headerName: 'Aging (d)', width: 90, minWidth: 80, type: 'numericColumn' }
-    );
+    cols = cols.concat(psdDataColumnDefs());
     if (mode === 'assign') {
         cols.push({ headerName: 'Action', width: 210, minWidth: 190, pinned: 'right', sortable: false, filter: false, cellRenderer: psdAssignActionRenderer });
     } else if (mode === 'assigned') {
@@ -959,7 +996,12 @@ window.psdExportAgentRecordsCsv = function () { psdExportGrid('agentRecords', 'P
 
 function psdExportGrid(key, prefix) {
     var api = psdGrids[key];
-    if (api && api.exportDataAsCsv) api.exportDataAsCsv({ fileName: prefix + '_' + new Date().toISOString().slice(0, 10) + '.csv' });
+    if (api && api.exportDataAsCsv) {
+        api.exportDataAsCsv({
+            fileName: prefix + '_' + new Date().toISOString().slice(0, 10) + '.csv',
+            allColumns: true
+        });
+    }
 }
 
 function psdBulkBarHTML(type) {
@@ -994,6 +1036,9 @@ function psdRenderDashboard(body) {
     var base = psdAllItems;
     var items = psdApplyDashFilters(base);
     var s = psdSummary(items);
+    psdChartsBuilt = false;
+    psdLastChartItems = items;
+    psdLastChartSummary = s;
 
     body.innerHTML =
         psdFilterBarHTML(base) +
@@ -1006,7 +1051,13 @@ function psdRenderDashboard(body) {
             psdTile('Avg SLA', s.avgTtc + ' d', 'Assign/Reassign → done', 'var(--acc2)') +
         '</div>' +
         psdAgentTilesHTML(base) +
-        '<div class="psd-chart-grid">' +
+        '<div style="text-align:center;margin:1rem 0;">' +
+            '<button type="button" id="psdToggleChartsBtn" class="export-btn" onclick="psdToggleCharts()" style="padding:12px 24px;font-size:14px;">' +
+                '<i data-lucide="eye" id="psdChartsIcon" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>' +
+                '<span id="psdChartsText">Show Analytics Charts</span>' +
+            '</button>' +
+        '</div>' +
+        '<div id="psdChartsSection" class="psd-chart-grid" style="display:none;">' +
             psdChartCard('Status Breakdown', 'psdChartStatus', 'Pipeline mix', true) +
             psdChartCard('Completed by Agent', 'psdChartAgent', 'Throughput', true) +
             psdChartCard('By Category', 'psdChartCategory', 'Excel tabs', false) +
@@ -1015,10 +1066,30 @@ function psdRenderDashboard(body) {
         psdUploadSectionHTML() +
         psdGridSectionHTML('All Records', 'psdGrid', 'psdDashCount', 'psdDashSearch', 'psdExportDashCsv()', items.length);
 
-    psdBuildDashboardCharts(items, s);
     psdRenderGrid('dash', 'psdGrid', 'psdDashCount', items, 'records');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
+
+window.psdToggleCharts = function () {
+    var section = document.getElementById('psdChartsSection');
+    var icon = document.getElementById('psdChartsIcon');
+    var text = document.getElementById('psdChartsText');
+    if (!section) return;
+    if (section.style.display === 'none') {
+        section.style.display = 'grid';
+        if (icon) icon.setAttribute('data-lucide', 'eye-off');
+        if (text) text.textContent = 'Hide Analytics Charts';
+        if (!psdChartsBuilt && psdLastChartItems) {
+            psdBuildDashboardCharts(psdLastChartItems, psdLastChartSummary || psdSummary(psdLastChartItems));
+            psdChartsBuilt = true;
+        }
+    } else {
+        section.style.display = 'none';
+        if (icon) icon.setAttribute('data-lucide', 'eye');
+        if (text) text.textContent = 'Show Analytics Charts';
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+};
 
 function psdChartCard(title, canvasId, subtitle, tall) {
     return '<div class="psd-chart-card"><div class="psd-chart-head"><h3>' + psdEsc(title) + '</h3><span>' + psdEsc(subtitle) + '</span></div>' +
@@ -1297,8 +1368,13 @@ function psdDummyItems() {
         var cmp = st === PSD_STATUS.COMPLETED ? new Date(Date.now() - i * 86400000).toISOString() : null;
         out.push({
             ID: i + 1, ActivityNumber: '1-DUMMY' + (1000 + i), OrderNumber: '1-' + (600000000 + i),
+            OrderStatus: 'Open', ActivityTypeText: 'Provisioning', Owner: 'Owner ' + (i + 1),
             Category: cats[i % 3], CustomerAccount: 'Customer ' + (i + 1) + ' LLC',
+            CreatedOn: up, OrderCreatedDate: up,
             Description: 'O365 Provisioning : demo' + i, Product: i % 2 ? 'BU' : 'BS Pro',
+            BUStatus: 'Active', DNSStatus: 'Pending', ProvisioningOwner: 'Prov Owner',
+            ProvisioningType: 'Standard', ProvisioningStatus: 'In Progress',
+            DNSActivityRef: 'DNS-' + i, BUActivityRef: 'BU-' + i,
             PSDStatus: st, UploadDate: up, AssignmentDate: asg, ReassignDate: rea, CompletedDate: cmp,
             AssignedToName: st === PSD_STATUS.PENDING ? '' : agents[i % 3], AssignedToEmail: ''
         });
