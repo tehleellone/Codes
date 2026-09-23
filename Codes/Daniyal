@@ -689,28 +689,35 @@ function deny(msg){
 function spGet(url, cb){
   const xhr = new XMLHttpRequest();
   xhr.open("GET", url, true);
+  xhr.timeout = 20000;
   xhr.setRequestHeader("Accept","application/json;odata=verbose");
   xhr.onreadystatechange = function(){
     if(xhr.readyState!==4) return;
     if(xhr.status>=200 && xhr.status<300){ try{ cb(null, JSON.parse(xhr.responseText)); }catch(e){ cb(e); } }
-    else cb(new Error("HTTP "+xhr.status));
+    else cb(new Error("HTTP "+xhr.status+" — "+url));
   };
-  xhr.onerror = function(){ cb(new Error("Network error")); };
+  xhr.onerror = function(){ cb(new Error("Network error — "+url)); };
+  xhr.ontimeout = function(){ cb(new Error("Timed out — "+url)); };
   xhr.send();
 }
+function status(t){ document.getElementById("userRole").textContent = t; }
 function initAccess(){
   if(IS_DEMO) document.getElementById("dev").classList.add("on");
   if(!SP_SITE){
     if(IS_DEMO){ render(); return; }
     deny("SharePoint site not detected. Set CONFIG.SP_SITE in geo-portal.html."); return;
   }
+  status("contacting "+SP_SITE.replace(/^https?:\/\//,"")+"…");
   spGet(SP_SITE+"/_api/web/currentuser?$select=Title,Email", function(err, data){
     if(err){
       if(IS_DEMO){ render(); return; }
       deny("Cannot reach SharePoint: "+err.message); return;
     }
+    if(!data || !data.d){ deny("Unexpected SharePoint response from /_api/web/currentuser."); return; }
     USER.email = (data.d.Email||"").trim();
     USER.name = (data.d.Title||"User").trim();
+    if(!USER.email){ deny("SharePoint returned no email for "+USER.name+". Add an email to this account or use a different login."); return; }
+    status("checking "+SP_ACCESS+" for "+USER.email+"…");
     const email = USER.email.replace(/'/g,"''");
     spGet(SP_SITE+"/_api/web/lists/getbytitle('"+SP_ACCESS+"')/items?$select=UserEmailID,Role&$filter=UserEmailID eq '"+email+"'", function(err2, data2){
       if(err2){ deny("Cannot load the "+SP_ACCESS+" list: "+err2.message); return; }
