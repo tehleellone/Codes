@@ -152,6 +152,19 @@ html[data-theme="light"] .appear{background:rgba(255,255,255,.45)}
   border:0;background:transparent;padding:7px 14px;border-radius:999px;font-size:.78rem;font-weight:800;cursor:pointer;color:var(--muted)
 }
 .appear button.on{background:var(--grad);color:#fff}
+.minbtn{
+  display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--line);background:rgba(0,0,0,.18);font-size:.76rem;font-weight:800;color:var(--muted)
+}
+.minbtn:hover{color:var(--text);border-color:var(--cyan)}
+html[data-theme="light"] .minbtn{background:rgba(255,255,255,.45)}
+.minbtn .i-max,.minbtn .t-max{display:none}
+html.geo-min .minbtn .i-max,html.geo-min .minbtn .t-max{display:inline}
+html.geo-min .minbtn .i-min,html.geo-min .minbtn .t-min{display:none}
+/* MINIMIZED (in-page) mode: portal sits inside the web part so the SharePoint ribbon / Save stay visible */
+html.geo-min #geoRoot{position:relative;inset:auto;height:80vh;min-height:560px;z-index:1;border-radius:18px;overflow:auto}
+html.geo-min .bg,html.geo-min .fx,html.geo-min .mesh,html.geo-min .scan,html.geo-min #fx,html.geo-min .citynet,html.geo-min .dev{position:absolute}
+html.geo-min .bg{inset:0}
 .who{display:flex;align-items:center;gap:10px}
 .av{
   width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-weight:800;
@@ -312,6 +325,10 @@ html[data-theme="light"] .shot:after{display:none}
         <button type="button" id="btnDark" class="on">Dark</button>
         <button type="button" id="btnLight">Light</button>
       </div>
+      <button type="button" id="btnMin" class="minbtn" title="Exit full screen (Esc) — use this to reach the SharePoint ribbon and save the page">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path class="i-min" d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/><path class="i-max" d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+        <span class="t-min">Exit full screen</span><span class="t-max">Full screen</span>
+      </button>
       <div class="who">
         <div class="av" id="avatar">—</div>
         <div>
@@ -478,16 +495,16 @@ const SP_EDIT_MODE = (function(){
 })();
 if(SP_EDIT_MODE) document.documentElement.classList.add("geo-edit");
 
-// SAFETY EXIT for page editors: press Esc to collapse the portal to a small card
-// (so the SharePoint ribbon / Save button are reachable). Click the card to expand again.
-const ON_SHAREPOINT = !!window._spPageContextInfo;
-if(ON_SHAREPOINT){
-  document.addEventListener("keydown", function(e){
-    if(e.key === "Escape") document.documentElement.classList.add("geo-edit");
-  });
-  const note = document.querySelector(".editnote");
-  if(note) note.onclick = function(){ if(!SP_EDIT_MODE) document.documentElement.classList.remove("geo-edit"); };
-}
+// FULL SCREEN / MINIMIZE (same idea as the GLK dashboard button).
+// Minimized = portal stays inside the web part, SharePoint ribbon + Save button are reachable.
+// Header button toggles it; Esc key also minimizes.
+function setFullScreen(on){ document.documentElement.classList.toggle("geo-min", !on); }
+document.getElementById("btnMin").onclick = function(){
+  setFullScreen(document.documentElement.classList.contains("geo-min"));
+};
+document.addEventListener("keydown", function(e){ if(e.key === "Escape") setFullScreen(false); });
+const note = document.querySelector(".editnote");
+if(note) note.onclick = function(){ if(!SP_EDIT_MODE) document.documentElement.classList.remove("geo-edit"); };
 const USER = { name:"Demo User", email:"demo@du.ae", role:"Admin" };
 
 (function applyAssetBase(){
