@@ -187,8 +187,15 @@
             height: 100% !important;
             max-height: 100vh !important;
         }
-        html.sm-fullpage #landingPage,
-        html.sm-fullpage #dashboardContent,
+        html.sm-fullpage #landingPage {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 2147483000 !important;
+            margin: 0 !important;
+            overflow: auto !important;
+        }
         html.sm-fullpage #accountSearchView,
         html.sm-fullpage #portalAnalyticsView,
         html.sm-fullpage #comingSoonView,
@@ -202,14 +209,31 @@
             inset: 0 !important;
             width: 100vw !important;
             height: 100vh !important;
+            max-height: 100vh !important;
+            min-height: 0 !important;
             z-index: 2147483000 !important;
             margin: 0 !important;
             max-width: none !important;
-            overflow: auto !important;
+            display: block;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
         }
-        html.sm-fullpage #dashboardContent {
-            display: flex;
-            flex-direction: column;
+        html.sm-fullpage .dashboard {
+            min-height: 0 !important;
+        }
+        html.sm-fullpage .dashboard > div:not(.header) {
+            flex: none;
+        }
+        html.sm-fullpage #dashboardContent.sm-visible-shell {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 2147483000 !important;
+            margin: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
             background: var(--bg-body);
             overflow: hidden !important;
             min-height: 0 !important;
@@ -218,21 +242,29 @@
             flex-shrink: 0;
         }
         html.sm-fullpage #dashboardContent .main-container {
-            display: flex;
-            flex: 1 1 auto;
+            display: flex !important;
+            flex: 1 1 auto !important;
             min-height: 0 !important;
-            overflow: hidden;
+            height: calc(100vh - 56px) !important;
+            max-height: calc(100vh - 56px) !important;
+            overflow: hidden !important;
         }
         html.sm-fullpage #dashboardContent .sidebar {
             min-height: 0;
             overflow-x: hidden;
             overflow-y: auto;
         }
-        html.sm-fullpage #dashboardContent .content {
-            flex: 1 1 auto;
+        html.sm-fullpage #dashboardContent .content,
+        html.sm-fullpage #dashboardContent .content.psd-full-mode,
+        html.sm-fullpage #dashboardContent .content.rc-full-mode,
+        html.sm-fullpage #dashboardContent .content.edit-full-mode,
+        html.sm-fullpage #dashboardContent .content.section-mode {
+            flex: 1 1 auto !important;
             min-width: 0 !important;
             min-height: 0 !important;
-            overflow-x: hidden;
+            height: 100% !important;
+            max-height: 100% !important;
+            overflow-x: hidden !important;
             overflow-y: auto !important;
             -webkit-overflow-scrolling: touch;
         }
@@ -2340,8 +2372,7 @@
         .sm-fs-btn.active-fs { border-color: var(--nab2); background: var(--nab); color: var(--acc); }
         #smLandingFsBtn { position: fixed; top: 16px; right: 16px; z-index: 2147483001; background: var(--bg-card); }
         html.sm-fullpage, html.sm-fullpage body { overflow: hidden !important; height: 100% !important; max-height: 100vh !important; }
-        html.sm-fullpage #landingPage,
-        html.sm-fullpage #dashboardContent,
+        html.sm-fullpage #landingPage { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 2147483000 !important; margin: 0 !important; overflow: auto !important; }
         html.sm-fullpage #accountSearchView,
         html.sm-fullpage #portalAnalyticsView,
         html.sm-fullpage #comingSoonView,
@@ -2352,13 +2383,32 @@
         html.sm-fullpage #amRequestDetailView,
         html.sm-fullpage #transferRequestView {
             position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
-            z-index: 2147483000 !important; margin: 0 !important; max-width: none !important; overflow: auto !important;
+            max-height: 100vh !important; min-height: 0 !important; z-index: 2147483000 !important; margin: 0 !important;
+            max-width: none !important; display: block; overflow-x: hidden !important; overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
         }
-        html.sm-fullpage #dashboardContent { display: flex; flex-direction: column; background: var(--bg-body); overflow: hidden !important; min-height: 0 !important; }
+        html.sm-fullpage .dashboard { min-height: 0 !important; }
+        html.sm-fullpage .dashboard > div:not(.header) { flex: none; }
+        html.sm-fullpage #dashboardContent.sm-visible-shell {
+            position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
+            z-index: 2147483000 !important; margin: 0 !important; display: flex !important; flex-direction: column !important;
+            background: var(--bg-body); overflow: hidden !important; min-height: 0 !important;
+        }
         html.sm-fullpage #dashboardContent .header { flex-shrink: 0; }
-        html.sm-fullpage #dashboardContent .main-container { display: flex; flex: 1 1 auto; min-height: 0 !important; overflow: hidden; }
+        html.sm-fullpage #dashboardContent .main-container {
+            display: flex !important; flex: 1 1 auto !important; min-height: 0 !important;
+            height: calc(100vh - 56px) !important; max-height: calc(100vh - 56px) !important; overflow: hidden !important;
+        }
         html.sm-fullpage #dashboardContent .sidebar { min-height: 0; overflow-x: hidden; overflow-y: auto; }
-        html.sm-fullpage #dashboardContent .content { flex: 1 1 auto; min-width: 0 !important; min-height: 0 !important; overflow-x: hidden; overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
+        html.sm-fullpage #dashboardContent .content,
+        html.sm-fullpage #dashboardContent .content.psd-full-mode,
+        html.sm-fullpage #dashboardContent .content.rc-full-mode,
+        html.sm-fullpage #dashboardContent .content.edit-full-mode,
+        html.sm-fullpage #dashboardContent .content.section-mode {
+            flex: 1 1 auto !important; min-width: 0 !important; min-height: 0 !important;
+            height: 100% !important; max-height: 100% !important;
+            overflow-x: hidden !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch;
+        }
         html.sm-fullpage #smPopupHost { position: absolute; width: 0; height: 0; overflow: visible; z-index: 2147483640; pointer-events: none; }
         html.sm-fullpage #smPopupHost > * { pointer-events: auto; }
         html.sm-fullpage .ag-popup, html.sm-fullpage .ag-popup-child, html.sm-fullpage .ag-menu, html.sm-fullpage .ag-tooltip,
@@ -2583,9 +2633,6 @@
                 <div class="date-badge"><i data-lucide="calendar"></i><span id="currentDate">Loading...</span></div>
             </div>
             <div class="header-actions">
-                <button type="button" class="export-btn sm-fs-btn" id="smFullscreenBtn" onclick="smToggleFullscreen()" title="Full screen" style="padding:.45rem .65rem;font-size:.82rem;">
-                    <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;display:inline-block;vertical-align:middle;"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-                </button>
                 <button type="button" class="export-btn tab-refresh-btn" id="headerRefreshBtn" onclick="refreshCurrentTab()" title="Refresh current tab data" style="padding:.45rem .85rem;font-size:.82rem;">
                     <i data-lucide="refresh-cw" style="width:15px;height:15px;display:inline-block;vertical-align:middle;margin-right:5px;"></i>Refresh
                 </button>
@@ -2596,6 +2643,9 @@
                 <div class="theme-toggle" onclick="toggleTheme()" title="Light/Dark">
                     <i data-lucide="moon" id="themeIcon"></i>
                 </div>
+                <button type="button" class="export-btn sm-fs-btn" id="smFullscreenBtn" onclick="smToggleFullscreen()" title="Full screen" style="padding:.45rem .65rem;font-size:.82rem;">
+                    <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;display:inline-block;vertical-align:middle;"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                </button>
             </div>
         </div>
         <div class="main-container">
@@ -9003,15 +9053,28 @@ ${USER_CONTEXT.userName}`
         }
         function smEnsureFullscreenButtons() {
             document.querySelectorAll('.header-actions').forEach(function (bar) {
-                if (bar.querySelector('.sm-fs-btn')) return;
-                var btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'export-btn sm-fs-btn';
-                btn.title = 'Full screen';
-                btn.style.cssText = 'padding:.45rem .65rem;font-size:.82rem;';
-                btn.onclick = function () { smToggleFullscreen(); };
-                btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;display:inline-block;vertical-align:middle;">' + smFsIconSvg(window._smFullPage !== false) + '</svg>';
-                bar.insertBefore(btn, bar.firstChild);
+                var buttons = bar.querySelectorAll('.sm-fs-btn');
+                var btn = buttons[0];
+                var i;
+                for (i = 1; i < buttons.length; i++) buttons[i].parentNode.removeChild(buttons[i]);
+                if (!btn) {
+                    btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'export-btn sm-fs-btn';
+                    btn.title = 'Full screen';
+                    btn.style.cssText = 'padding:.45rem .65rem;font-size:.82rem;';
+                    btn.onclick = function () { smToggleFullscreen(); };
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;display:inline-block;vertical-align:middle;">' + smFsIconSvg(window._smFullPage !== false) + '</svg>';
+                }
+                var theme = bar.querySelector('.theme-toggle');
+                if (theme) {
+                    if (theme.nextSibling !== btn) {
+                        if (theme.nextSibling) bar.insertBefore(btn, theme.nextSibling);
+                        else bar.appendChild(btn);
+                    }
+                } else if (!bar.contains(btn)) {
+                    bar.appendChild(btn);
+                }
             });
         }
         function smSyncFullscreenBtn() {
@@ -9340,6 +9403,8 @@ ${USER_CONTEXT.userName}`
 
             // ── Full-bleed layout for module sections (same as old SM) ───
             if (contentDiv) {
+                contentDiv.style.overflowY = 'auto';
+                contentDiv.scrollTop = 0;
                 if (sectionId === 'pending-requests' || sectionId === 'transfer-requests' || sectionId === 'newsletterView') {
                     contentDiv.classList.add('section-mode');
                 }
@@ -11395,6 +11460,7 @@ else if (sectionId === 'newsletterView') {
         ];
 
         window.showPortalAnalytics = function() {
+            if (typeof smHideDashboardShell === 'function') smHideDashboardShell();
             ALL_VIEW_IDS.forEach(function(vid) {
                 var el = document.getElementById(vid);
                 if (el) {
@@ -11421,12 +11487,15 @@ else if (sectionId === 'newsletterView') {
                 view.style.position = 'absolute';
                 view.style.zIndex = '-1';
             }
-            var dc = document.getElementById('dashboardContent');
-            if (dc) {
-                dc.style.position = '';
-                dc.style.zIndex = '';
-                dc.style.display = 'flex';
-                dc.style.flexDirection = 'column';
+            if (typeof smShowDashboardShell === 'function') smShowDashboardShell();
+            else {
+                var dc = document.getElementById('dashboardContent');
+                if (dc) {
+                    dc.style.position = '';
+                    dc.style.zIndex = '';
+                    dc.style.display = 'flex';
+                    dc.style.flexDirection = 'column';
+                }
             }
             if (typeof switchDashboardSection === 'function') switchDashboardSection('dashboard-view');
             window.scrollTo(0, 0);
@@ -11434,6 +11503,7 @@ else if (sectionId === 'newsletterView') {
 
         window.showComingSoon = function(id, title, icon) {
             if (typeof analyticsTrackPage === 'function') analyticsTrackPage(title);
+            if (typeof smHideDashboardShell === 'function') smHideDashboardShell();
             ALL_VIEW_IDS.forEach(function(vid) {
                 var el = document.getElementById(vid);
                 if (el) {
@@ -11464,12 +11534,15 @@ else if (sectionId === 'newsletterView') {
                 view.style.position = 'absolute';
                 view.style.zIndex = '-1';
             }
-            var dc = document.getElementById('dashboardContent');
-            if (dc) {
-                dc.style.position = '';
-                dc.style.zIndex = '';
-                dc.style.display = 'flex';
-                dc.style.flexDirection = 'column';
+            if (typeof smShowDashboardShell === 'function') smShowDashboardShell();
+            else {
+                var dc = document.getElementById('dashboardContent');
+                if (dc) {
+                    dc.style.position = '';
+                    dc.style.zIndex = '';
+                    dc.style.display = 'flex';
+                    dc.style.flexDirection = 'column';
+                }
             }
             if (typeof switchDashboardSection === 'function') switchDashboardSection('dashboard-view');
             window.scrollTo(0, 0);
