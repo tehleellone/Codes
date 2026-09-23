@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="sm-fullpage">
 
 <head>
     <meta charset="UTF-8">
@@ -174,11 +174,213 @@
             background: var(--bg-body);
         }
 
-        /* Fullscreen disabled — normal SharePoint page scroll/layout */
-        .sm-fs-btn,
-        #smLandingFsBtn,
-        #smFullscreenBtn {
+        #smLandingFsBtn {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 2147483001;
+            background: var(--bg-card);
+        }
+        html.sm-fullpage,
+        html.sm-fullpage body {
+            overflow: hidden !important;
+            height: 100% !important;
+            max-height: 100vh !important;
+        }
+        html.sm-fullpage #landingPage {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 2147483000 !important;
+            margin: 0 !important;
+            overflow: auto !important;
+        }
+        html.sm-fullpage #accountSearchView,
+        html.sm-fullpage #comingSoonView,
+        html.sm-fullpage #amAdDashboard,
+        html.sm-fullpage #createRequestView,
+        html.sm-fullpage #amTransferRequestsView,
+        html.sm-fullpage #amMyRequestsView,
+        html.sm-fullpage #amRequestDetailView,
+        html.sm-fullpage #transferRequestView {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+            min-height: 0 !important;
+            z-index: 2147483000 !important;
+            margin: 0 !important;
+            max-width: none !important;
+            display: block;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+        }
+        html.sm-fullpage .dashboard {
+            min-height: 0 !important;
+        }
+        html.sm-fullpage .dashboard > div:not(.header) {
+            flex: none;
+        }
+        html.sm-fullpage #dashboardContent.sm-visible-shell {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 2147483000 !important;
+            margin: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            background: var(--bg-body);
+            overflow: hidden !important;
+            min-height: 0 !important;
+        }
+        html.sm-fullpage #dashboardContent .header {
+            flex-shrink: 0;
+        }
+        html.sm-fullpage #dashboardContent .main-container {
+            display: flex !important;
+            flex: 1 1 auto !important;
+            align-items: flex-start;
+            min-height: 0 !important;
+            height: calc(100vh - 56px) !important;
+            max-height: calc(100vh - 56px) !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+        }
+        html.sm-fullpage #dashboardContent .sidebar {
+            position: sticky;
+            top: 0;
+            align-self: flex-start;
+            min-height: 0;
+            max-height: calc(100vh - 56px);
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+        html.sm-fullpage #dashboardContent .content,
+        html.sm-fullpage #dashboardContent .content.psd-full-mode,
+        html.sm-fullpage #dashboardContent .content.rc-full-mode,
+        html.sm-fullpage #dashboardContent .content.edit-full-mode,
+        html.sm-fullpage #dashboardContent .content.section-mode {
+            display: block !important;
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+        }
+        html.sm-fullpage #dashboardContent .dashboard-section {
+            width: 100% !important;
+            max-width: none !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+        }
+        html.sm-fullpage #editRequestView,
+        html.sm-fullpage #editRequestView .table-section {
+            width: 100% !important;
+            max-width: none !important;
+        }
+        html.sm-fullpage #dashboardContent.edit-full-shell #dashboard-view {
             display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            overflow: hidden !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        html.sm-fullpage #portalAnalyticsView {
+            position: static !important;
+            inset: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            min-height: 0 !important;
+            z-index: auto !important;
+            overflow: visible !important;
+        }
+        html.sm-fullpage #portalAnalyticsView.dashboard-section > .header {
+            position: static;
+            height: auto;
+            background: transparent;
+            border: none;
+            padding: 0 0 1rem;
+        }
+        html.sm-fullpage #portalAnalyticsView.dashboard-section .header-actions .theme-toggle,
+        html.sm-fullpage #portalAnalyticsView.dashboard-section .header-actions .color-scheme-selector,
+        html.sm-fullpage #portalAnalyticsView.dashboard-section .header-actions button[onclick="showPortalAnalyticsBack()"] {
+            display: none !important;
+        }
+        html.sm-fullpage #smPopupHost {
+            position: absolute;
+            width: 0;
+            height: 0;
+            overflow: visible;
+            z-index: 2147483640;
+            pointer-events: none;
+        }
+        html.sm-fullpage #smPopupHost > * {
+            pointer-events: auto;
+        }
+        html.sm-fullpage .ag-popup,
+        html.sm-fullpage .ag-popup-child,
+        html.sm-fullpage .ag-menu,
+        html.sm-fullpage .ag-tooltip,
+        html.sm-fullpage .pm-modal-overlay,
+        html.sm-fullpage .rc-modal-overlay,
+        html.sm-fullpage .sm-fs-popup,
+        html.sm-fullpage #editHistoryModal,
+        html.sm-fullpage #smExportModal,
+        html.sm-fullpage #transferReviewOverlay,
+        html.sm-fullpage #overdueTransferOverlay,
+        html.sm-fullpage #tsmSeUploadModal,
+        html.sm-fullpage #tspeModal,
+        html.sm-fullpage #qaViewModal,
+        html.sm-fullpage #nlOverlay,
+        html.sm-fullpage #csModal,
+        html.sm-fullpage #csAttPopup,
+        html.sm-fullpage #csLoadingOverlay,
+        html.sm-fullpage #csHCModal,
+        html.sm-fullpage #rcEditModal,
+        html.sm-fullpage #tsmSeSpinner,
+        html.sm-fullpage #pm-modal,
+        html.sm-fullpage #meptModal,
+        html:fullscreen .ag-popup,
+        html:fullscreen .ag-popup-child,
+        html:fullscreen .ag-menu,
+        html:fullscreen .ag-tooltip,
+        html:fullscreen .pm-modal-overlay,
+        html:fullscreen .rc-modal-overlay,
+        html:fullscreen .sm-fs-popup,
+        html:fullscreen #editHistoryModal,
+        html:fullscreen #smExportModal,
+        html:fullscreen #transferReviewOverlay,
+        html:fullscreen #overdueTransferOverlay,
+        html:fullscreen #tsmSeUploadModal,
+        html:fullscreen #tspeModal,
+        html:fullscreen #qaViewModal,
+        html:fullscreen #nlOverlay,
+        html:fullscreen #csModal,
+        html:fullscreen #csAttPopup,
+        html:fullscreen #csLoadingOverlay,
+        html:fullscreen #csHCModal,
+        html:fullscreen #rcEditModal,
+        html:fullscreen #tsmSeSpinner,
+        html:fullscreen #pm-modal,
+        html:fullscreen #meptModal {
+            z-index: 2147483640 !important;
+        }
+        #dashboardContent:fullscreen,
+        #dashboardContent:-webkit-full-screen,
+        html:fullscreen,
+        html:-webkit-full-screen {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-body);
         }
 
         /* ═══════ HEADER ════════════════════════════════════════════════════════ */
@@ -354,6 +556,12 @@
         .theme-toggle:hover {
             border-color: var(--border-s)
         }
+        .theme-toggle.active-fs,
+        .sm-fs-btn.active-fs {
+            border-color: var(--nab2);
+            background: var(--nab);
+            color: var(--acc);
+        }
 
         /* old .header-left used by sub-views */
         .header-left {
@@ -438,6 +646,15 @@
             width: 100%;
             flex: 1;
             min-width: 0;
+        }
+
+        .portal-shell.edit-full-shell #dashboard-view {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            overflow: hidden !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
 
         #editRequestView {
@@ -2207,8 +2424,95 @@
 
 <body>
     <style id="sm-glk-fullpage-css">
-        .sm-fs-btn, #smLandingFsBtn, #smFullscreenBtn { display: none !important; }
+        .theme-toggle.active-fs,
+        .sm-fs-btn.active-fs { border-color: var(--nab2); background: var(--nab); color: var(--acc); }
+        #smLandingFsBtn { position: fixed; top: 16px; right: 16px; z-index: 2147483001; background: var(--bg-card); }
+        html.sm-fullpage, html.sm-fullpage body { overflow: hidden !important; height: 100% !important; max-height: 100vh !important; }
+        html.sm-fullpage #landingPage { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 2147483000 !important; margin: 0 !important; overflow: auto !important; }
+        html.sm-fullpage #accountSearchView,
+        html.sm-fullpage #comingSoonView,
+        html.sm-fullpage #amAdDashboard,
+        html.sm-fullpage #createRequestView,
+        html.sm-fullpage #amTransferRequestsView,
+        html.sm-fullpage #amMyRequestsView,
+        html.sm-fullpage #amRequestDetailView,
+        html.sm-fullpage #transferRequestView {
+            position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
+            max-height: 100vh !important; min-height: 0 !important; z-index: 2147483000 !important; margin: 0 !important;
+            max-width: none !important; display: block; overflow-x: hidden !important; overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+        }
+        html.sm-fullpage .dashboard { min-height: 0 !important; }
+        html.sm-fullpage .dashboard > div:not(.header) { flex: none; }
+        html.sm-fullpage #dashboardContent.sm-visible-shell {
+            position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
+            z-index: 2147483000 !important; margin: 0 !important; display: flex !important; flex-direction: column !important;
+            background: var(--bg-body); overflow: hidden !important; min-height: 0 !important;
+        }
+        html.sm-fullpage #dashboardContent .header { flex-shrink: 0; }
+        html.sm-fullpage #dashboardContent .main-container {
+            display: flex !important; flex: 1 1 auto !important; align-items: flex-start;
+            min-height: 0 !important; height: calc(100vh - 56px) !important; max-height: calc(100vh - 56px) !important;
+            overflow-x: hidden !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch;
+        }
+        html.sm-fullpage #dashboardContent .sidebar {
+            position: sticky; top: 0; align-self: flex-start; min-height: 0;
+            max-height: calc(100vh - 56px); overflow-x: hidden; overflow-y: auto;
+        }
+        html.sm-fullpage #dashboardContent .content,
+        html.sm-fullpage #dashboardContent .content.psd-full-mode,
+        html.sm-fullpage #dashboardContent .content.rc-full-mode,
+        html.sm-fullpage #dashboardContent .content.edit-full-mode,
+        html.sm-fullpage #dashboardContent .content.section-mode {
+            display: block !important; flex: 1 1 auto !important; min-width: 0 !important;
+            min-height: 0 !important; height: auto !important; max-height: none !important;
+            overflow: visible !important;
+        }
+        html.sm-fullpage #dashboardContent .dashboard-section {
+            width: 100% !important; max-width: none !important; height: auto !important;
+            max-height: none !important; overflow: visible !important;
+        }
+        html.sm-fullpage #editRequestView,
+        html.sm-fullpage #editRequestView .table-section { width: 100% !important; max-width: none !important; }
+        html.sm-fullpage #dashboardContent.edit-full-shell #dashboard-view {
+            display: none !important; visibility: hidden !important; height: 0 !important;
+            overflow: hidden !important; padding: 0 !important; margin: 0 !important;
+        }
+        html.sm-fullpage #portalAnalyticsView {
+            position: static !important; inset: auto !important; width: 100% !important;
+            height: auto !important; max-height: none !important; min-height: 0 !important;
+            z-index: auto !important; overflow: visible !important;
+        }
+        html.sm-fullpage #portalAnalyticsView.dashboard-section > .header {
+            position: static; height: auto; background: transparent; border: none; padding: 0 0 1rem;
+        }
+        html.sm-fullpage #portalAnalyticsView.dashboard-section .header-actions .theme-toggle,
+        html.sm-fullpage #portalAnalyticsView.dashboard-section .header-actions .color-scheme-selector,
+        html.sm-fullpage #portalAnalyticsView.dashboard-section .header-actions button[onclick="showPortalAnalyticsBack()"] {
+            display: none !important;
+        }
+        html.sm-fullpage #smPopupHost { position: absolute; width: 0; height: 0; overflow: visible; z-index: 2147483640; pointer-events: none; }
+        html.sm-fullpage #smPopupHost > * { pointer-events: auto; }
+        html.sm-fullpage .ag-popup, html.sm-fullpage .ag-popup-child, html.sm-fullpage .ag-menu, html.sm-fullpage .ag-tooltip,
+        html.sm-fullpage .pm-modal-overlay, html.sm-fullpage .rc-modal-overlay, html.sm-fullpage .sm-fs-popup,
+        html.sm-fullpage #editHistoryModal, html.sm-fullpage #smExportModal, html.sm-fullpage #transferReviewOverlay,
+        html.sm-fullpage #overdueTransferOverlay, html.sm-fullpage #tsmSeUploadModal, html.sm-fullpage #tspeModal,
+        html.sm-fullpage #qaViewModal, html.sm-fullpage #nlOverlay, html.sm-fullpage #csModal, html.sm-fullpage #csAttPopup,
+        html.sm-fullpage #csLoadingOverlay, html.sm-fullpage #csHCModal, html.sm-fullpage #rcEditModal,
+        html.sm-fullpage #tsmSeSpinner, html.sm-fullpage #meptModal,
+        html:fullscreen .ag-popup, html:fullscreen .ag-popup-child, html:fullscreen .ag-menu, html:fullscreen .ag-tooltip,
+        html:fullscreen .pm-modal-overlay, html:fullscreen .rc-modal-overlay, html:fullscreen .sm-fs-popup,
+        html:fullscreen #editHistoryModal, html:fullscreen #smExportModal, html:fullscreen #transferReviewOverlay,
+        html:fullscreen #overdueTransferOverlay, html:fullscreen #tsmSeUploadModal, html:fullscreen #tspeModal,
+        html:fullscreen #qaViewModal, html:fullscreen #nlOverlay, html:fullscreen #csModal, html:fullscreen #csAttPopup,
+        html:fullscreen #csLoadingOverlay, html:fullscreen #csHCModal, html:fullscreen #rcEditModal,
+        html:fullscreen #tsmSeSpinner, html:fullscreen #meptModal {
+            z-index: 2147483640 !important;
+        }
+        #dashboardContent:fullscreen, #dashboardContent:-webkit-full-screen,
+        html:fullscreen, html:-webkit-full-screen { width: 100%; height: 100%; background: var(--bg-body); }
     </style>
+    <div id="smPopupHost"></div>
     <!-- ======================================================================================== -->
     <!-- SHAREPOINT COMPATIBILITY: All CSS in body since SharePoint strips <head> section -->
     <!-- ======================================================================================== -->
@@ -2411,9 +2715,6 @@
                 <div class="date-badge"><i data-lucide="calendar"></i><span id="currentDate">Loading...</span></div>
             </div>
             <div class="header-actions">
-                <button type="button" class="export-btn sm-fs-btn" id="smFullscreenBtn" onclick="smToggleFullscreen()" title="Full screen" style="padding:.45rem .65rem;font-size:.82rem;">
-                    <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;display:inline-block;vertical-align:middle;"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-                </button>
                 <button type="button" class="export-btn tab-refresh-btn" id="headerRefreshBtn" onclick="refreshCurrentTab()" title="Refresh current tab data" style="padding:.45rem .85rem;font-size:.82rem;">
                     <i data-lucide="refresh-cw" style="width:15px;height:15px;display:inline-block;vertical-align:middle;margin-right:5px;"></i>Refresh
                 </button>
@@ -2424,6 +2725,9 @@
                 <div class="theme-toggle" onclick="toggleTheme()" title="Light/Dark">
                     <i data-lucide="moon" id="themeIcon"></i>
                 </div>
+                <button type="button" class="export-btn sm-fs-btn" id="smFullscreenBtn" onclick="smToggleFullscreen()" title="Full screen" style="padding:.45rem .65rem;font-size:.82rem;">
+                    <svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;display:inline-block;vertical-align:middle;"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                </button>
             </div>
         </div>
         <div class="main-container">
@@ -2497,7 +2801,7 @@
                         <div class="nav-icon"><i data-lucide="folder-open"></i></div>
                         <div class="nav-label">Process Documents</div>
                     </div>
-                    <div class="nav-item" id="portalAnalyticsNavItem" onclick="showPortalAnalytics()" style="display:none;">
+                    <div class="nav-item" id="portalAnalyticsNavItem" data-section="portalAnalyticsView" onclick="showPortalAnalytics()" style="display:none;">
                         <div class="nav-icon"><i data-lucide="radar"></i></div>
                         <div class="nav-label">Portal Intelligence</div>
                     </div>
@@ -3081,7 +3385,7 @@
     </div><!-- /main-container -->
     </div><!-- /portal-shell dashboardContent -->
     <!-- ===== PORTAL INTELLIGENCE VIEW ===== -->
-    <div class="dashboard" style="display:none;position:relative;z-index:10;" id="portalAnalyticsView">
+    <div class="dashboard-section" style="display:none;width:100%;" id="portalAnalyticsView">
         <div class="header">
             <div class="header-left">
                 <h1><i data-lucide="radar" style="width:28px;height:28px;display:inline-block;vertical-align:middle;margin-right:10px;"></i>Portal Intelligence</h1>
@@ -8799,35 +9103,180 @@ ${USER_CONTEXT.userName}`
             if (typeof lucide !== 'undefined') lucide.createIcons();
         }
 
-        window._smFullPage = false;
+        window._smFullPage = true;
 
         var SM_FS_VIEW_IDS = [
             'landingPage', 'dashboardContent', 'accountSearchView', 'portalAnalyticsView',
             'comingSoonView', 'amAdDashboard', 'createRequestView',
-            'amTransferRequestsView', 'amMyRequestsView', 'amRequestDetailView'
+            'amTransferRequestsView', 'amMyRequestsView', 'amRequestDetailView',
+            'transferRequestView'
         ];
 
-        function smDisableFullscreen() {
+        function smFullscreenElement() {
+            return document.fullscreenElement || document.webkitFullscreenElement || null;
+        }
+        function smIsFullscreen() {
+            return !!(window._smFullPage !== false || smFullscreenElement());
+        }
+        function smResizeAfterFullscreen() {
+            setTimeout(function () {
+                try { if (typeof renderCharts === 'function' && typeof charts !== 'undefined' && charts.trend) renderCharts(); } catch (e) {}
+                try { if (typeof renderAMCharts === 'function' && typeof amCharts !== 'undefined' && amCharts.revenue) renderAMCharts(); } catch (e2) {}
+                try { window.dispatchEvent(new Event('resize')); } catch (e3) {}
+            }, 80);
+            setTimeout(function () {
+                try { window.dispatchEvent(new Event('resize')); } catch (e4) {}
+            }, 280);
+        }
+        function smFsIconSvg(on) {
+            return on
+                ? '<polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>'
+                : '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>';
+        }
+        function smEnsureFullscreenButtons() {
+            document.querySelectorAll('.header-actions').forEach(function (bar) {
+                var buttons = bar.querySelectorAll('.sm-fs-btn');
+                var btn = buttons[0];
+                var i;
+                for (i = 1; i < buttons.length; i++) buttons[i].parentNode.removeChild(buttons[i]);
+                if (!btn) {
+                    btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'export-btn sm-fs-btn';
+                    btn.title = 'Full screen';
+                    btn.style.cssText = 'padding:.45rem .65rem;font-size:.82rem;';
+                    btn.onclick = function () { smToggleFullscreen(); };
+                    btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;display:inline-block;vertical-align:middle;">' + smFsIconSvg(window._smFullPage !== false) + '</svg>';
+                }
+                var theme = bar.querySelector('.theme-toggle');
+                if (theme) {
+                    if (theme.nextSibling !== btn) {
+                        if (theme.nextSibling) bar.insertBefore(btn, theme.nextSibling);
+                        else bar.appendChild(btn);
+                    }
+                } else if (!bar.contains(btn)) {
+                    bar.appendChild(btn);
+                }
+            });
+        }
+        function smSyncFullscreenBtn() {
+            var on = window._smFullPage !== false || !!smFullscreenElement();
+            smEnsureFullscreenButtons();
+            document.querySelectorAll('.sm-fs-btn').forEach(function (btn) {
+                btn.classList.toggle('active-fs', on);
+                btn.title = on ? 'Minimize' : 'Full screen';
+                var icon = btn.querySelector('svg');
+                if (icon) icon.innerHTML = smFsIconSvg(on);
+            });
+        }
+        function smOnFullscreenChange() {
+            if (!smFullscreenElement() && window._smWantNativeFs) window._smWantNativeFs = false;
+            smSyncFullscreenBtn();
+            smResizeAfterFullscreen();
+        }
+        function smExitNativeFullscreen() {
+            var exitFn = document.exitFullscreen || document.webkitExitFullscreen;
+            if (exitFn && smFullscreenElement()) exitFn.call(document);
+        }
+        function smEnterFullscreen() {
+            window._smFullPage = true;
+            document.documentElement.classList.add('sm-fullpage');
+            var dc = document.getElementById('dashboardContent');
+            if (dc) dc.classList.add('sm-full');
+            smEnsurePopupHost();
+            smSyncFullscreenBtn();
+            var node = document.documentElement;
+            var req = node.requestFullscreen || node.webkitRequestFullscreen;
+            if (!req || smFullscreenElement()) return;
+            window._smWantNativeFs = true;
+            var p = req.call(node);
+            if (p && p.catch) p.catch(function () { window._smWantNativeFs = false; });
+        }
+        function smMinimizeFullscreen() {
             window._smFullPage = false;
             document.documentElement.classList.remove('sm-fullpage');
-            if (window._smViewHomes) {
-                SM_FS_VIEW_IDS.forEach(function (id) {
-                    var el = document.getElementById(id);
-                    var home = window._smViewHomes[id];
-                    if (!el || !home || !home.parent) return;
-                    if (home.next && home.next.parentNode === home.parent) {
-                        home.parent.insertBefore(el, home.next);
-                    } else {
-                        home.parent.appendChild(el);
-                    }
-                });
-                window._smViewHomes = null;
+            var dc = document.getElementById('dashboardContent');
+            if (dc) dc.classList.remove('sm-full');
+            smExitNativeFullscreen();
+            smSyncFullscreenBtn();
+            smResizeAfterFullscreen();
+        }
+        function smToggleFullscreen() {
+            if (window._smFullPage !== false || smFullscreenElement()) smMinimizeFullscreen();
+            else smEnterFullscreen();
+        }
+        function smBindFullscreenOnGesture() {
+            if (window._smFsGestureBound) return;
+            window._smFsGestureBound = true;
+            function go(e) {
+                if (e && e.target && e.target.closest && e.target.closest('.sm-fs-btn')) return;
+                if (window._smFullPage === false) return;
+                smEnterFullscreen();
             }
-            var root = document.getElementById('smAppRoot');
-            if (root && root.parentNode) root.parentNode.removeChild(root);
-            var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
-            var exitFn = document.exitFullscreen || document.webkitExitFullscreen;
-            if (exitFn && fsEl) exitFn.call(document);
+            document.addEventListener('pointerdown', go, true);
+            document.addEventListener('keydown', go, true);
+        }
+        document.addEventListener('fullscreenchange', smOnFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', smOnFullscreenChange);
+
+        function smEnsurePopupHost() {
+            var host = document.getElementById('smPopupHost');
+            if (host) return host;
+            host = document.createElement('div');
+            host.id = 'smPopupHost';
+            document.body.appendChild(host);
+            return host;
+        }
+        window.smPopupParent = function () {
+            return smEnsurePopupHost();
+        };
+        window.smBoostPopupZ = function (el) {
+            if (!el || !el.style) return;
+            el.classList.add('sm-fs-popup');
+            el.style.setProperty('z-index', '2147483646', 'important');
+        };
+        window.smMountPopup = function (el) {
+            if (!el) return el;
+            smPopupParent().appendChild(el);
+            smBoostPopupZ(el);
+            return el;
+        };
+        function smWatchBodyPopups() {
+            if (window._smPopupObserver) return;
+            var skip = { landingPage: 1, dashboardContent: 1, smPopupHost: 1, smAppRoot: 1 };
+            SM_FS_VIEW_IDS.forEach(function (id) { skip[id] = 1; });
+            function boost(node) {
+                if (!node || node.nodeType !== 1) return;
+                if (skip[node.id]) return;
+                var pos = '';
+                try { pos = (node.style && node.style.position) || ''; } catch (e) {}
+                var cls = String(node.className || '');
+                var id = String(node.id || '');
+                var looksPopup = pos === 'fixed' || /modal|overlay|popup|ag-popup|ag-menu/i.test(cls) || /modal|overlay|popup/i.test(id);
+                if (looksPopup) smBoostPopupZ(node);
+            }
+            window._smPopupObserver = new MutationObserver(function (mutations) {
+                if (window._smFullPage === false && !smFullscreenElement()) return;
+                mutations.forEach(function (m) {
+                    Array.prototype.forEach.call(m.addedNodes, boost);
+                });
+            });
+            window._smPopupObserver.observe(document.body, { childList: true });
+        }
+        function smDisableFullscreen() { smMinimizeFullscreen(); }
+
+        window.smEnterFullscreen = smEnterFullscreen;
+        window.smMinimizeFullscreen = smMinimizeFullscreen;
+        window.smToggleFullscreen = smToggleFullscreen;
+        window.smSyncFullscreenBtn = smSyncFullscreenBtn;
+        smEnsurePopupHost();
+        smWatchBodyPopups();
+        smBindFullscreenOnGesture();
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function () { smSyncFullscreenBtn(); smEmbedPortalAnalytics(); });
+        } else {
+            smSyncFullscreenBtn();
+            smEmbedPortalAnalytics();
         }
 
         function smIsNestedInDashboardView(sectionEl) {
@@ -8846,12 +9295,6 @@ ${USER_CONTEXT.userName}`
                 portalShell.classList.remove('psd-full-shell', 'rc-full-shell', 'edit-full-shell');
             }
         }
-
-        function smEnterFullscreen() { smDisableFullscreen(); }
-        function smMinimizeFullscreen() { smDisableFullscreen(); }
-        function smToggleFullscreen() { smDisableFullscreen(); }
-
-        window.smBoostPopupZ = function () {};
 
         function smHideLanding() {
             var landing = document.getElementById('landingPage');
@@ -8881,6 +9324,19 @@ ${USER_CONTEXT.userName}`
             dash.classList.remove('sm-visible-shell');
             dash.style.setProperty('display', 'none', 'important');
         }
+
+        function smEmbedPortalAnalytics() {
+            var view = document.getElementById('portalAnalyticsView');
+            var content = document.querySelector('#dashboardContent .content');
+            if (!view || !content) return;
+            if (view.parentNode !== content) content.appendChild(view);
+            view.classList.remove('dashboard');
+            view.classList.add('dashboard-section');
+            view.style.removeProperty('position');
+            view.style.removeProperty('z-index');
+            view.style.width = '100%';
+        }
+        window.smEmbedPortalAnalytics = smEmbedPortalAnalytics;
 
         function toggleTheme() {
             const body = document.body;
@@ -8996,7 +9452,9 @@ ${USER_CONTEXT.userName}`
             smClearModuleLayoutModes();
             var contentDiv = document.querySelector('#dashboardContent .content') || document.querySelector('.content');
             var portalShell = document.getElementById('dashboardContent') || document.querySelector('.portal-shell');
-            if (contentDiv) contentDiv.style.overflowY = 'auto';
+            var mainWrap = document.querySelector('#dashboardContent .main-container');
+            if (contentDiv) contentDiv.style.overflowY = 'visible';
+            if (mainWrap) mainWrap.scrollTop = 0;
 
             // ── HIDE ALL SECTIONS ─────────────────────────────────────────
             document.querySelectorAll('.dashboard-section').forEach(function(section) {
@@ -9043,6 +9501,8 @@ ${USER_CONTEXT.userName}`
 
             // ── Full-bleed layout for module sections (same as old SM) ───
             if (contentDiv) {
+                contentDiv.style.overflowY = 'visible';
+                contentDiv.scrollTop = 0;
                 if (sectionId === 'pending-requests' || sectionId === 'transfer-requests' || sectionId === 'newsletterView') {
                     contentDiv.classList.add('section-mode');
                 }
@@ -9113,6 +9573,10 @@ else if (sectionId === 'newsletterView') {
     if (typeof nlLoadNewsletter === 'function') nlLoadNewsletter();
     if (typeof nlMarkAsSeen === 'function') nlMarkAsSeen();
     if (typeof nlRemoveNewBadge === 'function') nlRemoveNewBadge();
+}
+else if (sectionId === 'portalAnalyticsView') {
+    if (typeof smEmbedPortalAnalytics === 'function') smEmbedPortalAnalytics();
+    if (typeof analyticsLoadDashboard === 'function') analyticsLoadDashboard();
 }
 
         }
@@ -9379,7 +9843,12 @@ else if (sectionId === 'newsletterView') {
 
                 document.getElementById('landingPage').style.setProperty('display', 'flex', 'important');
                 document.getElementById('landingPage').classList.remove('sm-hidden');
-                if (typeof smDisableFullscreen === 'function') smDisableFullscreen();
+                if (typeof smEnterFullscreen === 'function') {
+                    smEnterFullscreen();
+                    smBindFullscreenOnGesture();
+                    smWatchBodyPopups();
+                    smSyncFullscreenBtn();
+                }
 
                 // Load data for all roles with access (Account_Search_Viewer uses same init as Admin)
               if (hasAccess) {
@@ -10291,14 +10760,25 @@ else if (sectionId === 'newsletterView') {
             try {
                 await fetchAccessControlSettings();
                 document.querySelectorAll('.dashboard-section').forEach(function (s) { s.style.display = 'none'; });
+                var dashView = document.getElementById('dashboard-view');
+                if (dashView) {
+                    dashView.style.setProperty('display', 'none', 'important');
+                    dashView.style.visibility = 'hidden';
+                }
+                var innerDash = document.getElementById('content');
+                var dashLoading = document.getElementById('loading');
+                if (innerDash) innerDash.style.display = 'none';
+                if (dashLoading) dashLoading.style.display = 'none';
                 document.getElementById('editRequestView').style.display = 'block';
-                var contentDiv = document.querySelector('.content');
-                var portalShell = document.querySelector('.portal-shell');
+                var contentDiv = document.querySelector('#dashboardContent .content') || document.querySelector('.content');
+                var portalShell = document.getElementById('dashboardContent') || document.querySelector('.portal-shell');
                 if (contentDiv) {
-                    contentDiv.classList.remove('section-mode');
+                    contentDiv.classList.remove('section-mode', 'psd-full-mode', 'rc-full-mode');
                     contentDiv.classList.add('edit-full-mode');
                 }
                 if (portalShell) portalShell.classList.add('edit-full-shell');
+                var main = document.querySelector('#dashboardContent .main-container');
+                if (main) main.scrollTop = 0;
                 // ✅ STEP 2: NOW reset the button (it exists now)
                 const submitBtn = document.querySelector('#editReviewSection button[onclick="submitEditRequest()"]');
                 if (submitBtn) {
@@ -10671,9 +11151,13 @@ else if (sectionId === 'newsletterView') {
         function backFromEditRequest() {
             document.getElementById('editRequestView').style.display = 'none';
             var dashView = document.getElementById('dashboard-view');
-            if (dashView) dashView.style.display = 'block';
-            var contentDiv = document.querySelector('.content');
-            var portalShell = document.querySelector('.portal-shell');
+            if (dashView) {
+                dashView.style.removeProperty('display');
+                dashView.style.display = 'block';
+                dashView.style.visibility = 'visible';
+            }
+            var contentDiv = document.querySelector('#dashboardContent .content') || document.querySelector('.content');
+            var portalShell = document.getElementById('dashboardContent') || document.querySelector('.portal-shell');
             if (contentDiv) {
                 contentDiv.classList.remove('section-mode');
                 contentDiv.classList.remove('edit-full-mode');
@@ -11081,7 +11565,7 @@ else if (sectionId === 'newsletterView') {
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
             }
-            if (typeof smDisableFullscreen === 'function') smDisableFullscreen();
+            if (typeof smSyncFullscreenBtn === 'function') smSyncFullscreenBtn();
         }
 
         // ─── COMING SOON VIEWS ──────────────────────────────────────────────
@@ -11093,45 +11577,35 @@ else if (sectionId === 'newsletterView') {
         ];
 
         window.showPortalAnalytics = function() {
-            ALL_VIEW_IDS.forEach(function(vid) {
+            if (typeof smEmbedPortalAnalytics === 'function') smEmbedPortalAnalytics();
+            if (typeof smShowDashboardShell === 'function') smShowDashboardShell();
+            ['comingSoonView', 'accountSearchView', 'landingPage'].forEach(function(vid) {
                 var el = document.getElementById(vid);
-                if (el) {
-                    el.style.display = 'none';
-                    el.style.position = 'absolute';
-                    el.style.zIndex = '-1';
-                }
+                if (el) el.style.display = 'none';
             });
+            if (typeof switchDashboardSection === 'function') switchDashboardSection('portalAnalyticsView');
             var view = document.getElementById('portalAnalyticsView');
             if (view) {
-                view.style.position = '';
-                view.style.zIndex = '';
+                view.style.removeProperty('position');
+                view.style.removeProperty('z-index');
                 view.style.display = 'block';
+                view.style.visibility = 'visible';
             }
-            window.scrollTo(0, 0);
+            var main = document.querySelector('#dashboardContent .main-container');
+            if (main) main.scrollTop = 0;
             if (typeof analyticsLoadDashboard === 'function') analyticsLoadDashboard();
             if (typeof lucide !== 'undefined') lucide.createIcons();
         };
 
         window.showPortalAnalyticsBack = function() {
-            var view = document.getElementById('portalAnalyticsView');
-            if (view) {
-                view.style.display = 'none';
-                view.style.position = 'absolute';
-                view.style.zIndex = '-1';
-            }
-            var dc = document.getElementById('dashboardContent');
-            if (dc) {
-                dc.style.position = '';
-                dc.style.zIndex = '';
-                dc.style.display = 'flex';
-                dc.style.flexDirection = 'column';
-            }
+            if (typeof smShowDashboardShell === 'function') smShowDashboardShell();
             if (typeof switchDashboardSection === 'function') switchDashboardSection('dashboard-view');
             window.scrollTo(0, 0);
         };
 
         window.showComingSoon = function(id, title, icon) {
             if (typeof analyticsTrackPage === 'function') analyticsTrackPage(title);
+            if (typeof smHideDashboardShell === 'function') smHideDashboardShell();
             ALL_VIEW_IDS.forEach(function(vid) {
                 var el = document.getElementById(vid);
                 if (el) {
@@ -11162,12 +11636,15 @@ else if (sectionId === 'newsletterView') {
                 view.style.position = 'absolute';
                 view.style.zIndex = '-1';
             }
-            var dc = document.getElementById('dashboardContent');
-            if (dc) {
-                dc.style.position = '';
-                dc.style.zIndex = '';
-                dc.style.display = 'flex';
-                dc.style.flexDirection = 'column';
+            if (typeof smShowDashboardShell === 'function') smShowDashboardShell();
+            else {
+                var dc = document.getElementById('dashboardContent');
+                if (dc) {
+                    dc.style.position = '';
+                    dc.style.zIndex = '';
+                    dc.style.display = 'flex';
+                    dc.style.flexDirection = 'column';
+                }
             }
             if (typeof switchDashboardSection === 'function') switchDashboardSection('dashboard-view');
             window.scrollTo(0, 0);
