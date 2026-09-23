@@ -9,9 +9,17 @@ if (typeof window.CURRENT_TRANSFER_ITEM === 'undefined') window.CURRENT_TRANSFER
 function inject() {
     var content = document.querySelector('.content') || document.body;
     
+    function smAppendSection(html) {
+        var wrap = document.createElement('div');
+        wrap.innerHTML = html;
+        var sec = wrap.firstElementChild;
+        if (!sec) return;
+        if (sec.id && document.getElementById(sec.id)) return;
+        content.appendChild(sec);
+    }
+
     // d1 — transfer-requests list section
-    var d1 = document.createElement('div');
-    d1.innerHTML = `<div id="transfer-requests" class="dashboard-section" style="display: none;">
+    smAppendSection(`<div id="transfer-requests" class="dashboard-section" style="display: none;">
         <div>
             <h2 style="font-size:1rem;font-weight:800;color:var(--t1);margin:0 0 .85rem!important;padding:0!important;display:flex;align-items:center;gap:.4rem;">
                 <i data-lucide="arrow-right-left" style="width: 24px; height: 24px;"></i> Transfer Requests
@@ -39,12 +47,10 @@ function inject() {
                 </div>
             </div>
         </div>
-    </div>`;
-    content.appendChild(d1);
+    </div>`);
 
     // d2 — sdReviewTransferView ALSO goes into .content as a dashboard-section
-    var d2 = document.createElement('div');
-   d2.innerHTML = `<div id="sdReviewTransferView" class="dashboard-section" style="display:none;">
+    smAppendSection(`<div id="sdReviewTransferView" class="dashboard-section" style="display:none;">
     <div style="max-width:1200px;margin:0 auto;">
         <div class="table-section">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
@@ -113,8 +119,7 @@ function inject() {
             <div id="sdTransferMessage" style="margin-top:16px;text-align:center;font-weight:600;"></div>
         </div>
     </div>
-</div>`;
-    content.appendChild(d2);
+</div>`);
 
     // Full-page transferRequestView + adminTransferView are defined in SM.html — do not inject
     // duplicates (duplicate IDs break getElementById and DOM validity).
