@@ -9328,11 +9328,10 @@ ${USER_CONTEXT.userName}`
             if (contentDiv) {
                 contentDiv.classList.remove('section-mode', 'psd-full-mode', 'rc-full-mode', 'edit-full-mode');
                 contentDiv.style.removeProperty('display');
-                var dashView = document.getElementById('dashboard-view');
-                if (dashView) {
-                    dashView.style.removeProperty('display');
-                    dashView.style.removeProperty('visibility');
-                }
+                Array.prototype.forEach.call(contentDiv.children, function (child) {
+                    child.style.removeProperty('display');
+                    child.style.removeProperty('visibility');
+                });
             }
             if (portalShell) {
                 portalShell.classList.remove('psd-full-shell', 'rc-full-shell', 'edit-full-shell');
@@ -9385,6 +9384,14 @@ ${USER_CONTEXT.userName}`
                 if (child.id === 'sidebar' || (child.classList && child.classList.contains('sidebar'))) return;
                 if (child.classList && (child.classList.contains('dashboard-section') || child.classList.contains('dashboard'))) {
                     content.appendChild(child);
+                }
+            });
+            Array.prototype.slice.call(content.children).forEach(function (child) {
+                if (child.id || (child.classList && (child.classList.contains('dashboard-section') || child.classList.contains('dashboard')))) return;
+                var inner = child.querySelector ? child.querySelector('.dashboard-section, .dashboard') : null;
+                if (inner && child.children.length === 1) {
+                    content.insertBefore(inner, child);
+                    if (child.parentNode) child.parentNode.removeChild(child);
                 }
             });
         }
@@ -9486,6 +9493,7 @@ ${USER_CONTEXT.userName}`
 
 
         function switchDashboardSection(sectionId) {
+            if (typeof smNormalizeContentSections === 'function') smNormalizeContentSections();
             if (sectionId === 'cs-view') sectionId = 'customerServiceView';
             // Track page view
             if (typeof analyticsTrackPage === 'function') {
@@ -9578,6 +9586,12 @@ ${USER_CONTEXT.userName}`
                     dashboardView.style.visibility = 'hidden';
                 }
                 if (targetSection) {
+                    var reveal = targetSection;
+                    while (reveal && reveal !== contentDiv && reveal !== document.body) {
+                        reveal.style.removeProperty('display');
+                        reveal.style.removeProperty('visibility');
+                        reveal = reveal.parentElement;
+                    }
                     targetSection.style.display = 'block';
                     targetSection.style.visibility = 'visible';
                 }
@@ -10857,11 +10871,6 @@ else if (sectionId === 'portalAnalyticsView') {
                 var contentDiv = document.querySelector('#dashboardContent .content') || document.querySelector('.content');
                 var portalShell = document.getElementById('dashboardContent') || document.querySelector('.portal-shell');
                 if (contentDiv) {
-                    Array.prototype.forEach.call(contentDiv.children, function (child) {
-                        if (child.id !== 'editRequestView') {
-                            child.style.setProperty('display', 'none', 'important');
-                        }
-                    });
                     contentDiv.classList.remove('section-mode', 'psd-full-mode', 'rc-full-mode');
                     contentDiv.classList.add('edit-full-mode');
                     contentDiv.scrollTop = 0;
