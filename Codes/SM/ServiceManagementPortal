@@ -242,23 +242,26 @@
         }
         html.sm-fullpage #dashboardContent .main-container {
             display: flex !important;
+            flex-direction: row !important;
             flex: 1 1 auto !important;
-            align-items: flex-start;
+            align-items: stretch !important;
             min-height: 0 !important;
             height: calc(100vh - 56px) !important;
             max-height: calc(100vh - 56px) !important;
-            overflow-x: hidden !important;
-            overflow-y: auto !important;
-            -webkit-overflow-scrolling: touch;
+            overflow: hidden !important;
         }
         html.sm-fullpage #dashboardContent .sidebar {
-            position: sticky;
-            top: 0;
-            align-self: flex-start;
-            min-height: 0;
-            max-height: calc(100vh - 56px);
-            overflow-x: hidden;
-            overflow-y: auto;
+            position: relative !important;
+            top: auto !important;
+            align-self: stretch !important;
+            flex: 0 0 210px;
+            height: 100% !important;
+            max-height: 100% !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+        }
+        html.sm-fullpage #dashboardContent .sidebar.collapsed {
+            flex-basis: 52px;
         }
         html.sm-fullpage #dashboardContent .content,
         html.sm-fullpage #dashboardContent .content.psd-full-mode,
@@ -269,9 +272,11 @@
             flex: 1 1 auto !important;
             min-width: 0 !important;
             min-height: 0 !important;
-            height: auto !important;
-            max-height: none !important;
-            overflow: visible !important;
+            height: 100% !important;
+            max-height: 100% !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
         }
         html.sm-fullpage #dashboardContent .dashboard-section {
             width: 100% !important;
@@ -282,8 +287,23 @@
         }
         html.sm-fullpage #editRequestView,
         html.sm-fullpage #editRequestView .table-section {
+            display: block !important;
             width: 100% !important;
             max-width: none !important;
+            margin: 0 !important;
+            float: none !important;
+            position: relative !important;
+            left: 0 !important;
+        }
+        html.sm-fullpage #dashboardContent .content.edit-full-mode > *:not(#editRequestView) {
+            display: none !important;
+            visibility: hidden !important;
+            position: absolute !important;
+            left: -9999px !important;
+            width: 0 !important;
+            height: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
         }
         html.sm-fullpage #dashboardContent.edit-full-shell #dashboard-view {
             display: none !important;
@@ -642,10 +662,22 @@
         }
 
         .content.edit-full-mode {
+            display: block !important;
             padding: 1.1rem 1.25rem !important;
             width: 100%;
             flex: 1;
             min-width: 0;
+        }
+
+        .content.edit-full-mode > *:not(#editRequestView) {
+            display: none !important;
+            visibility: hidden !important;
+            position: absolute !important;
+            left: -9999px !important;
+            width: 0 !important;
+            height: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
         }
 
         .portal-shell.edit-full-shell #dashboard-view {
@@ -2451,29 +2483,40 @@
         }
         html.sm-fullpage #dashboardContent .header { flex-shrink: 0; }
         html.sm-fullpage #dashboardContent .main-container {
-            display: flex !important; flex: 1 1 auto !important; align-items: flex-start;
-            min-height: 0 !important; height: calc(100vh - 56px) !important; max-height: calc(100vh - 56px) !important;
-            overflow-x: hidden !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch;
+            display: flex !important; flex-direction: row !important; flex: 1 1 auto !important;
+            align-items: stretch !important; min-height: 0 !important;
+            height: calc(100vh - 56px) !important; max-height: calc(100vh - 56px) !important;
+            overflow: hidden !important;
         }
         html.sm-fullpage #dashboardContent .sidebar {
-            position: sticky; top: 0; align-self: flex-start; min-height: 0;
-            max-height: calc(100vh - 56px); overflow-x: hidden; overflow-y: auto;
+            position: relative !important; top: auto !important; align-self: stretch !important;
+            flex: 0 0 210px; height: 100% !important; max-height: 100% !important;
+            overflow-x: hidden !important; overflow-y: auto !important;
         }
+        html.sm-fullpage #dashboardContent .sidebar.collapsed { flex-basis: 52px; }
         html.sm-fullpage #dashboardContent .content,
         html.sm-fullpage #dashboardContent .content.psd-full-mode,
         html.sm-fullpage #dashboardContent .content.rc-full-mode,
         html.sm-fullpage #dashboardContent .content.edit-full-mode,
         html.sm-fullpage #dashboardContent .content.section-mode {
             display: block !important; flex: 1 1 auto !important; min-width: 0 !important;
-            min-height: 0 !important; height: auto !important; max-height: none !important;
-            overflow: visible !important;
+            min-height: 0 !important; height: 100% !important; max-height: 100% !important;
+            overflow-x: hidden !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch;
         }
         html.sm-fullpage #dashboardContent .dashboard-section {
             width: 100% !important; max-width: none !important; height: auto !important;
             max-height: none !important; overflow: visible !important;
         }
         html.sm-fullpage #editRequestView,
-        html.sm-fullpage #editRequestView .table-section { width: 100% !important; max-width: none !important; }
+        html.sm-fullpage #editRequestView .table-section {
+            display: block !important; width: 100% !important; max-width: none !important;
+            margin: 0 !important; float: none !important; position: relative !important; left: 0 !important;
+        }
+        html.sm-fullpage #dashboardContent .content.edit-full-mode > *:not(#editRequestView) {
+            display: none !important; visibility: hidden !important; position: absolute !important;
+            left: -9999px !important; width: 0 !important; height: 0 !important;
+            overflow: hidden !important; pointer-events: none !important;
+        }
         html.sm-fullpage #dashboardContent.edit-full-shell #dashboard-view {
             display: none !important; visibility: hidden !important; height: 0 !important;
             overflow: hidden !important; padding: 0 !important; margin: 0 !important;
@@ -9134,30 +9177,32 @@ ${USER_CONTEXT.userName}`
                 : '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>';
         }
         function smEnsureFullscreenButtons() {
-            document.querySelectorAll('.header-actions').forEach(function (bar) {
-                var buttons = bar.querySelectorAll('.sm-fs-btn');
-                var btn = buttons[0];
-                var i;
-                for (i = 1; i < buttons.length; i++) buttons[i].parentNode.removeChild(buttons[i]);
-                if (!btn) {
-                    btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.className = 'export-btn sm-fs-btn';
-                    btn.title = 'Full screen';
-                    btn.style.cssText = 'padding:.45rem .65rem;font-size:.82rem;';
-                    btn.onclick = function () { smToggleFullscreen(); };
-                    btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;display:inline-block;vertical-align:middle;">' + smFsIconSvg(window._smFullPage !== false) + '</svg>';
-                }
-                var theme = bar.querySelector('.theme-toggle');
-                if (theme) {
-                    if (theme.nextSibling !== btn) {
-                        if (theme.nextSibling) bar.insertBefore(btn, theme.nextSibling);
-                        else bar.appendChild(btn);
-                    }
-                } else if (!bar.contains(btn)) {
-                    bar.appendChild(btn);
-                }
+            document.querySelectorAll('.sm-fs-btn').forEach(function (btn) {
+                if (btn.id === 'smFullscreenBtn' || btn.id === 'smLandingFsBtn') return;
+                if (btn.parentNode) btn.parentNode.removeChild(btn);
             });
+            var bar = document.querySelector('#dashboardContent > .header .header-actions');
+            if (!bar) return;
+            var btn = document.getElementById('smFullscreenBtn');
+            if (!btn) {
+                btn = document.createElement('button');
+                btn.type = 'button';
+                btn.id = 'smFullscreenBtn';
+                btn.className = 'export-btn sm-fs-btn';
+                btn.title = 'Full screen';
+                btn.style.cssText = 'padding:.45rem .65rem;font-size:.82rem;';
+                btn.onclick = function () { smToggleFullscreen(); };
+                btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;display:inline-block;vertical-align:middle;">' + smFsIconSvg(window._smFullPage !== false) + '</svg>';
+            }
+            var theme = bar.querySelector('.theme-toggle');
+            if (theme) {
+                if (theme.nextSibling !== btn) {
+                    if (theme.nextSibling) bar.insertBefore(btn, theme.nextSibling);
+                    else bar.appendChild(btn);
+                }
+            } else if (!bar.contains(btn)) {
+                bar.appendChild(btn);
+            }
         }
         function smSyncFullscreenBtn() {
             var on = window._smFullPage !== false || !!smFullscreenElement();
@@ -9453,7 +9498,10 @@ ${USER_CONTEXT.userName}`
             var contentDiv = document.querySelector('#dashboardContent .content') || document.querySelector('.content');
             var portalShell = document.getElementById('dashboardContent') || document.querySelector('.portal-shell');
             var mainWrap = document.querySelector('#dashboardContent .main-container');
-            if (contentDiv) contentDiv.style.overflowY = 'visible';
+            if (contentDiv) {
+                contentDiv.style.removeProperty('overflow-y');
+                contentDiv.scrollTop = 0;
+            }
             if (mainWrap) mainWrap.scrollTop = 0;
 
             // ── HIDE ALL SECTIONS ─────────────────────────────────────────
@@ -9501,7 +9549,7 @@ ${USER_CONTEXT.userName}`
 
             // ── Full-bleed layout for module sections (same as old SM) ───
             if (contentDiv) {
-                contentDiv.style.overflowY = 'visible';
+                contentDiv.style.removeProperty('overflow-y');
                 contentDiv.scrollTop = 0;
                 if (sectionId === 'pending-requests' || sectionId === 'transfer-requests' || sectionId === 'newsletterView') {
                     contentDiv.classList.add('section-mode');
@@ -10769,12 +10817,23 @@ else if (sectionId === 'portalAnalyticsView') {
                 var dashLoading = document.getElementById('loading');
                 if (innerDash) innerDash.style.display = 'none';
                 if (dashLoading) dashLoading.style.display = 'none';
-                document.getElementById('editRequestView').style.display = 'block';
                 var contentDiv = document.querySelector('#dashboardContent .content') || document.querySelector('.content');
                 var portalShell = document.getElementById('dashboardContent') || document.querySelector('.portal-shell');
                 if (contentDiv) {
+                    Array.prototype.forEach.call(contentDiv.children, function (child) {
+                        if (child.id !== 'editRequestView') {
+                            child.style.setProperty('display', 'none', 'important');
+                        }
+                    });
                     contentDiv.classList.remove('section-mode', 'psd-full-mode', 'rc-full-mode');
                     contentDiv.classList.add('edit-full-mode');
+                    contentDiv.scrollTop = 0;
+                }
+                var editView = document.getElementById('editRequestView');
+                if (editView) {
+                    editView.style.setProperty('display', 'block', 'important');
+                    editView.style.setProperty('width', '100%', 'important');
+                    editView.style.visibility = 'visible';
                 }
                 if (portalShell) portalShell.classList.add('edit-full-shell');
                 var main = document.querySelector('#dashboardContent .main-container');
