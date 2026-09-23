@@ -1762,3 +1762,4 @@ async function submitDeclineTransfer() {
         alert('Error: ' + e.message);
     }
 }
+
