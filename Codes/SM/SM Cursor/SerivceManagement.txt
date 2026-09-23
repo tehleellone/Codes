@@ -6568,6 +6568,9 @@ else if (USER_CONTEXT.role === 'Account Manager' || USER_CONTEXT.role === 'Accou
             }, 100);
             incrementVisitCount();
             saveLastVisit();
+            if (typeof switchDashboardSection === 'function' && USER_CONTEXT.role !== 'Auditor' && !isPsdRole(USER_CONTEXT.role) && !isRcRole(USER_CONTEXT.role)) {
+                switchDashboardSection('dashboard-view');
+            }
         }
         // ========================================
         // AM/AD VIEW FUNCTIONS
@@ -9217,20 +9220,18 @@ ${USER_CONTEXT.userName}`
         }
         function smEnterFullscreen() {
             window._smFullPage = true;
+            window._smWantNativeFs = false;
             document.documentElement.classList.add('sm-fullpage');
             var dc = document.getElementById('dashboardContent');
             if (dc) dc.classList.add('sm-full');
             smEnsurePopupHost();
+            smExitNativeFullscreen();
             smSyncFullscreenBtn();
-            var node = document.documentElement;
-            var req = node.requestFullscreen || node.webkitRequestFullscreen;
-            if (!req || smFullscreenElement()) return;
-            window._smWantNativeFs = true;
-            var p = req.call(node);
-            if (p && p.catch) p.catch(function () { window._smWantNativeFs = false; });
+            smResizeAfterFullscreen();
         }
         function smMinimizeFullscreen() {
             window._smFullPage = false;
+            window._smWantNativeFs = false;
             document.documentElement.classList.remove('sm-fullpage');
             var dc = document.getElementById('dashboardContent');
             if (dc) dc.classList.remove('sm-full');
@@ -9239,20 +9240,10 @@ ${USER_CONTEXT.userName}`
             smResizeAfterFullscreen();
         }
         function smToggleFullscreen() {
-            if (window._smFullPage !== false || smFullscreenElement()) smMinimizeFullscreen();
+            if (window._smFullPage !== false) smMinimizeFullscreen();
             else smEnterFullscreen();
         }
-        function smBindFullscreenOnGesture() {
-            if (window._smFsGestureBound) return;
-            window._smFsGestureBound = true;
-            function go(e) {
-                if (e && e.target && e.target.closest && e.target.closest('.sm-fs-btn')) return;
-                if (window._smFullPage === false) return;
-                smEnterFullscreen();
-            }
-            document.addEventListener('pointerdown', go, true);
-            document.addEventListener('keydown', go, true);
-        }
+        function smBindFullscreenOnGesture() { }
         document.addEventListener('fullscreenchange', smOnFullscreenChange);
         document.addEventListener('webkitfullscreenchange', smOnFullscreenChange);
 
@@ -9328,10 +9319,6 @@ ${USER_CONTEXT.userName}`
             if (contentDiv) {
                 contentDiv.classList.remove('section-mode', 'psd-full-mode', 'rc-full-mode', 'edit-full-mode');
                 contentDiv.style.removeProperty('display');
-                Array.prototype.forEach.call(contentDiv.children, function (child) {
-                    child.style.removeProperty('display');
-                    child.style.removeProperty('visibility');
-                });
             }
             if (portalShell) {
                 portalShell.classList.remove('psd-full-shell', 'rc-full-shell', 'edit-full-shell');
@@ -9564,10 +9551,27 @@ ${USER_CONTEXT.userName}`
             var dashInnerContent = document.getElementById('content');
             var dashLoading = document.getElementById('loading');
 
+            if (contentDiv) {
+                Array.prototype.forEach.call(contentDiv.children, function (child) {
+                    var keep = (child.id === sectionId) ||
+                        (sectionId === 'dashboard-view' && child.id === 'dashboard-view') ||
+                        (targetSection && child.contains(targetSection));
+                    if (keep) {
+                        child.style.removeProperty('display');
+                        child.style.removeProperty('visibility');
+                    } else {
+                        child.style.display = 'none';
+                    }
+                });
+            }
+
             if (sectionId === 'dashboard-view') {
                 if (dashboardView) {
                     dashboardView.style.display = 'block';
                     dashboardView.style.visibility = 'visible';
+                    dashboardView.querySelectorAll('.dashboard-section').forEach(function (s) {
+                        s.style.display = 'none';
+                    });
                 }
                 var hasDashData = (typeof ALL_DATA !== 'undefined' && ALL_DATA && ALL_DATA.length > 0);
                 if (dashInnerContent) dashInnerContent.style.display = hasDashData ? 'block' : 'none';
@@ -9588,8 +9592,12 @@ ${USER_CONTEXT.userName}`
                 if (targetSection) {
                     var reveal = targetSection;
                     while (reveal && reveal !== contentDiv && reveal !== document.body) {
-                        reveal.style.removeProperty('display');
-                        reveal.style.removeProperty('visibility');
+                        var isOtherSection = reveal !== targetSection && reveal.classList &&
+                            (reveal.classList.contains('dashboard-section') || reveal.classList.contains('dashboard'));
+                        if (!isOtherSection) {
+                            reveal.style.removeProperty('display');
+                            reveal.style.removeProperty('visibility');
+                        }
                         reveal = reveal.parentElement;
                     }
                     targetSection.style.display = 'block';
