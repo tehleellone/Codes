@@ -3299,7 +3299,7 @@
                     </div>
             </div>
             <!-- REVIEW REQUEST VIEW (ADMIN) -->
-            <div class="dashboard" style="display:none;" id="reviewRequestView">
+            <div class="dashboard dashboard-section" style="display:none;" id="reviewRequestView">
                 <div class="header">
                     <div class="header-left">
                         <h1><i data-lucide="eye" style="width: 28px; height: 28px; display: inline-block; vertical-align: middle; margin-right: 10px;"></i>Review Account Request</h1>
@@ -9328,10 +9328,11 @@ ${USER_CONTEXT.userName}`
             if (contentDiv) {
                 contentDiv.classList.remove('section-mode', 'psd-full-mode', 'rc-full-mode', 'edit-full-mode');
                 contentDiv.style.removeProperty('display');
-                Array.prototype.forEach.call(contentDiv.children, function (child) {
-                    child.style.removeProperty('display');
-                    child.style.removeProperty('visibility');
-                });
+                var dashView = document.getElementById('dashboard-view');
+                if (dashView) {
+                    dashView.style.removeProperty('display');
+                    dashView.style.removeProperty('visibility');
+                }
             }
             if (portalShell) {
                 portalShell.classList.remove('psd-full-shell', 'rc-full-shell', 'edit-full-shell');
@@ -9529,10 +9530,19 @@ ${USER_CONTEXT.userName}`
                 section.style.display = 'none';
                 section.style.removeProperty('visibility');
             });
-            var editView = document.getElementById('editRequestView');
-            if (editView && sectionId !== 'editRequestView') {
-                editView.style.removeProperty('display');
-                editView.style.display = 'none';
+            ['reviewRequestView', 'sdReviewTransferView', 'transferRequestView', 'editRequestView'].forEach(function(id) {
+                if (id === sectionId) return;
+                var stray = document.getElementById(id);
+                if (stray) {
+                    stray.style.removeProperty('display');
+                    stray.style.display = 'none';
+                }
+            });
+            if (contentDiv) {
+                Array.prototype.forEach.call(contentDiv.querySelectorAll(':scope > .dashboard'), function (el) {
+                    if (el.id && el.id === sectionId) return;
+                    el.style.display = 'none';
+                });
             }
 
             // ── REMOVE ACTIVE FROM ALL NAV ITEMS ─────────────────────────
