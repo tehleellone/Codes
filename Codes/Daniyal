@@ -265,6 +265,12 @@ html[data-theme="light"] .shot:after{display:none}
 .block{margin-bottom:22px}
 .block h4{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;font-weight:800}
 
+.sysmsg{display:none;margin:12px 0 0;padding:10px 14px;border-radius:12px;font-size:.78rem;font-weight:700;line-height:1.5;
+  background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.55);color:#fecaca;word-break:break-all}
+.sysmsg.on{display:block}
+.sysmsg a{color:#fff;text-decoration:underline}
+html[data-theme="light"] .sysmsg{color:#7f1d1d;background:rgba(239,68,68,.10)}
+html[data-theme="light"] .sysmsg a{color:#7f1d1d}
 .denied{display:none;max-width:460px;margin:12vh auto;padding:28px;border-radius:20px;text-align:center;border:1px solid #ef4444;background:var(--card)}
 .denied.on{display:block}
 .dev{position:absolute;right:14px;bottom:14px;z-index:6;display:none;gap:8px;align-items:center;padding:10px;border-radius:14px;background:var(--card);border:1px solid var(--line)}
@@ -338,6 +344,7 @@ html[data-theme="light"] .shot:after{display:none}
       </div>
     </div>
   </header>
+  <div class="sysmsg" id="sysmsg"></div>
 
   <main class="stage">
     <section class="view on" id="view-home">
@@ -477,6 +484,10 @@ const CONFIG = {
   ASSET_BASE: "/sites/GM/SiteAssets/geo-portal"      // Site Assets folder holding the 8 du-geo-*.png images
 };
 
+window.addEventListener("error", function(e){
+  const m = document.getElementById("sysmsg");
+  if(m){ m.textContent = "Script error: "+(e.message||e.type); m.classList.add("on"); }
+});
 const SP_SITE = CONFIG.SP_SITE || (window._spPageContextInfo && _spPageContextInfo.webAbsoluteUrl) || "";
 const SP_ACCESS = CONFIG.SP_ACCESS;
 const IS_DEMO = location.protocol === "file:" || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
@@ -511,12 +522,23 @@ if(note) note.onclick = function(){ if(!SP_EDIT_MODE) document.documentElement.c
 const USER = { name:"Demo User", email:"demo@du.ae", role:"Admin" };
 
 (function applyAssetBase(){
-  if(!CONFIG.ASSET_BASE || IS_DEMO) return;   // local preview keeps images next to this file
-  const base = CONFIG.ASSET_BASE.replace(/\/+$/,"");
+  if(IS_DEMO) return;   // local preview keeps images next to this file
+  let base = CONFIG.ASSET_BASE;
+  if(!base && window._spPageContextInfo) base = _spPageContextInfo.webServerRelativeUrl.replace(/\/+$/,"")+"/SiteAssets/geo-portal";
+  if(!base) return;
+  base = base.replace(/\/+$/,"");
   const st = document.documentElement.style;
   ["bg-dark","bg-light","consumer-dark","consumer-light","sme-dark","sme-light","glk-dark","glk-light"].forEach(function(k){
     st.setProperty("--img-"+k, 'url("'+base+'/du-geo-'+k+'.png")');
   });
+  // Verify the images are really there; if not, show exactly which URL failed.
+  const probe = new Image();
+  probe.onerror = function(){
+    const m = document.getElementById("sysmsg");
+    m.innerHTML = 'Images not found. Upload the 8 du-geo-*.png files to Site Assets → geo-portal. Tried: <a href="'+probe.src+'" target="_blank">'+probe.src+'</a>';
+    m.classList.add("on");
+  };
+  probe.src = base+"/du-geo-bg-dark.png";
 })();
 const META = { consumer:"Consumer", sme:"SME", glk:"GLK" };
 
