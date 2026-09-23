@@ -197,7 +197,6 @@
             overflow: auto !important;
         }
         html.sm-fullpage #accountSearchView,
-        html.sm-fullpage #portalAnalyticsView,
         html.sm-fullpage #comingSoonView,
         html.sm-fullpage #amAdDashboard,
         html.sm-fullpage #createRequestView,
@@ -244,13 +243,20 @@
         html.sm-fullpage #dashboardContent .main-container {
             display: flex !important;
             flex: 1 1 auto !important;
+            align-items: flex-start;
             min-height: 0 !important;
             height: calc(100vh - 56px) !important;
             max-height: calc(100vh - 56px) !important;
-            overflow: hidden !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
         }
         html.sm-fullpage #dashboardContent .sidebar {
+            position: sticky;
+            top: 0;
+            align-self: flex-start;
             min-height: 0;
+            max-height: calc(100vh - 56px);
             overflow-x: hidden;
             overflow-y: auto;
         }
@@ -259,14 +265,55 @@
         html.sm-fullpage #dashboardContent .content.rc-full-mode,
         html.sm-fullpage #dashboardContent .content.edit-full-mode,
         html.sm-fullpage #dashboardContent .content.section-mode {
+            display: block !important;
             flex: 1 1 auto !important;
             min-width: 0 !important;
             min-height: 0 !important;
-            height: 100% !important;
-            max-height: 100% !important;
-            overflow-x: hidden !important;
-            overflow-y: auto !important;
-            -webkit-overflow-scrolling: touch;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+        }
+        html.sm-fullpage #dashboardContent .dashboard-section {
+            width: 100% !important;
+            max-width: none !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+        }
+        html.sm-fullpage #editRequestView,
+        html.sm-fullpage #editRequestView .table-section {
+            width: 100% !important;
+            max-width: none !important;
+        }
+        html.sm-fullpage #dashboardContent.edit-full-shell #dashboard-view {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            overflow: hidden !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        html.sm-fullpage #portalAnalyticsView {
+            position: static !important;
+            inset: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            min-height: 0 !important;
+            z-index: auto !important;
+            overflow: visible !important;
+        }
+        html.sm-fullpage #portalAnalyticsView.dashboard-section > .header {
+            position: static;
+            height: auto;
+            background: transparent;
+            border: none;
+            padding: 0 0 1rem;
+        }
+        html.sm-fullpage #portalAnalyticsView.dashboard-section .header-actions .theme-toggle,
+        html.sm-fullpage #portalAnalyticsView.dashboard-section .header-actions .color-scheme-selector,
+        html.sm-fullpage #portalAnalyticsView.dashboard-section .header-actions button[onclick="showPortalAnalyticsBack()"] {
+            display: none !important;
         }
         html.sm-fullpage #smPopupHost {
             position: absolute;
@@ -599,6 +646,15 @@
             width: 100%;
             flex: 1;
             min-width: 0;
+        }
+
+        .portal-shell.edit-full-shell #dashboard-view {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            overflow: hidden !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
 
         #editRequestView {
@@ -2374,7 +2430,6 @@
         html.sm-fullpage, html.sm-fullpage body { overflow: hidden !important; height: 100% !important; max-height: 100vh !important; }
         html.sm-fullpage #landingPage { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 2147483000 !important; margin: 0 !important; overflow: auto !important; }
         html.sm-fullpage #accountSearchView,
-        html.sm-fullpage #portalAnalyticsView,
         html.sm-fullpage #comingSoonView,
         html.sm-fullpage #amAdDashboard,
         html.sm-fullpage #createRequestView,
@@ -2396,18 +2451,45 @@
         }
         html.sm-fullpage #dashboardContent .header { flex-shrink: 0; }
         html.sm-fullpage #dashboardContent .main-container {
-            display: flex !important; flex: 1 1 auto !important; min-height: 0 !important;
-            height: calc(100vh - 56px) !important; max-height: calc(100vh - 56px) !important; overflow: hidden !important;
+            display: flex !important; flex: 1 1 auto !important; align-items: flex-start;
+            min-height: 0 !important; height: calc(100vh - 56px) !important; max-height: calc(100vh - 56px) !important;
+            overflow-x: hidden !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch;
         }
-        html.sm-fullpage #dashboardContent .sidebar { min-height: 0; overflow-x: hidden; overflow-y: auto; }
+        html.sm-fullpage #dashboardContent .sidebar {
+            position: sticky; top: 0; align-self: flex-start; min-height: 0;
+            max-height: calc(100vh - 56px); overflow-x: hidden; overflow-y: auto;
+        }
         html.sm-fullpage #dashboardContent .content,
         html.sm-fullpage #dashboardContent .content.psd-full-mode,
         html.sm-fullpage #dashboardContent .content.rc-full-mode,
         html.sm-fullpage #dashboardContent .content.edit-full-mode,
         html.sm-fullpage #dashboardContent .content.section-mode {
-            flex: 1 1 auto !important; min-width: 0 !important; min-height: 0 !important;
-            height: 100% !important; max-height: 100% !important;
-            overflow-x: hidden !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch;
+            display: block !important; flex: 1 1 auto !important; min-width: 0 !important;
+            min-height: 0 !important; height: auto !important; max-height: none !important;
+            overflow: visible !important;
+        }
+        html.sm-fullpage #dashboardContent .dashboard-section {
+            width: 100% !important; max-width: none !important; height: auto !important;
+            max-height: none !important; overflow: visible !important;
+        }
+        html.sm-fullpage #editRequestView,
+        html.sm-fullpage #editRequestView .table-section { width: 100% !important; max-width: none !important; }
+        html.sm-fullpage #dashboardContent.edit-full-shell #dashboard-view {
+            display: none !important; visibility: hidden !important; height: 0 !important;
+            overflow: hidden !important; padding: 0 !important; margin: 0 !important;
+        }
+        html.sm-fullpage #portalAnalyticsView {
+            position: static !important; inset: auto !important; width: 100% !important;
+            height: auto !important; max-height: none !important; min-height: 0 !important;
+            z-index: auto !important; overflow: visible !important;
+        }
+        html.sm-fullpage #portalAnalyticsView.dashboard-section > .header {
+            position: static; height: auto; background: transparent; border: none; padding: 0 0 1rem;
+        }
+        html.sm-fullpage #portalAnalyticsView.dashboard-section .header-actions .theme-toggle,
+        html.sm-fullpage #portalAnalyticsView.dashboard-section .header-actions .color-scheme-selector,
+        html.sm-fullpage #portalAnalyticsView.dashboard-section .header-actions button[onclick="showPortalAnalyticsBack()"] {
+            display: none !important;
         }
         html.sm-fullpage #smPopupHost { position: absolute; width: 0; height: 0; overflow: visible; z-index: 2147483640; pointer-events: none; }
         html.sm-fullpage #smPopupHost > * { pointer-events: auto; }
@@ -2719,7 +2801,7 @@
                         <div class="nav-icon"><i data-lucide="folder-open"></i></div>
                         <div class="nav-label">Process Documents</div>
                     </div>
-                    <div class="nav-item" id="portalAnalyticsNavItem" onclick="showPortalAnalytics()" style="display:none;">
+                    <div class="nav-item" id="portalAnalyticsNavItem" data-section="portalAnalyticsView" onclick="showPortalAnalytics()" style="display:none;">
                         <div class="nav-icon"><i data-lucide="radar"></i></div>
                         <div class="nav-label">Portal Intelligence</div>
                     </div>
@@ -3303,7 +3385,7 @@
     </div><!-- /main-container -->
     </div><!-- /portal-shell dashboardContent -->
     <!-- ===== PORTAL INTELLIGENCE VIEW ===== -->
-    <div class="dashboard" style="display:none;position:relative;z-index:10;" id="portalAnalyticsView">
+    <div class="dashboard-section" style="display:none;width:100%;" id="portalAnalyticsView">
         <div class="header">
             <div class="header-left">
                 <h1><i data-lucide="radar" style="width:28px;height:28px;display:inline-block;vertical-align:middle;margin-right:10px;"></i>Portal Intelligence</h1>
@@ -9191,9 +9273,10 @@ ${USER_CONTEXT.userName}`
         smWatchBodyPopups();
         smBindFullscreenOnGesture();
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function () { smSyncFullscreenBtn(); });
+            document.addEventListener('DOMContentLoaded', function () { smSyncFullscreenBtn(); smEmbedPortalAnalytics(); });
         } else {
             smSyncFullscreenBtn();
+            smEmbedPortalAnalytics();
         }
 
         function smIsNestedInDashboardView(sectionEl) {
@@ -9241,6 +9324,19 @@ ${USER_CONTEXT.userName}`
             dash.classList.remove('sm-visible-shell');
             dash.style.setProperty('display', 'none', 'important');
         }
+
+        function smEmbedPortalAnalytics() {
+            var view = document.getElementById('portalAnalyticsView');
+            var content = document.querySelector('#dashboardContent .content');
+            if (!view || !content) return;
+            if (view.parentNode !== content) content.appendChild(view);
+            view.classList.remove('dashboard');
+            view.classList.add('dashboard-section');
+            view.style.removeProperty('position');
+            view.style.removeProperty('z-index');
+            view.style.width = '100%';
+        }
+        window.smEmbedPortalAnalytics = smEmbedPortalAnalytics;
 
         function toggleTheme() {
             const body = document.body;
@@ -9356,7 +9452,9 @@ ${USER_CONTEXT.userName}`
             smClearModuleLayoutModes();
             var contentDiv = document.querySelector('#dashboardContent .content') || document.querySelector('.content');
             var portalShell = document.getElementById('dashboardContent') || document.querySelector('.portal-shell');
-            if (contentDiv) contentDiv.style.overflowY = 'auto';
+            var mainWrap = document.querySelector('#dashboardContent .main-container');
+            if (contentDiv) contentDiv.style.overflowY = 'visible';
+            if (mainWrap) mainWrap.scrollTop = 0;
 
             // ── HIDE ALL SECTIONS ─────────────────────────────────────────
             document.querySelectorAll('.dashboard-section').forEach(function(section) {
@@ -9403,7 +9501,7 @@ ${USER_CONTEXT.userName}`
 
             // ── Full-bleed layout for module sections (same as old SM) ───
             if (contentDiv) {
-                contentDiv.style.overflowY = 'auto';
+                contentDiv.style.overflowY = 'visible';
                 contentDiv.scrollTop = 0;
                 if (sectionId === 'pending-requests' || sectionId === 'transfer-requests' || sectionId === 'newsletterView') {
                     contentDiv.classList.add('section-mode');
@@ -9475,6 +9573,10 @@ else if (sectionId === 'newsletterView') {
     if (typeof nlLoadNewsletter === 'function') nlLoadNewsletter();
     if (typeof nlMarkAsSeen === 'function') nlMarkAsSeen();
     if (typeof nlRemoveNewBadge === 'function') nlRemoveNewBadge();
+}
+else if (sectionId === 'portalAnalyticsView') {
+    if (typeof smEmbedPortalAnalytics === 'function') smEmbedPortalAnalytics();
+    if (typeof analyticsLoadDashboard === 'function') analyticsLoadDashboard();
 }
 
         }
@@ -10658,14 +10760,25 @@ else if (sectionId === 'newsletterView') {
             try {
                 await fetchAccessControlSettings();
                 document.querySelectorAll('.dashboard-section').forEach(function (s) { s.style.display = 'none'; });
+                var dashView = document.getElementById('dashboard-view');
+                if (dashView) {
+                    dashView.style.setProperty('display', 'none', 'important');
+                    dashView.style.visibility = 'hidden';
+                }
+                var innerDash = document.getElementById('content');
+                var dashLoading = document.getElementById('loading');
+                if (innerDash) innerDash.style.display = 'none';
+                if (dashLoading) dashLoading.style.display = 'none';
                 document.getElementById('editRequestView').style.display = 'block';
-                var contentDiv = document.querySelector('.content');
-                var portalShell = document.querySelector('.portal-shell');
+                var contentDiv = document.querySelector('#dashboardContent .content') || document.querySelector('.content');
+                var portalShell = document.getElementById('dashboardContent') || document.querySelector('.portal-shell');
                 if (contentDiv) {
-                    contentDiv.classList.remove('section-mode');
+                    contentDiv.classList.remove('section-mode', 'psd-full-mode', 'rc-full-mode');
                     contentDiv.classList.add('edit-full-mode');
                 }
                 if (portalShell) portalShell.classList.add('edit-full-shell');
+                var main = document.querySelector('#dashboardContent .main-container');
+                if (main) main.scrollTop = 0;
                 // ✅ STEP 2: NOW reset the button (it exists now)
                 const submitBtn = document.querySelector('#editReviewSection button[onclick="submitEditRequest()"]');
                 if (submitBtn) {
@@ -11038,9 +11151,13 @@ else if (sectionId === 'newsletterView') {
         function backFromEditRequest() {
             document.getElementById('editRequestView').style.display = 'none';
             var dashView = document.getElementById('dashboard-view');
-            if (dashView) dashView.style.display = 'block';
-            var contentDiv = document.querySelector('.content');
-            var portalShell = document.querySelector('.portal-shell');
+            if (dashView) {
+                dashView.style.removeProperty('display');
+                dashView.style.display = 'block';
+                dashView.style.visibility = 'visible';
+            }
+            var contentDiv = document.querySelector('#dashboardContent .content') || document.querySelector('.content');
+            var portalShell = document.getElementById('dashboardContent') || document.querySelector('.portal-shell');
             if (contentDiv) {
                 contentDiv.classList.remove('section-mode');
                 contentDiv.classList.remove('edit-full-mode');
@@ -11460,43 +11577,28 @@ else if (sectionId === 'newsletterView') {
         ];
 
         window.showPortalAnalytics = function() {
-            if (typeof smHideDashboardShell === 'function') smHideDashboardShell();
-            ALL_VIEW_IDS.forEach(function(vid) {
+            if (typeof smEmbedPortalAnalytics === 'function') smEmbedPortalAnalytics();
+            if (typeof smShowDashboardShell === 'function') smShowDashboardShell();
+            ['comingSoonView', 'accountSearchView', 'landingPage'].forEach(function(vid) {
                 var el = document.getElementById(vid);
-                if (el) {
-                    el.style.display = 'none';
-                    el.style.position = 'absolute';
-                    el.style.zIndex = '-1';
-                }
+                if (el) el.style.display = 'none';
             });
+            if (typeof switchDashboardSection === 'function') switchDashboardSection('portalAnalyticsView');
             var view = document.getElementById('portalAnalyticsView');
             if (view) {
-                view.style.position = '';
-                view.style.zIndex = '';
+                view.style.removeProperty('position');
+                view.style.removeProperty('z-index');
                 view.style.display = 'block';
+                view.style.visibility = 'visible';
             }
-            window.scrollTo(0, 0);
+            var main = document.querySelector('#dashboardContent .main-container');
+            if (main) main.scrollTop = 0;
             if (typeof analyticsLoadDashboard === 'function') analyticsLoadDashboard();
             if (typeof lucide !== 'undefined') lucide.createIcons();
         };
 
         window.showPortalAnalyticsBack = function() {
-            var view = document.getElementById('portalAnalyticsView');
-            if (view) {
-                view.style.display = 'none';
-                view.style.position = 'absolute';
-                view.style.zIndex = '-1';
-            }
             if (typeof smShowDashboardShell === 'function') smShowDashboardShell();
-            else {
-                var dc = document.getElementById('dashboardContent');
-                if (dc) {
-                    dc.style.position = '';
-                    dc.style.zIndex = '';
-                    dc.style.display = 'flex';
-                    dc.style.flexDirection = 'column';
-                }
-            }
             if (typeof switchDashboardSection === 'function') switchDashboardSection('dashboard-view');
             window.scrollTo(0, 0);
         };
