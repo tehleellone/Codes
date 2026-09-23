@@ -212,15 +212,36 @@
             flex-direction: column;
             background: var(--bg-body);
             overflow: hidden !important;
+            min-height: 0 !important;
+        }
+        html.sm-fullpage #dashboardContent .header {
+            flex-shrink: 0;
         }
         html.sm-fullpage #dashboardContent .main-container {
-            flex: 1;
+            display: flex;
+            flex: 1 1 auto;
+            min-height: 0 !important;
+            overflow: hidden;
+        }
+        html.sm-fullpage #dashboardContent .sidebar {
             min-height: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+        html.sm-fullpage #dashboardContent .content {
+            flex: 1 1 auto;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            overflow-x: hidden;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
         }
         html.sm-fullpage #smPopupHost {
-            position: fixed !important;
-            inset: 0 !important;
-            z-index: 2147483640 !important;
+            position: absolute;
+            width: 0;
+            height: 0;
+            overflow: visible;
+            z-index: 2147483640;
             pointer-events: none;
         }
         html.sm-fullpage #smPopupHost > * {
@@ -2333,9 +2354,12 @@
             position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important;
             z-index: 2147483000 !important; margin: 0 !important; max-width: none !important; overflow: auto !important;
         }
-        html.sm-fullpage #dashboardContent { display: flex; flex-direction: column; background: var(--bg-body); overflow: hidden !important; }
-        html.sm-fullpage #dashboardContent .main-container { flex: 1; min-height: 0; }
-        html.sm-fullpage #smPopupHost { position: fixed !important; inset: 0 !important; z-index: 2147483640 !important; pointer-events: none; }
+        html.sm-fullpage #dashboardContent { display: flex; flex-direction: column; background: var(--bg-body); overflow: hidden !important; min-height: 0 !important; }
+        html.sm-fullpage #dashboardContent .header { flex-shrink: 0; }
+        html.sm-fullpage #dashboardContent .main-container { display: flex; flex: 1 1 auto; min-height: 0 !important; overflow: hidden; }
+        html.sm-fullpage #dashboardContent .sidebar { min-height: 0; overflow-x: hidden; overflow-y: auto; }
+        html.sm-fullpage #dashboardContent .content { flex: 1 1 auto; min-width: 0 !important; min-height: 0 !important; overflow-x: hidden; overflow-y: auto !important; -webkit-overflow-scrolling: touch; }
+        html.sm-fullpage #smPopupHost { position: absolute; width: 0; height: 0; overflow: visible; z-index: 2147483640; pointer-events: none; }
         html.sm-fullpage #smPopupHost > * { pointer-events: auto; }
         html.sm-fullpage .ag-popup, html.sm-fullpage .ag-popup-child, html.sm-fullpage .ag-menu, html.sm-fullpage .ag-tooltip,
         html.sm-fullpage .pm-modal-overlay, html.sm-fullpage .rc-modal-overlay, html.sm-fullpage .sm-fs-popup,
