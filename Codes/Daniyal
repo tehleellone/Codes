@@ -53,22 +53,33 @@ html[data-theme="light"]{
   --veil:linear-gradient(180deg,rgba(0,80,120,.08),rgba(0,50,90,.22));
   --wash:transparent;
 }
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
-body{
+#geoRoot,#geoRoot *{box-sizing:border-box;margin:0;padding:0}
+html:not(.geo-edit),html:not(.geo-edit) body{height:100%}
+html:not(.geo-edit) body{
   font-family:"Plus Jakarta Sans",system-ui,sans-serif;
   background:var(--ink);color:var(--text);
   min-height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased
 }
-a{color:inherit;text-decoration:none}
-button,select{font:inherit;color:inherit}
+#geoRoot a{color:inherit;text-decoration:none}
+#geoRoot button,#geoRoot select{font:inherit;color:inherit}
 /* Full-page root: sits above the SharePoint ribbon/nav when embedded in a web part */
 #geoRoot{
   position:fixed;inset:0;z-index:2147483000;overflow:auto;
   background:var(--ink);color:var(--text);
   font-family:"Plus Jakarta Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased
 }
-#geoRoot *{box-sizing:border-box}
+/* SharePoint PAGE EDIT MODE: collapse to a small card so the ribbon / Save button stay reachable */
+html.geo-edit #geoRoot{position:relative;inset:auto;height:150px;z-index:1;overflow:hidden;border-radius:14px}
+html.geo-edit #geoRoot>*:not(.editnote){display:none!important}
+.editnote{display:none}
+html.geo-edit .editnote{
+  display:flex;align-items:center;gap:16px;height:100%;padding:0 28px;
+  background:linear-gradient(120deg,#0b0f2a,#1a0b3a 60%,#3a0a3a);color:#fff;
+  font:600 15px/1.4 "Plus Jakarta Sans",system-ui,sans-serif
+}
+.editnote b{display:block;font-size:20px;letter-spacing:.02em}
+.editnote span{display:block;font-weight:500;opacity:.75;font-size:13px;margin-top:4px}
+.editnote i{width:14px;height:14px;border-radius:50%;background:#C724B1;box-shadow:0 0 0 6px rgba(199,36,177,.25);flex:none}
 
 .bg{
   position:fixed;inset:-4%;z-index:0;
@@ -259,6 +270,7 @@ html[data-theme="light"] .shot:after{display:none}
 </head>
 <body>
 <div id="geoRoot">
+<div class="editnote"><i></i><div><b>du Geo Portal</b><span>Page is in edit mode. Click Save / Stop Editing to view the portal full-screen.</span></div></div>
 <div class="bg"></div>
 <div class="fx"></div>
 <div class="mesh"></div>
@@ -451,6 +463,19 @@ const CONFIG = {
 const SP_SITE = CONFIG.SP_SITE || (window._spPageContextInfo && _spPageContextInfo.webAbsoluteUrl) || "";
 const SP_ACCESS = CONFIG.SP_ACCESS;
 const IS_DEMO = location.protocol === "file:" || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+
+// Detects SharePoint page-edit mode (web part page or wiki page) so the portal
+// does NOT go full-screen while you are editing / saving the page.
+const SP_EDIT_MODE = (function(){
+  try{
+    const f = document.forms[0];
+    if(f && f.MSOLayout_InDesignMode && f.MSOLayout_InDesignMode.value === "1") return true;
+    if(f && f._wikiPageMode && f._wikiPageMode.value === "Edit") return true;
+    if(document.querySelector("#MSOLayout_InDesignMode[value='1'], #_wikiPageMode[value='Edit']")) return true;
+    return /DisplayMode=Design|PageView=Shared|ToolPaneView=/i.test(location.search);
+  }catch(e){ return false; }
+})();
+if(SP_EDIT_MODE) document.documentElement.classList.add("geo-edit");
 const USER = { name:"Demo User", email:"demo@du.ae", role:"Admin" };
 
 (function applyAssetBase(){
@@ -667,7 +692,7 @@ document.getElementById("devApply").onclick = function(){
 document.getElementById("btnDark").onclick = function(){ setTheme("dark"); };
 document.getElementById("btnLight").onclick = function(){ setTheme("light"); };
 try{ const t=localStorage.getItem("geo_theme"); if(t==="light"||t==="dark") setTheme(t); }catch(e){}
-initAccess();
+if(!SP_EDIT_MODE) initAccess();
 
 (function(){
   const c=document.getElementById("fx"); if(!c) return;
