@@ -1,0 +1,696 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// PORTAL ANALYTICS — Access tracking + Admin dashboard
+// List: Portal_Access_Log
+// Visible to: Admin only
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ANALYTICS_SP_URL   = 'http://sharedspaces:8086/sites/SM';
+const ANALYTICS_LIST     = 'Portal_Access_Log';
+
+// ─── SET TO true TO USE DUMMY DATA, false FOR REAL SHAREPOINT DATA ────────────
+const ANALYTICS_DUMMY_MODE = false;
+
+// ─── DUMMY DATA GENERATOR ─────────────────────────────────────────────────────
+function analyticsGenerateDummyData() {
+    const users = [
+        { name:'Tehleel Lone',     email:'tehleel@du.ae',      role:'Admin' },
+        { name:'Anood Al Marama',  email:'anood@du.ae',        role:'Line Manager' },
+        { name:'Suraj Pujari',     email:'suraj@du.ae',        role:'Line Manager' },
+        { name:'Mohamed Sobhi',    email:'sobhi@du.ae',        role:'Line Manager' },
+        { name:'Yaser Hamood',     email:'yaser@du.ae',        role:'Service Manager' },
+        { name:'Ahmed Al Rashid',  email:'ahmed@du.ae',        role:'Service Manager' },
+        { name:'Sara Al Mansoori', email:'sara@du.ae',         role:'Service Manager' },
+        { name:'Khalid Nasser',    email:'khalid@du.ae',       role:'Service Manager' },
+        { name:'Priya Sharma',     email:'priya@du.ae',        role:'Service Manager' },
+        { name:'Omar Farooq',      email:'omar@du.ae',         role:'Service Manager' },
+        { name:'Rania Al Zaabi',   email:'rania@du.ae',        role:'Line Manager' },
+        { name:'James Wilson',     email:'james@du.ae',        role:'Service Manager' },
+    ];
+    const pages = ['Dashboard','Customer Service','Pending Requests','Transfer Requests','AM/AD Dashboard','Lead Management','Activities','Events'];
+    const devices = ['Desktop','Desktop','Desktop','Mobile','Tablet'];
+    const browsers = ['Chrome','Edge','Chrome','Chrome','Firefox','Safari'];
+    const dows = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    const months = ['Nov-25','Dec-25','Jan-26','Feb-26'];
+
+    const records = [];
+    const now = new Date();
+
+    // Generate ~300 sessions over last 90 days
+    users.forEach(u => {
+        // Each user gets different session frequency
+        const freq = u.role==='Admin'?40 : u.role==='Line Manager'?28 : 18;
+        for (let s=0; s<freq; s++) {
+            const daysAgo = Math.floor(Math.random()*85) + 1;
+            const start = new Date(now);
+            start.setDate(start.getDate() - daysAgo);
+            start.setHours(7 + Math.floor(Math.random()*11), Math.floor(Math.random()*60));
+            const duration = Math.floor(Math.random()*45) + 3;
+            const end = new Date(start.getTime() + duration*60000);
+            const numPages = Math.floor(Math.random()*6)+1;
+            const visitedPages = [];
+            visitedPages.push('Dashboard');
+            for (let p=1;p<numPages;p++) {
+                const pg = pages[Math.floor(Math.random()*pages.length)];
+                if (!visitedPages.includes(pg)) visitedPages.push(pg);
+            }
+            const dow = dows[start.getDay()===0?6:start.getDay()-1];
+            const wk  = Math.floor(daysAgo/7)+1;
+            const m   = months[Math.floor((90-daysAgo)/22.5)];
+            records.push({
+                id: records.length+1,
+                user: u.name, email: u.email, role: u.role,
+                start, end, duration,
+                pageViews: numPages,
+                pages: visitedPages.join(','),
+                lastPage: visitedPages[visitedPages.length-1],
+                device: devices[Math.floor(Math.random()*devices.length)],
+                browser: browsers[Math.floor(Math.random()*browsers.length)],
+                dow, week: wk, month: m
+            });
+        }
+    });
+
+    // Sort newest first
+    return records.sort((a,b) => b.start - a.start);
+}
+
+// ─── SESSION STATE ─────────────────────────────────────────────────────────────
+var ANALYTICS_SESSION = {
+    itemId:       null,       // SharePoint item ID once created
+    startTime:    null,       // Date object
+    pageViews:    0,
+    pagesVisited: [],
+    lastPage:     'Dashboard',
+    heartbeatTimer: null,
+    active:       false
+};
+
+var ANALYTICS_DATA  = [];    // All logs loaded for dashboard
+var ANALYTICS_CHART_INSTANCES = {};
+
+// ─── SESSION START (called from init after Launch Dashboard) ──────────────────
+var ANALYTICS_SP_ITEM_TYPE = 'SP.Data.Portal_x005F_Access_x005F_LogListItem';
+
+window.analyticsStartSession = async function() {
+    if (ANALYTICS_SESSION.active) return;
+
+    // ANALYTICS_DUMMY_MODE only affects the dashboard display — session tracking ALWAYS writes to SP
+    try {
+        const ctx    = window.USER_CONTEXT || {};
+        const now    = new Date();
+        const dow    = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][now.getDay()];
+        const wk     = getISOWeek(now);
+        const month  = now.toLocaleString('en-US',{month:'short'})+'-'+String(now.getFullYear()).slice(2);
+        const ua     = navigator.userAgent;
+        const device = /Mobi|Android/i.test(ua)?'Mobile':/Tablet|iPad/i.test(ua)?'Tablet':'Desktop';
+        const browser= /Edg/i.test(ua)?'Edge':/Chrome/i.test(ua)?'Chrome':/Firefox/i.test(ua)?'Firefox':/Safari/i.test(ua)?'Safari':'Other';
+
+        const digest = await analyticsGetDigest();
+        if (!digest) { console.warn('[Analytics] Could not get SP digest'); return; }
+
+        try {
+            const typeRes = await fetch(ANALYTICS_SP_URL + `/_api/web/lists/getbytitle('${ANALYTICS_LIST}')?$select=ListItemEntityTypeFullName`, {
+                headers:{'Accept':'application/json;odata=verbose'}, credentials:'include'
+            });
+            if (typeRes.ok) {
+                const typeData = await typeRes.json();
+                ANALYTICS_SP_ITEM_TYPE = typeData.d.ListItemEntityTypeFullName;
+            }
+        } catch(e) { /* use default */ }
+
+        const payload = {
+            __metadata: { type: ANALYTICS_SP_ITEM_TYPE },
+            Title:           ctx.userName  || 'Unknown',
+            UserEmail:       ctx.userEmail || '',
+            UserRole:        ctx.role      || 'Unknown',
+            SessionStart:    now.toISOString(),
+            SessionEnd:      now.toISOString(),
+            SessionDuration: 0,
+            PageViews:       1,
+            PagesVisited:    'Dashboard',
+            LastPageVisited: 'Dashboard',
+            DeviceType:      device,
+            Browser:         browser,
+            DayOfWeek:       dow,
+            WeekNumber:      wk,
+            Month:           month
+        };
+
+        const res = await fetch(ANALYTICS_SP_URL + `/_api/web/lists/getbytitle('${ANALYTICS_LIST}')/items`, {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json;odata=verbose',
+                'Content-Type': 'application/json;odata=verbose',
+                'X-RequestDigest': digest
+            },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            ANALYTICS_SESSION.itemId       = data.d.ID;
+            ANALYTICS_SESSION.startTime    = now;
+            ANALYTICS_SESSION.pageViews    = 1;
+            ANALYTICS_SESSION.pagesVisited = ['Dashboard'];
+            ANALYTICS_SESSION.lastPage     = 'Dashboard';
+            ANALYTICS_SESSION.active       = true;
+            ANALYTICS_SESSION.heartbeatTimer = setInterval(analyticsHeartbeat, 5 * 60 * 1000);
+            window.addEventListener('beforeunload', analyticsEndSession);
+            console.log('[Analytics] Session started, SP ID:', ANALYTICS_SESSION.itemId);
+        } else {
+            const errText = await res.text();
+            console.warn('[Analytics] SP write failed:', res.status, errText.slice(0,200));
+        }
+    } catch(e) { console.warn('[Analytics] Session start failed:', e.message); }
+};
+
+window.analyticsTrackPage = function(pageName) {
+    if (!ANALYTICS_SESSION.active) return;
+    ANALYTICS_SESSION.pageViews++;
+    if (!ANALYTICS_SESSION.pagesVisited.includes(pageName)) ANALYTICS_SESSION.pagesVisited.push(pageName);
+    ANALYTICS_SESSION.lastPage = pageName;
+};
+
+async function analyticsHeartbeat() {
+    if (!ANALYTICS_SESSION.active || !ANALYTICS_SESSION.itemId) return;
+    try {
+        const mins   = Math.round((new Date() - ANALYTICS_SESSION.startTime) / 60000);
+        const digest = await analyticsGetDigest();
+        if (!digest) return;
+        await fetch(ANALYTICS_SP_URL + `/_api/web/lists/getbytitle('${ANALYTICS_LIST}')/items(${ANALYTICS_SESSION.itemId})`, {
+            method: 'POST',
+            headers: { 'Accept':'application/json;odata=verbose','Content-Type':'application/json;odata=verbose','X-RequestDigest':digest,'X-HTTP-Method':'MERGE','If-Match':'*' },
+            credentials: 'include',
+            body: JSON.stringify({
+                __metadata: { type: ANALYTICS_SP_ITEM_TYPE },
+                SessionEnd:      new Date().toISOString(),
+                SessionDuration: mins,
+                PageViews:       ANALYTICS_SESSION.pageViews,
+                PagesVisited:    ANALYTICS_SESSION.pagesVisited.join(','),
+                LastPageVisited: ANALYTICS_SESSION.lastPage
+            })
+        });
+    } catch(e) { /* silent */ }
+}
+
+function analyticsEndSession() {
+    if (!ANALYTICS_SESSION.active || !ANALYTICS_SESSION.itemId) return;
+    clearInterval(ANALYTICS_SESSION.heartbeatTimer);
+    const mins = Math.round((new Date() - ANALYTICS_SESSION.startTime) / 60000);
+    const body = JSON.stringify({
+        __metadata: { type: ANALYTICS_SP_ITEM_TYPE },
+        SessionEnd:      new Date().toISOString(),
+        SessionDuration: mins,
+        PageViews:       ANALYTICS_SESSION.pageViews,
+        PagesVisited:    ANALYTICS_SESSION.pagesVisited.join(','),
+        LastPageVisited: ANALYTICS_SESSION.lastPage
+    });
+    if (navigator.sendBeacon) {
+        navigator.sendBeacon(ANALYTICS_SP_URL + `/_api/web/lists/getbytitle('${ANALYTICS_LIST}')/items(${ANALYTICS_SESSION.itemId})`, new Blob([body],{type:'application/json'}));
+    }
+}
+
+async function analyticsGetDigest() {
+    try {
+        const res = await fetch(ANALYTICS_SP_URL + '/_api/contextinfo', {
+            method:'POST', headers:{'Accept':'application/json;odata=verbose'}, credentials:'include'
+        });
+        const data = await res.json();
+        return data.d.GetContextWebInformation.FormDigestValue;
+    } catch(e) { return null; }
+}
+
+function getISOWeek(d) {
+    const date = new Date(d); date.setHours(0,0,0,0);
+    date.setDate(date.getDate()+3-(date.getDay()+6)%7);
+    const week1 = new Date(date.getFullYear(),0,4);
+    return 1+Math.round(((date.getTime()-week1.getTime())/86400000-3+(week1.getDay()+6)%7)/7);
+}
+
+// ─── RENDER ALL ───────────────────────────────────────────────────────────────
+function analyticsRenderAll() {
+    analyticsRenderKPIs();
+    analyticsRenderCharts();
+    analyticsRenderLeagueTable();
+    analyticsRenderInactiveAlert();
+    analyticsRenderRecentSessions();
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// ─── FILTER STATE ─────────────────────────────────────────────────────────────
+var ANALYTICS_ROLE_FILTER = [];  // empty = All roles
+
+function analyticsGetFiltered() {
+    const period = document.getElementById('analyticsPeriodFilter')?.value || '30';
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - parseInt(period));
+    let data = ANALYTICS_DATA.filter(d => d.start && d.start >= cutoff);
+    if (ANALYTICS_ROLE_FILTER.length > 0) {
+        data = data.filter(d => ANALYTICS_ROLE_FILTER.includes(d.role));
+    }
+    return data;
+}
+
+window.analyticsChangePeriod = function() { analyticsRenderAll(); };
+
+window.analyticsToggleRoleDropdown = function(e) {
+    e.stopPropagation();
+    var panel = document.getElementById('analyticsRolePanel');
+    if (!panel) return;
+    var isOpen = panel.style.display !== 'none';
+    panel.style.display = isOpen ? 'none' : 'block';
+};
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+    var wrap = document.getElementById('analyticsRoleDropdownWrap');
+    if (wrap && !wrap.contains(e.target)) {
+        var panel = document.getElementById('analyticsRolePanel');
+        if (panel) panel.style.display = 'none';
+    }
+});
+
+window.analyticsRoleCheckboxChange = function(cb) {
+    var allCb = document.querySelector('#analyticsRolePanel input[value="All"]');
+    var roleCbs = Array.from(document.querySelectorAll('#analyticsRolePanel input[type="checkbox"]:not([value="All"])'));
+
+    if (cb.value === 'All') {
+        // All checked → uncheck others
+        roleCbs.forEach(function(r) { r.checked = false; });
+    } else {
+        // Role checked → uncheck All
+        if (allCb) allCb.checked = false;
+        // If nothing selected → revert to All
+        var anyChecked = roleCbs.some(function(r) { return r.checked; });
+        if (!anyChecked && allCb) allCb.checked = true;
+    }
+
+    // Update button label
+    var selected = roleCbs.filter(function(r) { return r.checked; });
+    var btnText = document.getElementById('analyticsRoleBtnText');
+    if (btnText) {
+        if (selected.length === 0) btnText.textContent = 'All Roles';
+        else if (selected.length === 1) btnText.textContent = selected[0].value;
+        else btnText.textContent = selected.length + ' roles selected';
+    }
+
+    // Apply filter
+    ANALYTICS_ROLE_FILTER = selected.map(function(r) { return r.value; });
+    analyticsRenderAll();
+};
+
+window.analyticsResetRoleFilter = function() {
+    var allCb = document.querySelector('#analyticsRolePanel input[value="All"]');
+    var roleCbs = document.querySelectorAll('#analyticsRolePanel input[type="checkbox"]:not([value="All"])');
+    if (allCb) allCb.checked = true;
+    roleCbs.forEach(function(r) { r.checked = false; });
+    var btnText = document.getElementById('analyticsRoleBtnText');
+    if (btnText) btnText.textContent = 'All Roles';
+    ANALYTICS_ROLE_FILTER = [];
+    analyticsRenderAll();
+};
+
+window.analyticsApplyRoleFilter = function() {
+    // kept for backward compat — now handled by analyticsRoleCheckboxChange
+    analyticsRenderAll();
+};
+
+// ─── KPIs ─────────────────────────────────────────────────────────────────────
+function analyticsRenderKPIs() {
+    const data = analyticsGetFiltered();
+    const totalSessions  = data.length;
+    const uniqueUsers    = new Set(data.map(d=>d.user)).size;
+    const avgDuration    = totalSessions>0 ? Math.round(data.reduce((s,d)=>s+d.duration,0)/totalSessions) : 0;
+    const totalPageViews = data.reduce((s,d)=>s+d.pageViews,0);
+
+    const dowCounts = {};
+    data.forEach(d=>{ if(d.dow) dowCounts[d.dow]=(dowCounts[d.dow]||0)+1; });
+    const mostActiveDay = Object.entries(dowCounts).sort((a,b)=>b[1]-a[1])[0]?.[0] || '—';
+
+    const now = new Date();
+    const weekStart = new Date(now); weekStart.setDate(now.getDate()-now.getDay());
+    const lastWeekStart = new Date(weekStart); lastWeekStart.setDate(weekStart.getDate()-7);
+    const thisWeek = data.filter(d=>d.start>=weekStart).length;
+    const lastWeek = data.filter(d=>d.start>=lastWeekStart&&d.start<weekStart).length;
+    const weekTrend = lastWeek>0 ? ((thisWeek-lastWeek)/lastWeek*100).toFixed(0) : (thisWeek>0?100:0);
+
+    document.getElementById('analyticsKPIs').innerHTML = `
+    <div class="top-stats" style="margin-bottom:1.5rem;">
+        <div class="stat-card">
+            <div class="stat-label">Total Sessions</div>
+            <div class="stat-value">${totalSessions}</div>
+            <div class="stat-subtitle">Portal logins</div>
+            <div class="stat-breakdown">
+                <div class="breakdown-item"><div class="breakdown-label">This Week</div><div class="breakdown-value" style="color:${weekTrend>=0?'#10b981':'#ef4444'}">${weekTrend>=0?'+':''}${weekTrend}%</div></div>
+                <div class="breakdown-item"><div class="breakdown-label">Count</div><div class="breakdown-value">${thisWeek}</div></div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Unique Users</div>
+            <div class="stat-value">${uniqueUsers}</div>
+            <div class="stat-subtitle">Active in period</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Avg Session</div>
+            <div class="stat-value">${avgDuration}<span style="font-size:1rem;font-weight:600"> min</span></div>
+            <div class="stat-subtitle">Per visit duration</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Page Views</div>
+            <div class="stat-value">${totalPageViews}</div>
+            <div class="stat-subtitle">Across all sessions</div>
+            <div class="stat-breakdown">
+                <div class="breakdown-item"><div class="breakdown-label">Avg/Session</div><div class="breakdown-value">${totalSessions>0?(totalPageViews/totalSessions).toFixed(1):0}</div></div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Peak Day</div>
+            <div class="stat-value" style="font-size:1.2rem;">${mostActiveDay}</div>
+            <div class="stat-subtitle">Most active day</div>
+        </div>
+        <div class="stat-card" style="cursor:pointer;" onclick="document.getElementById('analyticsRoleSelect').querySelectorAll('option').forEach(o=>o.selected=(o.value==='Service Manager'));analyticsApplyRoleFilter();">
+            <div class="stat-label">SM Sessions</div>
+            <div class="stat-value">${data.filter(d=>d.role==='Service Manager').length}</div>
+            <div class="stat-subtitle">Service Managers</div>
+        </div>
+        <div class="stat-card" style="cursor:pointer;" onclick="document.getElementById('analyticsRoleSelect').querySelectorAll('option').forEach(o=>o.selected=(o.value==='Line Manager'));analyticsApplyRoleFilter();">
+            <div class="stat-label">LM Sessions</div>
+            <div class="stat-value">${data.filter(d=>d.role==='Line Manager').length}</div>
+            <div class="stat-subtitle">Line Managers</div>
+        </div>
+    </div>`;
+}
+
+// ─── CHARTS ───────────────────────────────────────────────────────────────────
+function analyticsRenderCharts() {
+    const data   = analyticsGetFiltered();
+    const colors = analyticsGetColors();
+
+    Object.values(ANALYTICS_CHART_INSTANCES).forEach(c=>{ try{c.destroy();}catch(e){} });
+    ANALYTICS_CHART_INSTANCES = {};
+
+    // 1. Daily Active Users
+    const dauData = (() => {
+        const days=[]; const counts=[];
+        for(let i=29;i>=0;i--){
+            const d=new Date(); d.setDate(d.getDate()-i);
+            const key=d.toISOString().split('T')[0];
+            days.push(d.toLocaleString('en-US',{month:'short',day:'numeric'}));
+            counts.push(new Set(data.filter(s=>s.start&&s.start.toISOString().split('T')[0]===key).map(s=>s.user)).size);
+        }
+        return {days,counts};
+    })();
+
+    // 2. Sessions by User (top 15)
+    const userSessions = (() => {
+        const map={};
+        data.forEach(d=>{ map[d.user]=(map[d.user]||0)+1; });
+        return Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,15);
+    })();
+
+    // 3. Avg duration by user
+    const userDuration = (() => {
+        const map={}; const cnt={};
+        data.forEach(d=>{ map[d.user]=(map[d.user]||0)+d.duration; cnt[d.user]=(cnt[d.user]||0)+1; });
+        return Object.entries(map).map(([u,t])=>([u,Math.round(t/cnt[u])])).sort((a,b)=>b[1]-a[1]).slice(0,15);
+    })();
+
+    // 4. Page module popularity
+    const pageCount={};
+    data.forEach(d=>{ (d.pages||'').split(',').filter(Boolean).forEach(p=>{ pageCount[p]=(pageCount[p]||0)+1; }); });
+    const pageSorted=Object.entries(pageCount).sort((a,b)=>b[1]-a[1]);
+
+    // 5. Day of week
+    const DAYS_ORDER=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+    const dowMap={};
+    data.forEach(d=>{ if(d.dow) dowMap[d.dow]=(dowMap[d.dow]||0)+1; });
+
+    // 6. Role distribution
+    const roleMap={};
+    data.forEach(d=>{ roleMap[d.role]=(roleMap[d.role]||0)+1; });
+
+    // 7. Monthly trend
+    const weeklyMap={};
+    data.forEach(d=>{ if(d.month) weeklyMap[d.month]=(weeklyMap[d.month]||0)+1; });
+    const weeklyLabels=Object.keys(weeklyMap).sort();
+
+    // 8. Device
+    const deviceMap={};
+    data.forEach(d=>{ if(d.device) deviceMap[d.device]=(deviceMap[d.device]||0)+1; });
+
+    document.getElementById('analyticsCharts').innerHTML = `
+    <div class="chart-card" style="grid-column:span 2;">
+        <h3 class="chart-title"><i data-lucide="activity" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Daily Active Users — Last 30 Days</h3>
+        <div class="chart-container" style="height:220px;"><canvas id="acDAU"></canvas></div>
+    </div>
+    <div class="chart-card">
+        <h3 class="chart-title"><i data-lucide="bar-chart-2" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Sessions by User</h3>
+        <div class="chart-container" style="height:280px;"><canvas id="acUserSessions"></canvas></div>
+    </div>
+    <div class="chart-card">
+        <h3 class="chart-title"><i data-lucide="clock" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Avg Session Duration by User (min)</h3>
+        <div class="chart-container" style="height:280px;"><canvas id="acUserDuration"></canvas></div>
+    </div>
+    <div class="chart-card">
+        <h3 class="chart-title"><i data-lucide="layout-grid" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Module Usage Frequency</h3>
+        <div class="chart-container" style="height:240px;"><canvas id="acPagePop"></canvas></div>
+    </div>
+    <div class="chart-card">
+        <h3 class="chart-title"><i data-lucide="calendar" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Sessions by Day of Week</h3>
+        <div class="chart-container" style="height:240px;"><canvas id="acDOW"></canvas></div>
+    </div>
+    <div class="chart-card">
+        <h3 class="chart-title"><i data-lucide="trending-up" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Monthly Session Trend</h3>
+        <div class="chart-container" style="height:240px;"><canvas id="acMonthly"></canvas></div>
+    </div>
+    <div class="chart-card">
+        <h3 class="chart-title"><i data-lucide="pie-chart" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Sessions by Role</h3>
+        <div class="chart-container" style="height:240px;"><canvas id="acRole"></canvas></div>
+    </div>
+    <div class="chart-card">
+        <h3 class="chart-title"><i data-lucide="monitor" style="width:16px;height:16px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Device Breakdown</h3>
+        <div class="chart-container" style="height:240px;"><canvas id="acDevice"></canvas></div>
+    </div>`;
+
+    setTimeout(()=>{
+        ANALYTICS_CHART_INSTANCES.dau = new Chart(document.getElementById('acDAU'),{
+            type:'line', data:{labels:dauData.days,datasets:[{label:'Active Users',data:dauData.counts,borderColor:colors.primary,backgroundColor:colors.primary+'22',fill:true,tension:0.4,pointRadius:3}]},
+            options:analyticsChartOpts(colors,false)
+        });
+        if(userSessions.length) ANALYTICS_CHART_INSTANCES.userSess = new Chart(document.getElementById('acUserSessions'),{
+            type:'bar', data:{labels:userSessions.map(u=>u[0]),datasets:[{label:'Sessions',data:userSessions.map(u=>u[1]),backgroundColor:colors.primary+'bb',borderRadius:4}]},
+            options:analyticsChartOpts(colors,true)
+        });
+        if(userDuration.length) ANALYTICS_CHART_INSTANCES.userDur = new Chart(document.getElementById('acUserDuration'),{
+            type:'bar', data:{labels:userDuration.map(u=>u[0]),datasets:[{label:'Avg Min',data:userDuration.map(u=>u[1]),backgroundColor:colors.accent+'bb',borderRadius:4}]},
+            options:analyticsChartOpts(colors,true)
+        });
+        if(pageSorted.length) ANALYTICS_CHART_INSTANCES.pages = new Chart(document.getElementById('acPagePop'),{
+            type:'bar', data:{labels:pageSorted.map(p=>p[0]),datasets:[{label:'Views',data:pageSorted.map(p=>p[1]),backgroundColor:colors.warn+'bb',borderRadius:4}]},
+            options:analyticsChartOpts(colors,false)
+        });
+        const dowVals=DAYS_ORDER.map(d=>dowMap[d]||0);
+        ANALYTICS_CHART_INSTANCES.dow = new Chart(document.getElementById('acDOW'),{
+            type:'bar', data:{labels:DAYS_ORDER.map(d=>d.slice(0,3)),datasets:[{label:'Sessions',data:dowVals,backgroundColor:dowVals.map((_,i)=>i<5?colors.primary+'bb':colors.warn+'bb'),borderRadius:4}]},
+            options:analyticsChartOpts(colors,false)
+        });
+        if(weeklyLabels.length) ANALYTICS_CHART_INSTANCES.monthly = new Chart(document.getElementById('acMonthly'),{
+            type:'line', data:{labels:weeklyLabels,datasets:[{label:'Sessions',data:weeklyLabels.map(k=>weeklyMap[k]),borderColor:colors.accent,backgroundColor:colors.accent+'22',fill:true,tension:0.4}]},
+            options:analyticsChartOpts(colors,false)
+        });
+        const roleEntries=Object.entries(roleMap);
+        if(roleEntries.length) ANALYTICS_CHART_INSTANCES.role = new Chart(document.getElementById('acRole'),{
+            type:'doughnut', data:{labels:roleEntries.map(r=>r[0]),datasets:[{data:roleEntries.map(r=>r[1]),backgroundColor:['#a855f7','#10b981','#f59e0b','#3b82f6','#ef4444'],borderWidth:0}]},
+            options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:colors.text,font:{size:11},boxWidth:12}}}}
+        });
+        const devEntries=Object.entries(deviceMap);
+        if(devEntries.length) ANALYTICS_CHART_INSTANCES.device = new Chart(document.getElementById('acDevice'),{
+            type:'doughnut', data:{labels:devEntries.map(d=>d[0]),datasets:[{data:devEntries.map(d=>d[1]),backgroundColor:['#4c6fff','#10b981','#f59e0b'],borderWidth:0}]},
+            options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:colors.text,font:{size:11},boxWidth:12}}}}
+        });
+    },100);
+}
+
+function analyticsChartOpts(colors, horizontal) {
+    return {
+        responsive:true, maintainAspectRatio:false,
+        indexAxis: horizontal?'y':'x',
+        plugins:{legend:{display:false}},
+        scales:{
+            x:{ticks:{color:colors.text,font:{size:10},maxRotation:45},grid:{color:colors.grid}},
+            y:{ticks:{color:colors.text,font:{size:10}},grid:{color:colors.grid}}
+        }
+    };
+}
+
+function analyticsGetColors() {
+    const theme=document.body.getAttribute('data-theme');
+    const isDark=theme==='dark'||theme==='duralux-dark';
+    const isDuralux=theme==='duralux'||theme==='duralux-dark';
+    return {
+        text:    isDark?'#f3e8ff':(isDuralux?'#0f1a3e':'#1e1133'),
+        grid:    isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)',
+        primary: isDuralux?'#4c6fff':(isDark?'#c084fc':'#a855f7'),
+        accent:  '#10b981', warn:'#f59e0b'
+    };
+}
+
+// ─── LEAGUE TABLE ──────────────────────────────────────────────────────────────
+function analyticsRenderLeagueTable() {
+    const data = analyticsGetFiltered();
+    const users = {};
+    data.forEach(d=>{
+        if(!users[d.user]) users[d.user]={user:d.user,role:d.role,sessions:0,totalDuration:0,totalPages:0,lastSeen:null,modules:new Set()};
+        const u=users[d.user];
+        u.sessions++; u.totalDuration+=d.duration; u.totalPages+=d.pageViews;
+        if(!u.lastSeen||(d.start&&d.start>u.lastSeen)) u.lastSeen=d.start;
+        (d.pages||'').split(',').filter(Boolean).forEach(p=>u.modules.add(p));
+    });
+    const rows=Object.values(users).sort((a,b)=>b.sessions-a.sessions);
+    const maxSessions=rows.length>0?Math.max(...rows.map(r=>r.sessions)):1;
+    const now=new Date();
+
+    document.getElementById('analyticsLeagueTable').innerHTML = rows.map((u,i)=>{
+        const avgDur   = u.sessions>0?Math.round(u.totalDuration/u.sessions):0;
+        const avgPgs   = u.sessions>0?(u.totalPages/u.sessions).toFixed(1):0;
+        const daysSince= u.lastSeen?Math.floor((now-u.lastSeen)/86400000):999;
+        const lastStr  = daysSince===0?'Today':daysSince===1?'Yesterday':`${daysSince}d ago`;
+        const lastColor= daysSince<=3?'#10b981':daysSince<=7?'var(--warning)':'var(--danger)';
+        const utilBar  = Math.round((u.sessions/maxSessions)*100);
+        const rankClass= i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank-other';
+        const tag      = i===0?'Top User':i===1?'High Usage':'Regular';
+        return `
+        <div class="manager-row">
+            <div class="rank-badge ${rankClass}">${i+1}</div>
+            <div class="manager-name-col"><div class="manager-name">${u.user}</div><div class="manager-tag">${u.role}</div></div>
+            <div class="stat-col"><div class="stat-label">Sessions</div><div class="stat-value">${u.sessions}</div></div>
+            <div class="stat-col"><div class="stat-label">Avg Duration</div><div class="stat-value">${avgDur}<span style="font-size:.7rem"> min</span></div></div>
+            <div class="stat-col"><div class="stat-label">Avg Pages</div><div class="stat-value">${avgPgs}</div></div>
+            <div class="stat-col"><div class="stat-label">Modules</div><div class="stat-value">${u.modules.size}</div></div>
+            <div class="stat-col"><div class="stat-label">Last Seen</div><div class="stat-value" style="font-size:.8rem;color:${lastColor}">${lastStr}</div></div>
+            <div class="progress-bar-col" style="min-width:140px;">
+                <div class="progress-label">Usage: ${utilBar}%</div>
+                <div class="progress-bar"><div class="progress-fill" style="width:${utilBar}%"></div></div>
+            </div>
+        </div>`;
+    }).join('') || `<div style="text-align:center;padding:2rem;color:var(--t3);">No data in this period</div>`;
+}
+
+// ─── INACTIVE USERS ────────────────────────────────────────────────────────────
+function analyticsRenderInactiveAlert() {
+    const now=new Date();
+    const cutoff14=new Date(); cutoff14.setDate(cutoff14.getDate()-14);
+    const activeRecently=new Set(ANALYTICS_DATA.filter(d=>d.start&&d.start>=cutoff14).map(d=>d.user));
+    const allLoggedIn=new Set(ANALYTICS_DATA.map(d=>d.user));
+    const inactive=[...allLoggedIn].filter(u=>!activeRecently.has(u));
+
+    const container=document.getElementById('analyticsInactive');
+    if(!inactive.length){
+        container.innerHTML=`<div style="display:flex;align-items:center;gap:10px;color:#10b981;padding:1rem;"><i data-lucide="check-circle" style="width:20px;height:20px;"></i><span style="font-weight:600;">All users active in the last 14 days</span></div>`;
+    } else {
+        container.innerHTML=inactive.map(u=>{
+            const userSess=ANALYTICS_DATA.filter(d=>d.user===u);
+            const last=userSess.sort((a,b)=>b.start-a.start)[0];
+            const days=last?.start?Math.floor((now-last.start)/86400000):'?';
+            return `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:.65rem 1rem;background:rgba(239,68,68,0.06);border-radius:8px;border:1px solid rgba(239,68,68,0.2);margin-bottom:.5rem;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="width:8px;height:8px;border-radius:50%;background:#ef4444;"></div>
+                    <div><div style="font-weight:700;color:var(--t1);font-size:.9rem;">${u}</div><div style="font-size:.75rem;color:var(--t3);">${last?.role||'Unknown'} · ${userSess.length} total sessions</div></div>
+                </div>
+                <div style="text-align:right;"><div style="font-weight:700;color:#ef4444;">${days} days ago</div><div style="font-size:.7rem;color:var(--t3);">Last seen</div></div>
+            </div>`;
+        }).join('');
+    }
+    if(typeof lucide!=='undefined') lucide.createIcons();
+}
+
+// ─── RECENT SESSIONS ──────────────────────────────────────────────────────────
+function analyticsRenderRecentSessions() {
+    const recent=ANALYTICS_DATA.slice(0,50);
+    document.getElementById('analyticsRecentBody').innerHTML=recent.map(d=>{
+        const start=d.start?d.start.toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):'—';
+        return `
+        <tr>
+            <td style="font-weight:600;color:var(--t1);">${d.user}</td>
+            <td><span style="background:var(--chip);color:var(--acc);padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;">${d.role}</span></td>
+            <td style="color:var(--t3);font-size:12px;">${start}</td>
+            <td style="font-weight:600;">${d.duration?d.duration+' min':'<1 min'}</td>
+            <td>${d.pages?d.pages.split(',').length:0}</td>
+            <td style="font-size:12px;color:var(--t2);">${d.lastPage||'—'}</td>
+            <td style="font-size:12px;color:var(--t3);">${d.device||'—'}</td>
+        </tr>`;
+    }).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:2rem;">No sessions recorded yet</td></tr>`;
+}
+
+// ─── LOAD DASHBOARD ───────────────────────────────────────────────────────────
+window.analyticsLoadDashboard = async function() {
+    const loading = document.getElementById('analyticsLoading');
+    const content = document.getElementById('analyticsContent');
+    if (loading) loading.style.display = 'flex';
+    if (content) content.style.display = 'none';
+
+    try {
+        if (ANALYTICS_DUMMY_MODE) {
+            // DUMMY MODE: show generated data on screen — SP tracking still runs separately
+            ANALYTICS_DATA = analyticsGenerateDummyData();
+            if (loading) loading.style.display = 'none';
+            if (content) content.style.display = 'block';
+            analyticsRenderAll();
+            return;
+        }
+
+        // REAL SP DATA
+        const since = new Date(); since.setDate(since.getDate() - 90);
+        const url = ANALYTICS_SP_URL +
+            `/_api/web/lists/getbytitle('${ANALYTICS_LIST}')/items?` +
+            `$select=ID,Title,UserEmail,UserRole,SessionStart,SessionEnd,SessionDuration,PageViews,PagesVisited,LastPageVisited,DeviceType,Browser,DayOfWeek,WeekNumber,Month&` +
+            `$filter=SessionStart ge '${since.toISOString()}'&$orderby=SessionStart desc&$top=5000`;
+
+        const res = await fetch(url, {
+            headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include'
+        });
+        if (!res.ok) throw new Error('SP fetch failed: ' + res.status);
+        const data = await res.json();
+        ANALYTICS_DATA = data.d.results.map(r => ({
+            id:        r.ID,
+            user:      r.Title           || 'Unknown',
+            email:     r.UserEmail       || '',
+            role:      r.UserRole        || 'Unknown',
+            start:     r.SessionStart    ? new Date(r.SessionStart) : null,
+            end:       r.SessionEnd      ? new Date(r.SessionEnd)   : null,
+            duration:  r.SessionDuration || 0,
+            pageViews: r.PageViews       || 0,
+            pages:     r.PagesVisited    || '',
+            lastPage:  r.LastPageVisited || '',
+            device:    r.DeviceType      || '',
+            browser:   r.Browser         || '',
+            dow:       r.DayOfWeek       || '',
+            week:      r.WeekNumber      || 0,
+            month:     r.Month           || ''
+        }));
+
+        if (loading) loading.style.display = 'none';
+        if (content) content.style.display = 'block';
+        analyticsRenderAll();
+    } catch(e) {
+        if (loading) loading.innerHTML = `
+            <div style="text-align:center;color:var(--danger);">
+                <i data-lucide="alert-circle" style="width:48px;height:48px;margin-bottom:1rem;"></i>
+                <div style="font-size:18px;font-weight:600;">Failed to load analytics</div>
+                <div style="font-size:13px;color:var(--t3);margin-top:8px;">${e.message}</div>
+                <button onclick="analyticsLoadDashboard()" class="export-btn" style="margin-top:1rem;">Retry</button>
+            </div>`;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+};
+
+window.analyticsExport = function() {
+    const data=analyticsGetFiltered();
+    if(!data.length) return;
+    const header='User,Email,Role,SessionStart,SessionEnd,Duration(min),PageViews,PagesVisited,LastPage,Device,Browser,DayOfWeek,Month\n';
+    const rows=data.map(d=>[d.user,d.email,d.role,d.start?.toISOString()||'',d.end?.toISOString()||'',d.duration,d.pageViews,`"${d.pages}"`,d.lastPage,d.device,d.browser,d.dow,d.month].join(',')).join('\n');
+    const blob=new Blob([header+rows],{type:'text/csv'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=`portal_analytics_${new Date().toISOString().split('T')[0]}.csv`; a.click();
+};
