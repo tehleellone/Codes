@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  du GEO PORTAL — landing page
+  du GEOMARKETING PORTALS & DASHBOARDS — landing page
   ─────────────────────────────────────────────────────────────────
   WHERE TO EDIT (all inside the <script> at the bottom of this file):
 
@@ -17,7 +17,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>du Geo Portal</title>
+<title>GeoMarketing Portals &amp; Dashboards</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -144,7 +144,8 @@ html[data-theme="light"] .citynet path{stroke-width:1.7}
   background:#fff;box-shadow:0 8px 24px rgba(199,36,177,.35)
 }
 .du svg{width:40px}
-.brand-txt b{display:block;font-size:1.02rem;font-weight:800;letter-spacing:-.03em}
+.brand-txt b{display:block;font-size:1.02rem;font-weight:800;letter-spacing:-.03em;white-space:nowrap}
+@media (max-width:640px){.brand-txt b{font-size:.9rem;white-space:normal}}
 .brand-txt span{color:var(--muted);font-size:.72rem;font-weight:700}
 .nav-right{display:flex;align-items:center;gap:12px}
 .appear{
@@ -282,7 +283,7 @@ html[data-theme="light"] .shot:after{display:none}
 </head>
 <body>
 <div id="geoRoot">
-<div class="editnote"><i></i><div><b>du Geo Portal</b><span>Page is in edit mode. Click Save / Stop Editing to view the portal full-screen.</span></div></div>
+<div class="editnote"><i></i><div><b>GeoMarketing Portals &amp; Dashboards</b><span>Page is in edit mode. Click Save / Stop Editing to view the portal.</span></div></div>
 <div class="bg"></div>
 <div class="fx"></div>
 <div class="mesh"></div>
@@ -315,7 +316,7 @@ html[data-theme="light"] .shot:after{display:none}
         </svg>
       </div>
       <div class="brand-txt">
-        <b>Geo Portal</b>
+        <b>GeoMarketing Portals &amp; Dashboards</b>
         <span>UAE coverage · sites · buildings</span>
       </div>
     </div>
@@ -471,9 +472,9 @@ html[data-theme="light"] .shot:after{display:none}
 //  CONFIG — the only block to edit for the client SharePoint
 // ══════════════════════════════════════════════════════════════════
 const CONFIG = {
-  SP_SITE:    "",             // e.g. "http://sharedspaces:8086/sites/GEO"  — blank = auto-detect from the SharePoint page
-  SP_ACCESS:  "GEO_ACCESS",   // SharePoint list with columns: UserEmailID (text), Role (choice)
-  ASSET_BASE: ""              // e.g. "/sites/GEO/SiteAssets/geo-portal"  — folder holding the du-geo-*.png files. blank = same folder as this file
+  SP_SITE:    "http://sharedspaces:8081/sites/GM",   // SharePoint site URL (blank = auto-detect from the page)
+  SP_ACCESS:  "GEO_ACCESS",                          // SharePoint list with columns: UserEmailID (text), Role (choice)
+  ASSET_BASE: "/sites/GM/SiteAssets/geo-portal"      // Site Assets folder holding the 8 du-geo-*.png images
 };
 
 const SP_SITE = CONFIG.SP_SITE || (window._spPageContextInfo && _spPageContextInfo.webAbsoluteUrl) || "";
@@ -510,7 +511,7 @@ if(note) note.onclick = function(){ if(!SP_EDIT_MODE) document.documentElement.c
 const USER = { name:"Demo User", email:"demo@du.ae", role:"Admin" };
 
 (function applyAssetBase(){
-  if(!CONFIG.ASSET_BASE) return;
+  if(!CONFIG.ASSET_BASE || IS_DEMO) return;   // local preview keeps images next to this file
   const base = CONFIG.ASSET_BASE.replace(/\/+$/,"");
   const st = document.documentElement.style;
   ["bg-dark","bg-light","consumer-dark","consumer-light","sme-dark","sme-light","glk-dark","glk-light"].forEach(function(k){
