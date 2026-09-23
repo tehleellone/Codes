@@ -3203,7 +3203,6 @@
     </div>
     <div id="rnpsContent"><div id="rnpsContainer"></div></div>
 </div>
-            </div><!-- dashboard-view -->
             <div id="eta-view" class="dashboard-section" style="display:none; width:100%;"></div>
             <div id="pm-view" class="dashboard-section" style="display:none; width:100%;"></div>
             <!-- PSD ASSIGNMENT SECTION -->
@@ -9311,9 +9310,10 @@ ${USER_CONTEXT.userName}`
         smWatchBodyPopups();
         smBindFullscreenOnGesture();
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function () { smSyncFullscreenBtn(); smEmbedPortalAnalytics(); });
+            document.addEventListener('DOMContentLoaded', function () { smSyncFullscreenBtn(); smNormalizeContentSections(); smEmbedPortalAnalytics(); });
         } else {
             smSyncFullscreenBtn();
+            smNormalizeContentSections();
             smEmbedPortalAnalytics();
         }
 
@@ -9374,6 +9374,20 @@ ${USER_CONTEXT.userName}`
             dash.classList.remove('sm-visible-shell');
             dash.style.setProperty('display', 'none', 'important');
         }
+
+        function smNormalizeContentSections() {
+            var content = document.querySelector('#dashboardContent .content');
+            var main = document.querySelector('#dashboardContent .main-container');
+            if (!content || !main) return;
+            Array.prototype.slice.call(main.children).forEach(function (child) {
+                if (child === content) return;
+                if (child.id === 'sidebar' || (child.classList && child.classList.contains('sidebar'))) return;
+                if (child.classList && (child.classList.contains('dashboard-section') || child.classList.contains('dashboard'))) {
+                    content.appendChild(child);
+                }
+            });
+        }
+        window.smNormalizeContentSections = smNormalizeContentSections;
 
         function smEmbedPortalAnalytics() {
             var view = document.getElementById('portalAnalyticsView');
@@ -10818,6 +10832,7 @@ else if (sectionId === 'portalAnalyticsView') {
 
         async function openEditRequest(accountCode) {
             try {
+                if (typeof smNormalizeContentSections === 'function') smNormalizeContentSections();
                 await fetchAccessControlSettings();
                 document.querySelectorAll('.dashboard-section').forEach(function (s) { s.style.display = 'none'; });
                 var dashView = document.getElementById('dashboard-view');
