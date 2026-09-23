@@ -545,9 +545,11 @@ const SP_EDIT_MODE = (function(){
 })();
 if(SP_EDIT_MODE) document.documentElement.classList.add("geo-edit");
 
-// The portal renders INSIDE the web part by default (no full screen).
-// Header button "Full screen" expands it over the whole page; the button again or Esc exits.
+// The portal opens FULL SCREEN by default (over the SharePoint ribbon/nav) when the page is
+// in view mode. In page-edit mode it stays a small card so the ribbon / Save button remain usable.
+// Header button "Exit full screen" or Esc shrinks it into the web part; the button expands again.
 if(IS_DEMO) document.documentElement.classList.add("geo-demo");
+if(!SP_EDIT_MODE) document.documentElement.classList.add("geo-full");
 function setFullScreen(on){
   document.documentElement.classList.toggle("geo-full", !!on);
   setTimeout(function(){ window.dispatchEvent(new Event("resize")); }, 50);
