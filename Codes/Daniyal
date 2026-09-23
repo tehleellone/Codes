@@ -472,10 +472,22 @@ const SP_EDIT_MODE = (function(){
     if(f && f.MSOLayout_InDesignMode && f.MSOLayout_InDesignMode.value === "1") return true;
     if(f && f._wikiPageMode && f._wikiPageMode.value === "Edit") return true;
     if(document.querySelector("#MSOLayout_InDesignMode[value='1'], #_wikiPageMode[value='Edit']")) return true;
-    return /DisplayMode=Design|PageView=Shared|ToolPaneView=/i.test(location.search);
+    if(window.SP && SP.Ribbon && SP.Ribbon.PageState && SP.Ribbon.PageState.Handlers && SP.Ribbon.PageState.Handlers.isInEditMode && SP.Ribbon.PageState.Handlers.isInEditMode()) return true;
+    return /DisplayMode=Design|PageView=Shared|ToolPaneView=|ControlMode=Edit/i.test(location.search);
   }catch(e){ return false; }
 })();
 if(SP_EDIT_MODE) document.documentElement.classList.add("geo-edit");
+
+// SAFETY EXIT for page editors: press Esc to collapse the portal to a small card
+// (so the SharePoint ribbon / Save button are reachable). Click the card to expand again.
+const ON_SHAREPOINT = !!window._spPageContextInfo;
+if(ON_SHAREPOINT){
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape") document.documentElement.classList.add("geo-edit");
+  });
+  const note = document.querySelector(".editnote");
+  if(note) note.onclick = function(){ if(!SP_EDIT_MODE) document.documentElement.classList.remove("geo-edit"); };
+}
 const USER = { name:"Demo User", email:"demo@du.ae", role:"Admin" };
 
 (function applyAssetBase(){
