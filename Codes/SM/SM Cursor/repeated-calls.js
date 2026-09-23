@@ -2053,6 +2053,20 @@ function rcApplyQueueFilters(items, f, includeAgent, dateF) {
     });
 }
 
+function rcCountUniquePendingCallers(items) {
+    var seen = {};
+    var n = 0;
+    (items || []).forEach(function (it) {
+        if (rcDisplayStatus(it) !== RC_STATUS.PENDING) return;
+        if (typeof rcIsRepeatMsisdn === 'function' && !rcIsRepeatMsisdn(it.MSISDN)) return;
+        var k = String(it.MSISDN || '');
+        if (!k || seen[k]) return;
+        seen[k] = 1;
+        n++;
+    });
+    return n;
+}
+
 function rcUniqueRepeatStatusCounts(items) {
     rcWarmPerfCache(items);
     var unique = rcUniqueRepeatCallers(items);
@@ -2077,7 +2091,8 @@ function rcSummary(items, countSource) {
         }
     });
     var uniqueCounts = rcUniqueRepeatStatusCounts(items);
-    s.pending = uniqueCounts.pending;
+    s.pending = rcCountUniquePendingCallers(items);
+    if (s.pending < uniqueCounts.pending) s.pending = uniqueCounts.pending;
     s.inprogress = uniqueCounts.inprogress;
     s.completed = uniqueCounts.completed;
     items.forEach(function (it) {
