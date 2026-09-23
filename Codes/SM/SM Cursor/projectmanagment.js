@@ -1,0 +1,1449 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROJECT MANAGEMENT MODULE  — projectManagement.js
+// ═══════════════════════════════════════════════════════════════════════════════
+
+(function () {
+    function inject() {
+        if (document.getElementById('pm-view')) return;
+        var sec = document.createElement('div');
+        sec.id = 'pm-view';
+        sec.className = 'dashboard-section';
+        sec.style.cssText = 'display:none;width:100%;';
+        var anchor = document.getElementById('eta-view') || document.getElementById('dashboard-view');
+        if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(sec, anchor.nextSibling);
+        else { var c = document.querySelector('.content'); if (c) c.appendChild(sec); else document.body.appendChild(sec); }
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', inject);
+    else inject();
+})();
+
+window.showProjectManagement = function () {
+    if (typeof switchDashboardSection === 'function') {
+        switchDashboardSection('pm-view');
+    } else {
+        document.querySelectorAll('.dashboard-section').forEach(function (s) { s.style.display = 'none'; });
+        var sec = document.getElementById('pm-view');
+        if (sec) sec.style.display = 'block';
+    }
+    document.querySelectorAll('.nav-item').forEach(function (item) {
+        item.classList.remove('active');
+        var lbl = item.querySelector('.nav-label');
+        if (lbl && lbl.textContent.trim() === 'Project Management') item.classList.add('active');
+    });
+    pmInit();
+    window.scrollTo(0, 0);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+};
+
+if (!window._pmModuleLoaded) {
+    window._pmModuleLoaded = true;
+
+    var PM_DUMMY_MODE = false;
+    var PM_SP_LIST    = 'PM_Projects';
+
+    var _pm = {
+        projects   : [],
+        loaded     : false,
+        nextId     : 1000,
+        charts     : {},
+        gridSearch : '',
+        df         : { lead:'', assignee:'', status:'', year:'', quarter:'', month:'', week:'' },
+        // people cache: [{name, email, role}]
+        _people    : null
+    };
+
+    /* ── SP HELPERS ──────────────────────────────────────────────────────────── */
+    function pm_site() {
+        return (typeof _spPageContextInfo !== 'undefined' && _spPageContextInfo.webAbsoluteUrl)
+            || (location.origin + '/sites/SM');
+    }
+    function pm_digest() {
+        var e = document.getElementById('__REQUESTDIGEST');
+        return e ? e.value : '';
+    }
+    function pm_fetchAll(url, acc, cb) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.setRequestHeader('Accept', 'application/json;odata=verbose');
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) return;
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    var j = JSON.parse(xhr.responseText);
+                    var items = (j.d && j.d.results) ? j.d.results : (j.value || []);
+                    acc = acc.concat(items);
+                    var next = j.d && j.d.__next ? j.d.__next : null;
+                    if (next) pm_fetchAll(next, acc, cb);
+                    else cb(acc, null);
+                } catch (e) { cb(acc, e); }
+            } else { cb(acc, { status: xhr.status }); }
+        };
+        xhr.send();
+    }
+    function pm_spWrite(url, payload, method, cb) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, url, true);
+        xhr.setRequestHeader('Accept', 'application/json;odata=verbose');
+        xhr.setRequestHeader('Content-Type', 'application/json;odata=verbose');
+        xhr.setRequestHeader('X-RequestDigest', pm_digest());
+        if (method === 'PATCH') xhr.setRequestHeader('If-Match', '*');
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) return;
+            cb(xhr.status >= 200 && xhr.status < 300, xhr.status);
+        };
+        xhr.send(JSON.stringify(payload));
+    }
+
+    /* ── PEOPLE BUILDER ──────────────────────────────────────────────────────── */
+    // Builds a deduped list of {name, email, role} from ALL_DATA + Access_Control
+    async function pm_buildPeople() {
+        if (_pm._people) return _pm._people;
+
+        var map = {}; // name → {name, email, role}
+
+        function add(name, role) {
+            if (!name) return;
+            var key = name.trim().toLowerCase();
+            if (!map[key]) map[key] = { name: name.trim(), email: '', role: role };
+        }
+
+        // Pull from ALL_DATA
+        if (typeof ALL_DATA !== 'undefined' && ALL_DATA) {
+            ALL_DATA.forEach(function(a) {
+                add(a.lm, 'Line Manager');
+                add(a.sm, 'Service Manager');
+                add(a.am, 'Account Manager');
+                add(a.ad, 'Account Director');
+            });
+        }
+
+        // Pull Admins from Access_Control
+        try {
+            var acUrl = pm_site() + "/_api/web/lists/getbytitle('Access_Control')/items?$select=Title,UserEmailID,Role&$top=500";
+            var res = await fetch(acUrl, { headers: { Accept: 'application/json;odata=verbose' }, credentials: 'include' });
+            if (res.ok) {
+                var data = await res.json();
+                (data.d.results || []).forEach(function(r) {
+                    if (!r.Title) return;
+                    var key = r.Title.trim().toLowerCase();
+                    if (!map[key]) map[key] = { name: r.Title.trim(), email: r.UserEmailID || '', role: r.Role || 'Admin' };
+                    else if (!map[key].email && r.UserEmailID) map[key].email = r.UserEmailID;
+                });
+            }
+        } catch(e) { console.warn('PM: Access_Control fetch failed', e); }
+
+        // Resolve emails for people who don't have one yet via site users
+        var needsEmail = Object.values(map).filter(function(p) { return !p.email; });
+        await Promise.all(needsEmail.map(async function(person) {
+            try {
+                var url = pm_site() + "/_api/web/siteusers?$filter=Title eq '" + encodeURIComponent(person.name) + "'&$select=Title,Email";
+                var r = await fetch(url, { headers: { Accept: 'application/json;odata=verbose' }, credentials: 'include' });
+                if (r.ok) {
+                    var d = await r.json();
+                    if (d.d.results && d.d.results.length > 0) {
+                        person.email = d.d.results[0].Email || '';
+                    }
+                }
+            } catch(e) {}
+        }));
+
+        _pm._people = Object.values(map).sort(function(a, b) { return a.name.localeCompare(b.name); });
+        return _pm._people;
+    }
+
+    /* ── PERSON SEARCH DROPDOWN ──────────────────────────────────────────────── */
+    // fieldPrefix: 'lead' or 'assignee'
+    // Renders into containers: pm_ps_{fieldPrefix}_input, pm_ps_{fieldPrefix}_dd
+function pm_renderPersonSearch(fieldPrefix) {
+    var inputId = 'pm_ps_' + fieldPrefix + '_input';
+    var ddId    = 'pm_ps_' + fieldPrefix + '_dd';
+
+    var q     = (document.getElementById(inputId) || {}).value || '';
+    var lower = q.toLowerCase();
+    var people = (_pm._people || []).filter(function(p) {
+        return !q || p.name.toLowerCase().includes(lower);
+    }).slice(0, 20);
+
+    var dd = document.getElementById(ddId);
+    if (!dd) return;
+
+    if (!q && people.length === 0) { dd.style.display = 'none'; return; }
+
+    dd.innerHTML = '';
+
+    // Add people items
+    people.forEach(function(p) {
+        var item = document.createElement('div');
+        item.className = 'pm-person-item';
+        item.innerHTML =
+            '<div style="font-size:.83rem;font-weight:600;color:var(--t1);">' + pm_esc(p.name) + '</div>' +
+            '<div style="font-size:.72rem;color:var(--t3);">' + pm_esc(p.role) + (p.email ? ' · ' + pm_esc(p.email) : ' · email not resolved') + '</div>';
+
+        // Use closure to capture values
+        (function(name, email, role) {
+            item.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                pm_selectPerson(fieldPrefix, name, email, role);
+            });
+        })(p.name, p.email, p.role);
+
+        dd.appendChild(item);
+    });
+
+    // Not in list option
+    var notInList = document.createElement('div');
+    notInList.className = 'pm-person-item pm-person-notinlist';
+    notInList.innerHTML = '<div style="font-size:.83rem;font-weight:600;color:var(--acc);">➕ Not in list — enter manually</div>';
+    notInList.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        pm_selectNotInList(fieldPrefix);
+    });
+    dd.appendChild(notInList);
+
+    dd.style.display = 'block';
+}
+    window.pm_onPersonSearch = function(fieldPrefix) {
+        pm_renderPersonSearch(fieldPrefix);
+    };
+
+    window.pm_selectPerson = function(fieldPrefix, name, email, role) {
+        var nameId   = 'pm_ps_' + fieldPrefix + '_name';
+        var emailId  = 'pm_ps_' + fieldPrefix + '_email';
+        var inputId  = 'pm_ps_' + fieldPrefix + '_input';
+        var ddId     = 'pm_ps_' + fieldPrefix + '_dd';
+        var manualId = 'pm_ps_' + fieldPrefix + '_manual';
+        var tagId    = 'pm_ps_' + fieldPrefix + '_tag';
+
+        var nameEl  = document.getElementById(nameId);
+        var emailEl = document.getElementById(emailId);
+        var inputEl = document.getElementById(inputId);
+        var ddEl    = document.getElementById(ddId);
+        var manual  = document.getElementById(manualId);
+        var tag     = document.getElementById(tagId);
+
+        if (nameEl)  nameEl.value  = name;
+        if (emailEl) emailEl.value = email;
+        if (inputEl) inputEl.value = '';
+        if (ddEl)    ddEl.style.display = 'none';
+        if (manual)  manual.style.display = 'none';
+
+        // Show selected tag
+        if (tag) {
+            tag.innerHTML = '<span style="display:inline-flex;align-items:center;gap:.35rem;background:var(--nab);border:1px solid var(--nab2);border-radius:20px;padding:.2rem .65rem;font-size:.78rem;font-weight:600;color:var(--acc);">' +
+                pm_esc(name) + ' <span style="font-size:.65rem;opacity:.7;">(' + pm_esc(role) + ')</span>' +
+                '<span style="cursor:pointer;margin-left:.2rem;font-size:.9rem;" onmousedown="pm_clearPerson(\'' + fieldPrefix + '\')">×</span></span>';
+            tag.style.display = 'block';
+        }
+    };
+
+    window.pm_selectNotInList = function(fieldPrefix) {
+        var inputId  = 'pm_ps_' + fieldPrefix + '_input';
+        var ddId     = 'pm_ps_' + fieldPrefix + '_dd';
+        var manualId = 'pm_ps_' + fieldPrefix + '_manual';
+        var tagId    = 'pm_ps_' + fieldPrefix + '_tag';
+
+        var inputEl = document.getElementById(inputId);
+        var ddEl    = document.getElementById(ddId);
+        var manual  = document.getElementById(manualId);
+        var tag     = document.getElementById(tagId);
+
+        if (inputEl) inputEl.value = '';
+        if (ddEl)    ddEl.style.display = 'none';
+        if (manual)  manual.style.display = 'block';
+        if (tag)     tag.style.display = 'none';
+    };
+
+    window.pm_clearPerson = function(fieldPrefix) {
+        var nameId   = 'pm_ps_' + fieldPrefix + '_name';
+        var emailId  = 'pm_ps_' + fieldPrefix + '_email';
+        var inputId  = 'pm_ps_' + fieldPrefix + '_input';
+        var manualId = 'pm_ps_' + fieldPrefix + '_manual';
+        var tagId    = 'pm_ps_' + fieldPrefix + '_tag';
+
+        var nameEl  = document.getElementById(nameId);
+        var emailEl = document.getElementById(emailId);
+        var inputEl = document.getElementById(inputId);
+        var manual  = document.getElementById(manualId);
+        var tag     = document.getElementById(tagId);
+
+        if (nameEl)  nameEl.value  = '';
+        if (emailEl) emailEl.value = '';
+        if (inputEl) inputEl.value = '';
+        if (manual)  manual.style.display = 'none';
+        if (tag)     tag.innerHTML = ''; tag && (tag.style.display = 'none');
+    };
+
+    function pm_hideDD(fieldPrefix) {
+        var dd = document.getElementById('pm_ps_' + fieldPrefix + '_dd');
+        if (dd) dd.style.display = 'none';
+    }
+
+    // Get resolved name+email for a field prefix
+    function pm_getPersonValue(fieldPrefix) {
+        var nameId  = 'pm_ps_' + fieldPrefix + '_name';
+        var emailId = 'pm_ps_' + fieldPrefix + '_email';
+        var manualId = 'pm_ps_' + fieldPrefix + '_manual';
+        var manualNameId  = 'pm_ps_' + fieldPrefix + '_mname';
+        var manualEmailId = 'pm_ps_' + fieldPrefix + '_memail';
+
+        var manual = document.getElementById(manualId);
+        if (manual && manual.style.display !== 'none') {
+            return {
+                name:  (document.getElementById(manualNameId)  || {}).value || '',
+                email: (document.getElementById(manualEmailId) || {}).value || ''
+            };
+        }
+        return {
+            name:  (document.getElementById(nameId)  || {}).value || '',
+            email: (document.getElementById(emailId) || {}).value || ''
+        };
+    }
+
+    /* ── UTIL ────────────────────────────────────────────────────────────────── */
+    function pm_esc(t) {
+        return String(t || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function pm_fmtDate(d) {
+        if (!d) return '—';
+        try { var x = new Date(d); return isNaN(x) ? String(d) : x.toLocaleDateString('en-GB'); } catch(e) { return String(d); }
+    }
+    function pm_fmtDateInput(d) {
+        if (!d) return '';
+        try { var x = new Date(d); if (isNaN(x)) return ''; return x.getFullYear() + '-' + String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0'); } catch(e) { return ''; }
+    }
+    function pm_daysLeft(dl) {
+        if (!dl) return null;
+        var d = new Date(dl), n = new Date();
+        d.setHours(0,0,0,0); n.setHours(0,0,0,0);
+        return Math.ceil((d - n) / 86400000);
+    }
+    function pm_genId() {
+        var n = new Date();
+        return 'PRJ-' + n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0') + '-' + String(Math.floor(Math.random()*90000)+10000);
+    }
+    function pm_weekNum(d) {
+        var dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        var day = dt.getUTCDay() || 7;
+        dt.setUTCDate(dt.getUTCDate() + 4 - day);
+        var y1 = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
+        return Math.ceil((((dt - y1) / 86400000) + 1) / 7);
+    }
+    function pm_quarter(d) { return Math.floor(d.getMonth() / 3) + 1; }
+    function pm_statusBadge(s) {
+        var map = { 'On Track':'on-track','At Risk':'at-risk','Delayed':'delayed','Completed':'completed','Not Started':'not-started','Paused':'paused' };
+        return '<span class="pm-badge pm-badge-' + (map[s]||'not-started') + '">' + pm_esc(s||'—') + '</span>';
+    }
+    function pm_priorityBadge(p) {
+        var c = { Critical:'#ef4444', High:'#f97316', Medium:'#f59e0b', Low:'#22c55e' }[p] || '#94a3b8';
+        return '<span style="background:' + c + '22;color:' + c + ';border:1px solid ' + c + '44;padding:.15rem .5rem;border-radius:20px;font-size:.68rem;font-weight:700;">' + pm_esc(p||'—') + '</span>';
+    }
+    function pm_progColor(pct) { return pct >= 75 ? 'green' : pct >= 40 ? 'yellow' : 'red'; }
+    function pm_alert(cid, type, msg) {
+        var el = document.getElementById(cid); if (!el) return;
+        var icon = { success:'✓', error:'✗', info:'ℹ' }[type] || '';
+        el.innerHTML = '<div class="pm-alert pm-alert-' + type + '">' + icon + ' ' + pm_esc(msg) + '</div>';
+        setTimeout(function () { var e = document.getElementById(cid); if (e) e.innerHTML = ''; }, 6000);
+    }
+    function pm_destroyChart(id) {
+        if (_pm.charts[id]) { try { _pm.charts[id].destroy(); } catch(e){} delete _pm.charts[id]; }
+    }
+
+    /* ── EMAIL DRAFTS ────────────────────────────────────────────────────────── */
+    function pm_draftCreateEmail(project) {
+        var leadEmail     = project.Project_x0020_Lead_x0020_Email || '';
+        var assigneeEmail = project.Project_x0020_Assignee_x0020_Ema || '';
+        var currentUser   = (typeof USER_CONTEXT !== 'undefined' && USER_CONTEXT.userName) ? USER_CONTEXT.userName : 'Service Management';
+        var currentEmail  = (typeof USER_CONTEXT !== 'undefined' && USER_CONTEXT.userEmail) ? USER_CONTEXT.userEmail : '';
+
+        var to = [leadEmail, assigneeEmail].filter(Boolean).join(';');
+        var cc = currentEmail;
+
+        var subject = encodeURIComponent('[New Project] ' + (project.Project_x0020_ID || '') + ' — ' + (project.Title || ''));
+
+        var dl = pm_daysLeft(project.Target_x0020_Deadline);
+        var dlText = dl !== null ? (dl < 0 ? 'OVERDUE by ' + Math.abs(dl) + ' days' : dl + ' days remaining') : 'N/A';
+
+        var body = encodeURIComponent(
+            'Dear Team,\n\n' +
+            'A new project has been created in the Service Management Portal.\n\n' +
+            '── PROJECT DETAILS ──────────────────────────────\n' +
+            'Project Name   : ' + (project.Title || '') + '\n' +
+            'Project ID     : ' + (project.Project_x0020_ID || '') + '\n' +
+            'Priority       : ' + (project.Priority || '') + '\n' +
+            'Status         : ' + (project.Status || 'Not Started') + '\n' +
+            'Project Lead   : ' + (project.Project_x0020_Lead || '') + '\n' +
+            'Assignee       : ' + (project.Project_x0020_Assignee || '') + '\n' +
+            'Start Date     : ' + pm_fmtDate(project.Start_x0020_Date) + '\n' +
+            'Target Deadline: ' + pm_fmtDate(project.Target_x0020_Deadline) + ' (' + dlText + ')\n' +
+            'Review Date    : ' + pm_fmtDate(project.Review_x0020_Date) + '\n' +
+            'Go-Live Date   : ' + pm_fmtDate(project.Go_x0020_Live_x0020_Date) + '\n\n' +
+            '── DESCRIPTION ──────────────────────────────────\n' +
+            (project.Description || 'N/A') + '\n\n' +
+            'Please log in to the Service Management Portal to view full project details.\n\n' +
+            'Best regards,\n' + currentUser
+        );
+
+        var mailto = 'mailto:' + to + '?subject=' + subject + '&body=' + body;
+        if (cc) mailto += '&cc=' + encodeURIComponent(cc);
+        window.location.href = mailto;
+    }
+
+    function pm_draftUpdateEmail(project, oldStatus, newStatus, newProgress, notes, updatedBy) {
+        var leadEmail     = project.Project_x0020_Lead_x0020_Email || '';
+        var assigneeEmail = project.Project_x0020_Assignee_x0020_Ema || '';
+        var currentEmail  = (typeof USER_CONTEXT !== 'undefined' && USER_CONTEXT.userEmail) ? USER_CONTEXT.userEmail : '';
+
+        var to = [leadEmail, assigneeEmail].filter(Boolean).join(';');
+        var cc = currentEmail;
+
+        var subject = encodeURIComponent(
+            '[Project Update] ' + (project.Project_x0020_ID || '') +
+            ' — ' + (project.Title || '') +
+            ' | ' + newStatus +
+            ' | ' + newProgress + '%'
+        );
+
+        var dl = pm_daysLeft(project.Target_x0020_Deadline);
+        var dlText = dl !== null ? (dl < 0 ? 'OVERDUE by ' + Math.abs(dl) + ' days' : dl + ' days remaining') : 'N/A';
+
+        var body = encodeURIComponent(
+            'Dear Team,\n\n' +
+            'The following project has been updated in the Service Management Portal.\n\n' +
+            '── PROJECT ──────────────────────────────────────\n' +
+            'Project Name   : ' + (project.Title || '') + '\n' +
+            'Project ID     : ' + (project.Project_x0020_ID || '') + '\n' +
+            'Project Lead   : ' + (project.Project_x0020_Lead || '') + '\n' +
+            'Assignee       : ' + (project.Project_x0020_Assignee || '') + '\n' +
+            'Target Deadline: ' + pm_fmtDate(project.Target_x0020_Deadline) + ' (' + dlText + ')\n\n' +
+            '── UPDATE DETAILS ───────────────────────────────\n' +
+            'Status         : ' + oldStatus + '  →  ' + newStatus + '\n' +
+            'Progress       : ' + newProgress + '%\n' +
+            'Updated By     : ' + updatedBy + '\n\n' +
+            '── NOTES ────────────────────────────────────────\n' +
+            notes + '\n\n' +
+            'Please log in to the Service Management Portal to view full project details.\n\n' +
+            'Best regards,\n' + updatedBy
+        );
+
+        var mailto = 'mailto:' + to + '?subject=' + subject + '&body=' + body;
+        if (cc) mailto += '&cc=' + encodeURIComponent(cc);
+        window.location.href = mailto;
+    }
+
+    /* ── DUMMY DATA ──────────────────────────────────────────────────────────── */
+    function pm_buildDummy() {
+        var statuses   = ['On Track','At Risk','Delayed','Completed','Not Started','Paused'];
+        var priorities = ['Critical','High','Medium','Low'];
+        var categories = ['Process Enhancement','System Implementation','Infrastructure',
+                          'Compliance','Digital Transformation','Training & Development'];
+
+        var people = _pm._people || [];
+        if (!people.length) return [];
+
+        var now     = new Date();
+        var count   = Math.min(people.length * 2, 24);
+        var results = [];
+
+        for (var i = 0; i < count; i++) {
+            var lead     = people[i % people.length];
+            var assignee = people[(i + 1) % people.length];
+            var offsetStart  = -(i * 12 + 5);
+            var durDays      = 30 + (i % 6) * 15;
+            var startDate    = new Date(now); startDate.setDate(now.getDate() + offsetStart);
+            var deadline     = new Date(startDate); deadline.setDate(startDate.getDate() + durDays);
+            var reviewDate   = new Date(deadline);  reviewDate.setDate(deadline.getDate() - Math.floor(durDays * 0.15));
+            var goLiveDate   = new Date(deadline);  goLiveDate.setDate(deadline.getDate() + 7);
+            var status       = statuses[i % statuses.length];
+            var progress     = status === 'Completed' ? 100 : status === 'Not Started' ? 0 : Math.min(90, (i % 9) * 11 + 5);
+
+            results.push({
+                Id                              : _pm.nextId++,
+                Title                           : categories[i % categories.length] + ' Initiative ' + (i+1),
+                Project_x0020_ID                : pm_genId(),
+                Priority                        : priorities[i % priorities.length],
+                Status                          : status,
+                Description                     : categories[i % categories.length] + ' initiative led by ' + lead.name + '.',
+                Project_x0020_Lead              : lead.name,
+                Project_x0020_Lead_x0020_Email  : lead.email,
+                Project_x0020_Assignee          : assignee.name,
+                Project_x0020_Assignee_x0020_Ema: assignee.email,
+                Start_x0020_Date                : pm_fmtDateInput(startDate),
+                Target_x0020_Deadline           : pm_fmtDateInput(deadline),
+                Review_x0020_Date               : pm_fmtDateInput(reviewDate),
+                Go_x0020_Live_x0020_Date        : pm_fmtDateInput(goLiveDate),
+                Current_x0020_Progress          : progress,
+                Created                         : startDate.toISOString(),
+                Modified                        : now.toISOString()
+            });
+        }
+        return results;
+    }
+
+    /* ── DATA LOAD ───────────────────────────────────────────────────────────── */
+    var PM_SP_SELECT = [
+        'Id','Title','Project_x0020_ID','Priority','Status','Description',
+        'Project_x0020_Lead','Project_x0020_Lead_x0020_Email',
+        'Project_x0020_Assignee','Project_x0020_Assignee_x0020_Ema',
+        'Start_x0020_Date','Target_x0020_Deadline','Review_x0020_Date',
+        'Go_x0020_Live_x0020_Date','Current_x0020_Progress','Created','Modified'
+    ].join(',');
+
+    function pm_load(cb) {
+        if (_pm.loaded) { if (cb) cb(); return; }
+        if (PM_DUMMY_MODE) {
+            pm_buildPeople().then(function() {
+                setTimeout(function () {
+                    _pm.projects = pm_buildDummy();
+                    _pm.loaded   = true;
+                    if (cb) cb();
+                }, 80);
+            });
+        } else {
+            pm_buildPeople().then(function() {
+                var url = pm_site() + '/_api/web/lists/getbytitle(\'' + PM_SP_LIST + '\')/items' +
+                          '?$select=' + PM_SP_SELECT + '&$orderby=Created desc';
+                pm_fetchAll(url, [], function (items, err) {
+                    _pm.projects = err ? [] : items;
+                    _pm.loaded   = true;
+                    if (cb) cb();
+                });
+            });
+        }
+    }
+    function pm_reload(cb) { _pm.loaded = false; pm_load(cb); }
+
+    /* ── FILTER LOGIC ────────────────────────────────────────────────────────── */
+    function pm_applyDF(projects) {
+        var df = _pm.df;
+        var q  = (_pm.gridSearch || '').toLowerCase();
+        return projects.filter(function (p) {
+            if (df.status && p.Status !== df.status) return false;
+            if (df.year || df.quarter || df.month !== '' || df.week) {
+                var c = new Date(p.Created);
+                if (isNaN(c)) return true;
+                if (df.year    && String(c.getFullYear()) !== String(df.year))         return false;
+                if (df.quarter && pm_quarter(c)           !== parseInt(df.quarter,10)) return false;
+                if (df.month !== '' && c.getMonth()       !== parseInt(df.month,10))   return false;
+                if (df.week    && pm_weekNum(c)           !== parseInt(df.week,10))    return false;
+            }
+            // Search across lead + assignee names
+            if (df.search) {
+                var s = df.search.toLowerCase();
+                var lead     = (p.Project_x0020_Lead     || '').toLowerCase();
+                var assignee = (p.Project_x0020_Assignee || '').toLowerCase();
+                if (!lead.includes(s) && !assignee.includes(s)) return false;
+            }
+            return true;
+        });
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════════
+       pmInit
+    ══════════════════════════════════════════════════════════════════════════ */
+    function pmInit() {
+        var container = document.getElementById('pm-view');
+        if (!container) return;
+
+        if (!document.getElementById('pm-styles')) {
+            var s = document.createElement('style');
+            s.id = 'pm-styles';
+            s.textContent = [
+                '#pm-view *{box-sizing:border-box;}',
+                '#pm-view .pm-tabs{display:flex;gap:.3rem;padding:0 0 1rem;border-bottom:1px solid var(--border);margin-bottom:1.2rem;flex-wrap:wrap;}',
+                '#pm-view .pm-tab{display:flex;align-items:center;gap:.45rem;padding:.48rem .88rem;border-radius:10px;cursor:pointer;color:var(--t2);border:1px solid transparent;font-size:.84rem;font-weight:500;transition:all .2s;background:transparent;}',
+                '#pm-view .pm-tab:hover{background:var(--bg-hover);color:var(--t1);}',
+                '#pm-view .pm-tab.active{background:var(--nab);border-color:var(--nab2);color:var(--t1);font-weight:600;}',
+                '#pm-view .pm-section{display:none;}',
+                '#pm-view .pm-section.active{display:block;}',
+                '#pm-view .pm-section-title{font-size:1.12rem;font-weight:700;margin-bottom:.95rem;background:linear-gradient(135deg,#C724B1,#9248B9,#139DCB);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}',
+                '#pm-view .pm-card{background:var(--bg-card);border-radius:14px;border:1px solid var(--border);padding:.95rem 1.05rem;margin-bottom:1.05rem;}',
+                '#pm-view .pm-card-title{font-size:.77rem;text-transform:uppercase;color:var(--t3);letter-spacing:.06em;margin-bottom:.75rem;}',
+                '#pm-view .pm-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:.8rem;margin-bottom:1.05rem;}',
+                '#pm-view .pm-kpi-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:.95rem;position:relative;overflow:hidden;box-shadow:var(--cs);}',
+                '#pm-view .pm-kpi-card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad);}',
+                '#pm-view .pm-kpi-card.green::before{background:linear-gradient(90deg,#16a34a,#22c55e);}',
+                '#pm-view .pm-kpi-card.yellow::before{background:linear-gradient(90deg,#d97706,#f59e0b);}',
+                '#pm-view .pm-kpi-card.red::before{background:linear-gradient(90deg,#dc2626,#ef4444);}',
+                '#pm-view .pm-kpi-card.blue::before{background:linear-gradient(90deg,#2563eb,#60a5fa);}',
+                '#pm-view .pm-kpi-label{font-size:.69rem;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:.3rem;font-weight:700;}',
+                '#pm-view .pm-kpi-value{font-size:1.75rem;font-weight:800;line-height:1;color:var(--t1);}',
+                '#pm-view .pm-badge{display:inline-flex;align-items:center;padding:.15rem .48rem;border-radius:20px;font-size:.69rem;font-weight:700;border:1px solid;}',
+                '#pm-view .pm-badge-on-track{background:rgba(34,197,94,.15);color:#22c55e;border-color:rgba(34,197,94,.3);}',
+                '#pm-view .pm-badge-at-risk{background:rgba(245,158,11,.15);color:#f59e0b;border-color:rgba(245,158,11,.3);}',
+                '#pm-view .pm-badge-delayed{background:rgba(239,68,68,.15);color:#ef4444;border-color:rgba(239,68,68,.3);}',
+                '#pm-view .pm-badge-completed{background:rgba(59,130,246,.15);color:#60a5fa;border-color:rgba(59,130,246,.3);}',
+                '#pm-view .pm-badge-not-started{background:rgba(148,163,184,.15);color:#94a3b8;border-color:rgba(148,163,184,.3);}',
+                '#pm-view .pm-badge-paused{background:rgba(168,85,247,.15);color:#a855f7;border-color:rgba(168,85,247,.3);}',
+                '#pm-view .pm-prog-wrap{background:var(--bg-secondary);border-radius:20px;height:8px;overflow:hidden;}',
+                '#pm-view .pm-prog-bar{height:100%;border-radius:20px;background:var(--grad);}',
+                '#pm-view .pm-prog-bar.green{background:linear-gradient(90deg,#16a34a,#22c55e);}',
+                '#pm-view .pm-prog-bar.yellow{background:linear-gradient(90deg,#d97706,#f59e0b);}',
+                '#pm-view .pm-prog-bar.red{background:linear-gradient(90deg,#dc2626,#ef4444);}',
+                '#pm-view .pm-filters{display:flex;gap:.45rem;align-items:center;flex-wrap:wrap;padding:.55rem .8rem;background:var(--bg-card);border-radius:12px;border:1px solid var(--border);margin-bottom:.95rem;}',
+                '#pm-view .pm-filter-label{font-size:.72rem;color:var(--t3);font-weight:600;white-space:nowrap;}',
+                '#pm-view .pm-filter-sel{padding:.28rem .48rem;border-radius:7px;border:1px solid var(--border);background:var(--bg-input);color:var(--t1);font-size:.79rem;font-family:inherit;}',
+                '#pm-view .pm-filter-sel option{background:var(--bg-card);color:var(--t1);}',
+                '#pm-view .pm-filter-count{font-size:.77rem;color:var(--t3);margin-left:auto;}',
+                '#pm-view .pm-inp{width:100%;padding:.5rem .68rem;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--t1);font-size:.84rem;font-family:inherit;}',
+                '#pm-view .pm-inp:focus{outline:none;border-color:var(--border-s);}',
+                '#pm-view .pm-inp::placeholder{color:var(--t3);}',
+                '#pm-view select.pm-inp{appearance:auto;}',
+                '#pm-view select.pm-inp option{background:var(--bg-card);color:var(--t1);}',
+                '#pm-view textarea.pm-inp{min-height:66px;resize:vertical;}',
+                '#pm-view .pm-btn{padding:.48rem .95rem;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--t1);font-size:.84rem;font-weight:600;cursor:pointer;font-family:inherit;}',
+                '#pm-view .pm-btn-primary{background:var(--grad);color:#fff;border:none;}',
+                '#pm-view .pm-btn-sm{padding:.26rem .58rem;font-size:.76rem;border-radius:6px;}',
+                '#pm-view .pm-dg-search{padding:.28rem .58rem;border-radius:7px;border:1px solid var(--border);background:var(--bg-input);color:var(--t1);font-size:.8rem;font-family:inherit;width:195px;}',
+                '#pm-view .pm-dg-search::placeholder{color:var(--t3);}',
+                '#pm-view .pm-form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.72rem;}',
+                '#pm-view .pm-form-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:.72rem;}',
+                '#pm-view .pm-form-group{display:flex;flex-direction:column;gap:.2rem;}',
+                '#pm-view .pm-form-label{font-size:.78rem;font-weight:600;color:var(--t2);}',
+                '#pm-view .pm-required{color:#ef4444;}',
+                '#pm-view .pm-form-actions{display:flex;gap:.6rem;justify-content:flex-end;margin-top:.95rem;}',
+                '#pm-view .pm-alert{padding:.65rem .9rem;border-radius:10px;margin-bottom:.7rem;border:1px solid;font-size:.84rem;}',
+                '#pm-view .pm-alert-success{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3);color:#22c55e;}',
+                '#pm-view .pm-alert-error{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:#ef4444;}',
+                '#pm-view .pm-alert-info{background:rgba(59,130,246,.1);border-color:rgba(59,130,246,.3);color:#60a5fa;}',
+                '#pm-view .pm-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2147483640;display:flex;align-items:center;justify-content:center;}',
+                '#pm-view .pm-modal{background:var(--bg-card);border:1px solid var(--border);border-radius:18px;padding:1.25rem;max-width:760px;width:92%;max-height:88vh;overflow-y:auto;position:relative;box-shadow:var(--ch);}',
+                '#pm-view .pm-modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.95rem;}',
+                '#pm-view .pm-modal-title{font-size:.98rem;font-weight:700;color:var(--t1);}',
+                '#pm-view .pm-modal-close{width:27px;height:27px;border-radius:50%;background:var(--bg-input);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--t1);}',
+                '#pm-view .pm-charts-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.95rem;margin-bottom:1.05rem;}',
+                '#pm-view .pm-chart-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:.95rem;box-shadow:var(--cs);}',
+                '#pm-view .pm-chart-title{font-size:.8rem;font-weight:700;color:var(--t2);margin-bottom:.55rem;}',
+                '#pm-view .pm-chart-container{position:relative;height:195px;}',
+
+                /* ── PERSON SEARCH ── */
+                '#pm-view .pm-person-wrap{position:relative;}',
+                '#pm-view .pm-person-dd{position:absolute;top:100%;left:0;right:0;z-index:800;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:220px;overflow-y:auto;display:none;}',
+'#pm-view .pm-person-item{padding:.45rem .75rem;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s;user-select:none;}',                '#pm-view .pm-person-item:last-child{border-bottom:none;}',
+                '#pm-view .pm-person-item:hover{background:var(--bg-hover);}',
+                '#pm-view .pm-person-notinlist{background:var(--bg-secondary);}',
+
+                '@media(max-width:1100px){#pm-view .pm-charts-grid{grid-template-columns:1fr;}}',
+                '@media(max-width:900px){#pm-view .pm-form-grid{grid-template-columns:repeat(2,1fr);}}',
+                '@media(max-width:600px){#pm-view .pm-form-grid,#pm-view .pm-form-grid-2{grid-template-columns:1fr;}}'
+            ].join('');
+            document.head.appendChild(s);
+        }
+
+        if (!container.dataset.pmInited) {
+            container.dataset.pmInited = '1';
+            container.innerHTML = pm_html();
+            pm_initDefaults();
+        }
+
+        pm_load(function () {
+            pm_populateDropdowns();
+            pm_renderDashboard();
+        });
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    /* ── PERSON SEARCH WIDGET HTML ───────────────────────────────────────────── */
+    function pm_personFieldHtml(fieldPrefix, label, required) {
+        var req = required ? '<span class="pm-required">*</span>' : '';
+        return (
+            '<div class="pm-form-group">' +
+                '<label class="pm-form-label">' + label + ' ' + req + '</label>' +
+                '<div class="pm-person-wrap">' +
+                    '<input type="text" id="pm_ps_' + fieldPrefix + '_input" class="pm-inp" ' +
+                        'placeholder="Search name…" ' +
+                        'oninput="pm_onPersonSearch(\'' + fieldPrefix + '\')" ' +
+'onblur="setTimeout(function(){pm_hideDD(\'' + fieldPrefix + '\')},300)" ' +                        'onfocus="pm_onPersonSearch(\'' + fieldPrefix + '\')" ' +
+                        'autocomplete="off">' +
+                    '<div id="pm_ps_' + fieldPrefix + '_dd" class="pm-person-dd"></div>' +
+                '</div>' +
+                '<div id="pm_ps_' + fieldPrefix + '_tag" style="display:none;margin-top:.3rem;"></div>' +
+                '<div id="pm_ps_' + fieldPrefix + '_manual" style="display:none;margin-top:.5rem;">' +
+                    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem;">' +
+                        '<input type="text" id="pm_ps_' + fieldPrefix + '_mname" class="pm-inp" placeholder="Full name">' +
+                        '<input type="email" id="pm_ps_' + fieldPrefix + '_memail" class="pm-inp" placeholder="Email address">' +
+                    '</div>' +
+                '</div>' +
+                // Hidden fields to store resolved values
+                '<input type="hidden" id="pm_ps_' + fieldPrefix + '_name">' +
+                '<input type="hidden" id="pm_ps_' + fieldPrefix + '_email">' +
+            '</div>'
+        );
+    }
+
+    /* ── HTML ────────────────────────────────────────────────────────────────── */
+    function pm_html() {
+        var months    = pm_monthNames();
+        var monthOpts = months.map(function(m, i){ return '<option value="' + i + '">' + m + '</option>'; }).join('');
+        var weekOpts  = '';
+        for (var w = 1; w <= 53; w++) weekOpts += '<option value="' + w + '">Week ' + w + '</option>';
+        var qOpts  = '<option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option>';
+        var stOpts = '<option>On Track</option><option>At Risk</option><option>Delayed</option><option>Completed</option><option>Not Started</option><option>Paused</option>';
+
+        return (
+            '<div class="pm-tabs">' +
+                '<div class="pm-tab active" data-pm-tab="pm-sec-dash" onclick="pmNav(\'pm-sec-dash\')">' +
+                    '<i data-lucide="layout-dashboard" style="width:14px;height:14px;display:inline-block;vertical-align:middle;"></i> Dashboard' +
+                '</div>' +
+                '<div class="pm-tab" data-pm-tab="pm-sec-create" onclick="pmNav(\'pm-sec-create\')">' +
+                    '<i data-lucide="plus-circle" style="width:14px;height:14px;display:inline-block;vertical-align:middle;"></i> Create Project' +
+                '</div>' +
+                '<div class="pm-tab" data-pm-tab="pm-sec-update" onclick="pmNav(\'pm-sec-update\')">' +
+                    '<i data-lucide="activity" style="width:14px;height:14px;display:inline-block;vertical-align:middle;"></i> Update Progress' +
+                '</div>' +
+                '<div class="pm-tab" data-pm-tab="pm-sec-timeline" onclick="pmNav(\'pm-sec-timeline\')">' +
+                    '<i data-lucide="calendar-range" style="width:14px;height:14px;display:inline-block;vertical-align:middle;"></i> Timeline &amp; Risks' +
+                '</div>' +
+            '</div>' +
+
+            /* ── DASHBOARD ── */
+            '<div id="pm-sec-dash" class="pm-section active">' +
+                '<h2 class="pm-section-title">Dashboard Overview</h2>' +
+                '<div class="pm-filters">' +
+                    '<span class="pm-filter-label">Filter:</span>' +
+                    '<input class="pm-dg-search" id="pm_df_person_search" placeholder="Search lead or assignee…" oninput="pm_onPersonFilter(this.value)" style="width:220px;">' +
+                    '<select class="pm-filter-sel" id="pm_df_status"  onchange="pm_onDF()"><option value="">All Statuses</option>' + stOpts + '</select>' +
+                    '<select class="pm-filter-sel" id="pm_df_year"    onchange="pm_onDF()"><option value="">All Years</option></select>' +
+                    '<select class="pm-filter-sel" id="pm_df_quarter" onchange="pm_onDF()"><option value="">All Quarters</option>' + qOpts + '</select>' +
+                    '<select class="pm-filter-sel" id="pm_df_month"   onchange="pm_onDF()"><option value="">All Months</option>' + monthOpts + '</select>' +
+                    '<select class="pm-filter-sel" id="pm_df_week"    onchange="pm_onDF()"><option value="">All Weeks</option>' + weekOpts + '</select>' +
+                    '<button type="button" class="pm-btn pm-btn-sm" onclick="pm_clearDF()">' +
+                        '<i data-lucide="x" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:3px;"></i>Clear' +
+                    '</button>' +
+                    '<span class="pm-filter-count" id="pm-df-count"></span>' +
+                '</div>' +
+                '<div class="pm-kpi-grid" id="pm-kpi-grid"></div>' +
+                '<div class="pm-charts-grid">' +
+                    '<div class="pm-chart-card"><div class="pm-chart-title">Projects by Status</div><div class="pm-chart-container"><canvas id="pm-chart-status"></canvas></div></div>' +
+                    '<div class="pm-chart-card"><div class="pm-chart-title">Deadline Forecast (Days Remaining)</div><div class="pm-chart-container"><canvas id="pm-chart-forecast"></canvas></div></div>' +
+                '</div>' +
+                '<div class="pm-card" style="padding:0;overflow:hidden;">' +
+                    '<div style="display:flex;align-items:center;gap:.55rem;padding:.48rem .72rem;border-bottom:1px solid var(--border);flex-wrap:wrap;">' +
+                        '<span style="font-size:.84rem;font-weight:700;color:var(--t1);">All Projects</span>' +
+                        '<input class="pm-dg-search" id="pm-grid-search" placeholder="Search…" oninput="pm_onSearch(this.value)">' +
+                        '<button type="button" class="pm-btn pm-btn-sm pm-btn-primary" onclick="pmNav(\'pm-sec-create\')">' +
+                            '<i data-lucide="plus" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:3px;"></i>New Project' +
+                        '</button>' +
+                        '<span class="pm-filter-count" id="pm-grid-count" style="margin-left:auto;"></span>' +
+                    '</div>' +
+                    '<div id="pm-ag-grid" class="ag-theme-alpine" style="height:420px;width:100%;"></div>' +
+                '</div>' +
+            '</div>' +
+
+            /* ── CREATE ── */
+            '<div id="pm-sec-create" class="pm-section">' +
+                '<h2 class="pm-section-title">Create New Project</h2>' +
+                '<div id="pm-create-alert"></div>' +
+                '<div id="pm-edit-banner" style="display:none;background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);border-radius:10px;padding:.58rem .82rem;margin-bottom:.82rem;align-items:center;justify-content:space-between;color:#60a5fa;font-size:.84rem;">' +
+                    '<span><i data-lucide="pencil" style="width:13px;height:13px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>Editing existing project</span>' +
+                    '<div style="display:flex;gap:.42rem;">' +
+                        '<button type="button" class="pm-btn pm-btn-sm" onclick="pm_cancelEdit()"><i data-lucide="x" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:3px;"></i>Cancel</button>' +
+                        '<button type="button" class="pm-btn pm-btn-sm pm-btn-primary" onclick="pm_updateProject()"><i data-lucide="save" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:3px;"></i>Update</button>' +
+                    '</div>' +
+                '</div>' +
+
+                '<div class="pm-card"><div class="pm-card-title">Project Identity</div>' +
+                    '<div class="pm-form-grid">' +
+                        '<div class="pm-form-group"><label class="pm-form-label">Project Name <span class="pm-required">*</span></label><input type="text" id="pm_cp_name" class="pm-inp" placeholder="Project name"></div>' +
+                        '<div class="pm-form-group"><label class="pm-form-label">Project ID <span style="font-size:.68rem;opacity:.55;">(auto)</span></label><input type="text" id="pm_cp_id" class="pm-inp" readonly style="opacity:.62;"></div>' +
+                        '<div class="pm-form-group"><label class="pm-form-label">Priority <span class="pm-required">*</span></label>' +
+                            '<select id="pm_cp_priority" class="pm-inp"><option value="">-- Select --</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option></select>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>' +
+
+                '<div class="pm-card"><div class="pm-card-title">Description</div>' +
+                    '<div class="pm-form-group"><label class="pm-form-label">Description <span class="pm-required">*</span></label><textarea id="pm_cp_desc" class="pm-inp" placeholder="Project objectives and scope…"></textarea></div>' +
+                '</div>' +
+
+                '<div class="pm-card"><div class="pm-card-title">Assignment</div>' +
+                    '<div class="pm-form-grid-2">' +
+                        pm_personFieldHtml('lead', 'Project Lead', true) +
+                        pm_personFieldHtml('assignee', 'Project Assignee', true) +
+                    '</div>' +
+                '</div>' +
+
+                '<div class="pm-card"><div class="pm-card-title">Timeline</div>' +
+                    '<div class="pm-form-grid">' +
+                        '<div class="pm-form-group"><label class="pm-form-label">Start Date <span class="pm-required">*</span></label><input type="date" id="pm_cp_start" class="pm-inp" onchange="pm_calcDur()"></div>' +
+                        '<div class="pm-form-group"><label class="pm-form-label">Target Deadline <span class="pm-required">*</span></label><input type="date" id="pm_cp_deadline" class="pm-inp" onchange="pm_calcDur()"></div>' +
+                        '<div class="pm-form-group"><label class="pm-form-label">Duration (Days)</label><input type="number" id="pm_cp_dur" class="pm-inp" readonly style="opacity:.62;"></div>' +
+                        '<div class="pm-form-group"><label class="pm-form-label">Review Date</label><input type="date" id="pm_cp_review" class="pm-inp"></div>' +
+                        '<div class="pm-form-group"><label class="pm-form-label">Go-Live Date</label><input type="date" id="pm_cp_golive" class="pm-inp"></div>' +
+                    '</div>' +
+                '</div>' +
+
+                '<div class="pm-form-actions">' +
+                    '<button type="button" class="pm-btn" onclick="pm_resetCreate()"><i data-lucide="rotate-ccw" style="width:13px;height:13px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>Clear</button>' +
+                    '<button type="button" class="pm-btn pm-btn-primary" id="pm-submit-btn" onclick="pm_submitProject()"><i data-lucide="plus-circle" style="width:13px;height:13px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>Create Project</button>' +
+                '</div>' +
+                '<input type="hidden" id="pm_cp_edit_id" value="">' +
+            '</div>' +
+
+            /* ── UPDATE ── */
+            '<div id="pm-sec-update" class="pm-section">' +
+                '<h2 class="pm-section-title">Update Project Progress</h2>' +
+                '<div id="pm-update-alert"></div>' +
+                '<div class="pm-card"><div class="pm-card-title">Select Project</div>' +
+                    '<div class="pm-form-group"><label class="pm-form-label">Project <span class="pm-required">*</span></label>' +
+                        '<select id="pm_up_project" class="pm-inp" onchange="pm_onUpProj()"><option value="">-- Select Project --</option></select>' +
+                    '</div>' +
+                    '<div id="pm-up-info" style="display:none;margin-top:.72rem;padding:.72rem;background:var(--bg-input);border-radius:8px;border:1px solid var(--border);"></div>' +
+                '</div>' +
+                '<div class="pm-card"><div class="pm-card-title">Progress Details</div>' +
+                    '<div class="pm-form-grid">' +
+                        '<div class="pm-form-group"><label class="pm-form-label">New Status <span class="pm-required">*</span></label>' +
+                            '<select id="pm_up_status" class="pm-inp" onchange="pm_onUpStatus()"><option value="">-- Select --</option><option>On Track</option><option>At Risk</option><option>Delayed</option><option>Paused</option><option>Completed</option></select>' +
+                        '</div>' +
+                        '<div class="pm-form-group"><label class="pm-form-label">Progress % <span class="pm-required">*</span></label><input type="number" id="pm_up_progress" class="pm-inp" min="0" max="100" placeholder="0–100"></div>' +
+                        '<div class="pm-form-group"><label class="pm-form-label">Updated By <span class="pm-required">*</span></label><input type="text" id="pm_up_updatedby" class="pm-inp" placeholder="Your name"></div>' +
+                    '</div>' +
+                    '<div class="pm-form-group" style="margin-top:.68rem;"><label class="pm-form-label">Progress Notes <span class="pm-required">*</span></label>' +
+                        '<textarea id="pm_up_notes" class="pm-inp" placeholder="What was accomplished? Any blockers or next steps?"></textarea>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="pm-form-actions">' +
+                    '<button type="button" class="pm-btn" onclick="pm_resetUpdate()"><i data-lucide="rotate-ccw" style="width:13px;height:13px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>Clear</button>' +
+                    '<button type="button" class="pm-btn pm-btn-primary" onclick="pm_submitUpdate()"><i data-lucide="save" style="width:13px;height:13px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>Save Update</button>' +
+                '</div>' +
+            '</div>' +
+
+            /* ── TIMELINE ── */
+            '<div id="pm-sec-timeline" class="pm-section">' +
+                '<h2 class="pm-section-title">Timeline &amp; Risks</h2>' +
+                '<div class="pm-filters">' +
+                    '<span class="pm-filter-label">Filter:</span>' +
+                    '<input class="pm-dg-search" id="pm_tl_person" placeholder="Lead or assignee…" oninput="pm_renderTL()" style="width:180px;">' +
+                    '<select class="pm-filter-sel" id="pm_tl_status"  onchange="pm_renderTL()"><option value="">All Statuses</option>' + stOpts + '</select>' +
+                    '<select class="pm-filter-sel" id="pm_tl_year"    onchange="pm_renderTL()"><option value="">All Years</option></select>' +
+                    '<select class="pm-filter-sel" id="pm_tl_quarter" onchange="pm_renderTL()"><option value="">All Quarters</option>' + qOpts + '</select>' +
+                    '<select class="pm-filter-sel" id="pm_tl_month"   onchange="pm_renderTL()"><option value="">All Months</option>' + monthOpts + '</select>' +
+                    '<button type="button" class="pm-btn pm-btn-sm" onclick="pm_clearTL()"><i data-lucide="x" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:3px;"></i>Clear</button>' +
+                '</div>' +
+                '<div class="pm-card" style="padding:0;"><div id="pm-tl-container"><div style="padding:1.1rem;color:var(--t3);">Loading…</div></div></div>' +
+                '<h2 class="pm-section-title" style="margin-top:1.35rem;">At-Risk &amp; Overdue</h2>' +
+                '<div id="pm-risks-container"><div style="padding:1.1rem;color:var(--t3);">Loading…</div></div>' +
+            '</div>' +
+
+            /* ── MODAL ── */
+            '<div id="pm-modal" class="pm-modal-overlay" style="display:none;" onclick="pm_closeModal(event)">' +
+                '<div class="pm-modal" onclick="event.stopPropagation()">' +
+                    '<div class="pm-modal-header">' +
+                        '<span class="pm-modal-title" id="pm-modal-title">Project Details</span>' +
+                        '<div class="pm-modal-close" onclick="pm_closeModal()"><i data-lucide="x" style="width:14px;height:14px;"></i></div>' +
+                    '</div>' +
+                    '<div id="pm-modal-body"></div>' +
+                '</div>' +
+            '</div>'
+        );
+    }
+
+    function pm_initDefaults() {
+        var idEl = document.getElementById('pm_cp_id');
+        if (idEl) idEl.value = pm_genId();
+        // Pre-fill Updated By with current user
+        var ubEl = document.getElementById('pm_up_updatedby');
+        if (ubEl && typeof USER_CONTEXT !== 'undefined' && USER_CONTEXT.userName) {
+            ubEl.value = USER_CONTEXT.userName;
+        }
+    }
+
+    function pm_monthNames() {
+        var names = [];
+        for (var m = 0; m < 12; m++) {
+            names.push(new Date(2000, m, 1).toLocaleDateString('en-US', { month: 'long' }));
+        }
+        return names;
+    }
+
+    /* ── POPULATE DROPDOWNS ──────────────────────────────────────────────────── */
+    function pm_populateDropdowns() {
+        var years = [...new Set(_pm.projects.map(function(p){ return p.Created ? new Date(p.Created).getFullYear() : null; }).filter(Boolean))].sort();
+
+        function rebuild(id, header, items) {
+            var el = document.getElementById(id); if (!el) return;
+            var cur = el.value;
+            el.innerHTML = '<option value="">' + header + '</option>';
+            items.forEach(function(v){ el.innerHTML += '<option value="' + pm_esc(v) + '"' + (String(v) === cur ? ' selected' : '') + '>' + pm_esc(v) + '</option>'; });
+        }
+
+        rebuild('pm_df_year', 'All Years', years);
+        rebuild('pm_tl_year', 'All Years', years);
+
+        var upEl = document.getElementById('pm_up_project');
+        if (upEl) {
+            var curUp = upEl.value;
+            upEl.innerHTML = '<option value="">-- Select Project --</option>';
+            _pm.projects.forEach(function(p){
+                upEl.innerHTML += '<option value="' + p.Id + '"' + (String(p.Id) === curUp ? ' selected' : '') + '>' +
+                    pm_esc(p.Title||'') + ' — ' + pm_esc(p.Project_x0020_ID||'') + '</option>';
+            });
+        }
+    }
+
+    /* ── DASHBOARD FILTER EVENTS ─────────────────────────────────────────────── */
+    window.pm_onDF = function () {
+        _pm.df.status  = document.getElementById('pm_df_status').value;
+        _pm.df.year    = document.getElementById('pm_df_year').value;
+        _pm.df.quarter = document.getElementById('pm_df_quarter').value;
+        _pm.df.month   = document.getElementById('pm_df_month').value;
+        _pm.df.week    = document.getElementById('pm_df_week').value;
+        pm_renderDashboard();
+    };
+    window.pm_onPersonFilter = function(v) {
+        _pm.df.search = v;
+        pm_renderDashboard();
+    };
+    window.pm_clearDF = function () {
+        ['pm_df_status','pm_df_year','pm_df_quarter','pm_df_month','pm_df_week'].forEach(function(id){ var e = document.getElementById(id); if (e) e.value = ''; });
+        var ps = document.getElementById('pm_df_person_search'); if (ps) ps.value = '';
+        _pm.df = { search:'', status:'', year:'', quarter:'', month:'', week:'' };
+        pm_renderDashboard();
+    };
+    window.pm_onSearch = function (q) { _pm.gridSearch = q.toLowerCase(); pm_renderGrid(); };
+
+    /* ── DASHBOARD RENDER ────────────────────────────────────────────────────── */
+    function pm_renderDashboard() {
+        var filtered = pm_applyDF(_pm.projects);
+        pm_renderKPIs(filtered);
+        pm_renderCharts(filtered);
+        pm_renderGrid();
+        var cnt = document.getElementById('pm-df-count');
+        if (cnt) cnt.textContent = filtered.length + ' project(s)';
+    }
+
+    function pm_renderKPIs(p) {
+        var total     = p.length;
+        var onTrack   = p.filter(function(x){ return x.Status === 'On Track'; }).length;
+        var atRisk    = p.filter(function(x){ return x.Status === 'At Risk'; }).length;
+        var delayed   = p.filter(function(x){ return x.Status === 'Delayed'; }).length;
+        var completed = p.filter(function(x){ return x.Status === 'Completed'; }).length;
+        var overdue   = p.filter(function(x){ var d = pm_daysLeft(x.Target_x0020_Deadline); return d !== null && d < 0 && x.Status !== 'Completed'; }).length;
+        var avgProg   = total ? Math.round(p.reduce(function(a,x){ return a + (+x.Current_x0020_Progress||0); },0) / total) : 0;
+        var dueWeek   = p.filter(function(x){ var d = pm_daysLeft(x.Target_x0020_Deadline); return d !== null && d >= 0 && d <= 7 && x.Status !== 'Completed'; }).length;
+        function kpi(lbl, val, col) { return '<div class="pm-kpi-card' + (col?' '+col:'') + '"><div class="pm-kpi-label">' + lbl + '</div><div class="pm-kpi-value">' + val + '</div></div>'; }
+        var grid = document.getElementById('pm-kpi-grid');
+        if (grid) grid.innerHTML =
+            kpi('Total Projects', total, '') + kpi('On Track', onTrack, 'green') + kpi('At Risk', atRisk, 'yellow') +
+            kpi('Delayed', delayed, 'red') + kpi('Completed', completed, 'blue') + kpi('Avg Progress', avgProg+'%', '') +
+            kpi('Overdue', overdue, 'red') + kpi('Due This Week', dueWeek, 'yellow');
+    }
+
+    function pm_renderCharts(p) {
+        if (typeof Chart === 'undefined') return;
+        var fc = 'rgba(148,163,184,.9)', gc = 'rgba(148,163,184,.12)';
+        var SC = { 'On Track':'rgba(34,197,94,.8)','At Risk':'rgba(245,158,11,.8)','Delayed':'rgba(239,68,68,.8)','Completed':'rgba(96,165,250,.8)','Not Started':'rgba(148,163,184,.8)','Paused':'rgba(168,85,247,.8)' };
+        var statuses = Object.keys(SC);
+
+        pm_destroyChart('pm-chart-status');
+        var ctx1 = document.getElementById('pm-chart-status');
+        if (ctx1) {
+            var counts = statuses.map(function(s){ return p.filter(function(x){ return x.Status===s; }).length; });
+            _pm.charts['pm-chart-status'] = new Chart(ctx1, {
+                type:'doughnut',
+                data:{ labels:statuses, datasets:[{ data:counts, backgroundColor:statuses.map(function(s){ return SC[s]; }), borderWidth:2, borderColor:'transparent' }] },
+                options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ color:fc, font:{ size:10 }, padding:8 } } } }
+            });
+        }
+
+        pm_destroyChart('pm-chart-forecast');
+        var ctx2 = document.getElementById('pm-chart-forecast');
+        if (ctx2) {
+            var sorted = p.filter(function(x){ return x.Target_x0020_Deadline && x.Status!=='Completed'; })
+                          .sort(function(a,b){ return pm_daysLeft(a.Target_x0020_Deadline) - pm_daysLeft(b.Target_x0020_Deadline); })
+                          .slice(0,10);
+            var names = sorted.map(function(x){ var t=x.Title||''; return t.length>15?t.substring(0,15)+'…':t; });
+            var days  = sorted.map(function(x){ return pm_daysLeft(x.Target_x0020_Deadline); });
+            var bgs   = days.map(function(d){ return d<0?SC['Delayed']:d<14?SC['At Risk']:SC['On Track']; });
+            _pm.charts['pm-chart-forecast'] = new Chart(ctx2, {
+                type:'bar',
+                data:{ labels:names, datasets:[{ label:'Days Remaining', data:days, backgroundColor:bgs, borderRadius:6 }] },
+                options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:fc }, grid:{ color:gc } }, y:{ ticks:{ color:fc, font:{ size:9 } }, grid:{ display:false } } } }
+            });
+        }
+    }
+
+    /* ── AG GRID ─────────────────────────────────────────────────────────────── */
+    var _pmGridApi = null;
+
+    function pm_renderGrid() {
+        var filtered = pm_applyDF(_pm.projects);
+        var q = _pm.gridSearch;
+        var rows = q ? filtered.filter(function(p){
+            return (p.Title||'').toLowerCase().includes(q) ||
+                   (p.Project_x0020_ID||'').toLowerCase().includes(q) ||
+                   (p.Project_x0020_Lead||'').toLowerCase().includes(q) ||
+                   (p.Project_x0020_Assignee||'').toLowerCase().includes(q);
+        }) : filtered;
+
+        var cnt = document.getElementById('pm-grid-count');
+        if (cnt) cnt.textContent = rows.length + ' project(s)';
+
+        if (typeof agGrid === 'undefined') return;
+
+        var colDefs = [
+            {
+                headerName: '', field: 'Id', width: 80, sortable: false, filter: false,
+                cellRenderer: function(p) {
+                    return '<button type="button" onclick="pm_openModal(' + p.value + ')" style="padding:.2rem .48rem;border-radius:5px;background:var(--grad);color:#fff;border:none;font-size:.72rem;font-weight:600;cursor:pointer;">' +
+                           '<i data-lucide="eye" style="width:11px;height:11px;display:inline-block;vertical-align:middle;margin-right:2px;"></i>View</button>';
+                }
+            },
+            {
+                headerName: 'Project', field: 'Title', flex: 1, minWidth: 160, filter: 'agTextColumnFilter',
+                cellRenderer: function(p) {
+                    return '<a href="#" onclick="pm_openModal(' + p.data.Id + ');return false;" style="color:var(--acc2);font-weight:600;text-decoration:none;">' + pm_esc(p.value || '') + '</a>';
+                }
+            },
+            { headerName: 'Project ID',   field: 'Project_x0020_ID',  width: 160, filter: 'agTextColumnFilter', cellStyle: { fontSize: '.74rem', color: 'var(--t3)' } },
+            { headerName: 'Project Lead', field: 'Project_x0020_Lead', width: 150, filter: 'agTextColumnFilter', cellStyle: { color: 'var(--t1)' } },
+            { headerName: 'Assignee',     field: 'Project_x0020_Assignee', width: 150, filter: 'agTextColumnFilter', cellStyle: { color: 'var(--t1)' } },
+            {
+                headerName: 'Priority', field: 'Priority', width: 110, filter: 'agSetColumnFilter',
+                cellRenderer: function(p) { return pm_priorityBadge(p.value); }
+            },
+            {
+                headerName: 'Status', field: 'Status', width: 125, filter: 'agSetColumnFilter',
+                cellRenderer: function(p) { return pm_statusBadge(p.value); }
+            },
+            {
+                headerName: 'Progress', field: 'Current_x0020_Progress', width: 135, filter: 'agNumberColumnFilter',
+                cellRenderer: function(p) {
+                    var pct = +p.value || 0;
+                    var col = pm_progColor(pct);
+                    return '<div style="display:flex;align-items:center;gap:.28rem;padding:0 4px;">' +
+                           '<div class="pm-prog-wrap" style="flex:1;"><div class="pm-prog-bar ' + col + '" style="width:' + pct + '%;"></div></div>' +
+                           '<span style="font-size:.72rem;color:var(--t3);min-width:28px;">' + pct + '%</span></div>';
+                }
+            },
+            {
+                headerName: 'Deadline', field: 'Target_x0020_Deadline', width: 115,
+                valueFormatter: function(p) { return pm_fmtDate(p.value); },
+                cellStyle: { color: 'var(--t2)' }
+            },
+            {
+                headerName: 'Days Left', field: 'Target_x0020_Deadline', colId: 'daysLeft', width: 100, sortable: true, filter: false,
+                cellRenderer: function(p) {
+                    var dl = pm_daysLeft(p.value);
+                    if (dl === null) return '<span style="color:var(--t3);">—</span>';
+                    if (dl < 0)  return '<span style="color:#ef4444;font-weight:700;">' + dl + 'd</span>';
+                    if (dl < 14) return '<span style="color:#f59e0b;font-weight:600;">' + dl + 'd</span>';
+                    return '<span style="color:#22c55e;font-weight:600;">' + dl + 'd</span>';
+                }
+            }
+        ];
+
+        var gridDiv = document.getElementById('pm-ag-grid');
+        if (!gridDiv) return;
+        if (_pmGridApi) { try { _pmGridApi.destroy(); } catch(e){} _pmGridApi = null; }
+        gridDiv.innerHTML = '';
+
+        _pmGridApi = agGrid.createGrid(gridDiv, {
+            columnDefs: colDefs,
+            rowData: rows,
+            defaultColDef: { sortable: true, filter: true, resizable: true },
+            rowHeight: 50, headerHeight: 44, animateRows: true,
+            pagination: true, paginationPageSize: 15, paginationPageSizeSelector: [15, 30, 50],
+            onFirstDataRendered: function() { if (typeof lucide !== 'undefined') lucide.createIcons(); },
+            onPaginationChanged: function() { setTimeout(function(){ if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50); },
+            getRowStyle: function(p) {
+                var s = p.data.Status;
+                if (s === 'Delayed')   return { background: 'rgba(239,68,68,0.07)' };
+                if (s === 'At Risk')   return { background: 'rgba(245,158,11,0.07)' };
+                if (s === 'Completed') return { background: 'rgba(59,130,246,0.07)' };
+                return null;
+            }
+        });
+        setTimeout(function(){ if (typeof lucide !== 'undefined') lucide.createIcons(); }, 150);
+    }
+
+    /* ── TIMELINE ────────────────────────────────────────────────────────────── */
+    window.pm_renderTL = function () {
+        var personQ = ((document.getElementById('pm_tl_person')||{}).value||'').toLowerCase();
+        var st  = (document.getElementById('pm_tl_status') ||{}).value||'';
+        var yr  = (document.getElementById('pm_tl_year')   ||{}).value||'';
+        var qtr = (document.getElementById('pm_tl_quarter')||{}).value||'';
+        var mon = (document.getElementById('pm_tl_month')  ||{}).value;
+        if (mon === undefined) mon = '';
+
+        var filtered = _pm.projects.filter(function(p) {
+            if (st && p.Status !== st) return false;
+            if (personQ) {
+                var lead     = (p.Project_x0020_Lead     || '').toLowerCase();
+                var assignee = (p.Project_x0020_Assignee || '').toLowerCase();
+                if (!lead.includes(personQ) && !assignee.includes(personQ)) return false;
+            }
+            if (yr || qtr || mon !== '') {
+                var c = new Date(p.Created); if (isNaN(c)) return true;
+                if (yr  && String(c.getFullYear()) !== yr) return false;
+                if (qtr && pm_quarter(c) !== parseInt(qtr,10)) return false;
+                if (mon !== '' && c.getMonth() !== parseInt(mon,10)) return false;
+            }
+            return true;
+        });
+
+        var months   = pm_monthNames();
+        var now      = new Date();
+        var targetYr = yr ? parseInt(yr,10) : now.getFullYear();
+        var mStart   = mon !== '' ? parseInt(mon,10) : 0;
+        var mEnd     = mon !== '' ? parseInt(mon,10) : 11;
+
+        var html = '<div style="overflow-x:auto;"><table style="border-collapse:collapse;width:100%;"><thead><tr>';
+        ['Month','Projects','On Track','Completed','At Risk','Delayed','Avg %'].forEach(function(h){
+            html += '<th style="background:var(--bg-secondary);color:var(--t1);font-size:.71rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:.42rem .48rem;text-align:left;border-bottom:2px solid var(--border-s);white-space:nowrap;">' + h + '</th>';
+        });
+        html += '</tr></thead><tbody>';
+
+        for (var m = mStart; m <= mEnd; m++) {
+            var mDate = new Date(targetYr, m, 1);
+            var mP = filtered.filter(function(p) {
+                var sd = new Date(p.Start_x0020_Date||p.Created||'');
+                var ed = new Date(p.Target_x0020_Deadline||'');
+                if (isNaN(sd)||isNaN(ed)) return false;
+                return (sd.getMonth()===m && sd.getFullYear()===targetYr) ||
+                       (ed.getMonth()===m && ed.getFullYear()===targetYr) ||
+                       (sd < mDate && ed > mDate);
+            });
+            var mActive = mP.filter(function(p){ return p.Status==='On Track'; }).length;
+            var mComp   = mP.filter(function(p){ return p.Status==='Completed'; }).length;
+            var mRisk   = mP.filter(function(p){ return p.Status==='At Risk'; }).length;
+            var mDel    = mP.filter(function(p){ return p.Status==='Delayed'; }).length;
+            var mAvg    = mP.length ? Math.round(mP.reduce(function(a,p){ return a+(+p.Current_x0020_Progress||0); },0)/mP.length) : 0;
+            var isCur   = m===now.getMonth() && targetYr===now.getFullYear();
+
+            html += '<tr style="font-weight:700;color:var(--t1);background:'+(isCur?'rgba(199,36,177,.1)':'rgba(146,72,185,.03)')+';">';
+            html += '<td style="padding:.42rem .48rem;">'+(isCur?'🔵 ':'')+months[m]+(isCur?' (Now)':'')+'</td>' +
+                    '<td style="padding:.42rem .48rem;">'+mP.length+'</td>' +
+                    '<td style="padding:.42rem .48rem;color:#22c55e;">'+mActive+'</td>' +
+                    '<td style="padding:.42rem .48rem;color:#60a5fa;">'+mComp+'</td>' +
+                    '<td style="padding:.42rem .48rem;color:#f59e0b;">'+mRisk+'</td>' +
+                    '<td style="padding:.42rem .48rem;color:#ef4444;">'+mDel+'</td>';
+            html += '<td style="padding:.42rem .48rem;"><div style="display:flex;align-items:center;gap:.28rem;"><div class="pm-prog-wrap" style="width:65px;"><div class="pm-prog-bar" style="width:'+mAvg+'%;"></div></div><span style="font-size:.73rem;">'+mAvg+'%</span></div></td></tr>';
+
+            mP.forEach(function(p) {
+                var pct = +p.Current_x0020_Progress||0;
+                html += '<tr style="border-bottom:1px solid var(--border);">' +
+                        '<td style="padding:.33rem .48rem .33rem 1.3rem;"><a href="#" onclick="pm_openModal('+p.Id+');return false;" style="color:#C724B1;">'+pm_esc(p.Title||'')+'</a></td>' +
+                        '<td></td><td style="padding:.33rem .48rem;">'+pm_statusBadge(p.Status)+'</td><td></td><td></td><td></td>' +
+                        '<td style="padding:.33rem .48rem;"><div class="pm-prog-wrap" style="width:65px;"><div class="pm-prog-bar '+pm_progColor(pct)+'" style="width:'+pct+'%;"></div></div></td></tr>';
+            });
+        }
+        html += '</tbody></table></div>';
+        var tc = document.getElementById('pm-tl-container'); if (tc) tc.innerHTML = html;
+
+        var risks = filtered.filter(function(p){
+            var dl = pm_daysLeft(p.Target_x0020_Deadline);
+            return p.Status==='At Risk'||p.Status==='Delayed'||(dl!==null && dl<0 && p.Status!=='Completed');
+        });
+        var rc = document.getElementById('pm-risks-container'); if (!rc) return;
+        if (!risks.length) { rc.innerHTML='<div style="padding:1.1rem;text-align:center;color:var(--t3);">No at-risk or overdue projects</div>'; return; }
+        rc.innerHTML = risks.map(function(p) {
+            var dl = pm_daysLeft(p.Target_x0020_Deadline);
+            var dot = p.Status==='Delayed'?'#ef4444':'#f59e0b';
+            var dlLabel = dl===null?'':(dl<0?' · <span style="color:#ef4444;font-weight:700;">Overdue '+Math.abs(dl)+' days</span>':' · <span style="color:#f59e0b;">'+dl+' days left</span>');
+            return '<div style="display:flex;align-items:flex-start;gap:.55rem;padding:.58rem;border-radius:10px;border:1px solid var(--border);background:var(--bg-input);margin-bottom:.38rem;">' +
+                '<div style="width:8px;height:8px;border-radius:50%;background:'+dot+';flex-shrink:0;margin-top:.38rem;"></div>' +
+                '<div style="flex:1;"><div style="display:flex;align-items:center;gap:.42rem;margin-bottom:.18rem;">' +
+                '<strong style="font-size:.83rem;color:var(--t1);">'+pm_esc(p.Title||'')+'</strong>'+pm_statusBadge(p.Status)+dlLabel+'</div>' +
+                '<div style="font-size:.76rem;color:var(--t3);">Lead: '+pm_esc(p.Project_x0020_Lead||'—')+' · Assignee: '+pm_esc(p.Project_x0020_Assignee||'—')+' · Deadline: '+pm_fmtDate(p.Target_x0020_Deadline)+'</div>' +
+                '</div></div>';
+        }).join('');
+    };
+
+    window.pm_clearTL = function () {
+        ['pm_tl_status','pm_tl_year','pm_tl_quarter','pm_tl_month'].forEach(function(id){ var e=document.getElementById(id); if(e)e.value=''; });
+        var p = document.getElementById('pm_tl_person'); if(p) p.value='';
+        pm_renderTL();
+    };
+
+    /* ── TAB NAV ─────────────────────────────────────────────────────────────── */
+    window.pmNav = function (id) {
+        document.querySelectorAll('#pm-view .pm-section').forEach(function(s){ s.classList.remove('active'); });
+        document.querySelectorAll('#pm-view .pm-tab').forEach(function(t){ t.classList.remove('active'); });
+        var sec = document.getElementById(id); if (sec) sec.classList.add('active');
+        var tab = document.querySelector('#pm-view .pm-tab[data-pm-tab="'+id+'"]'); if (tab) tab.classList.add('active');
+
+        if (id === 'pm-sec-dash')     pm_load(function(){ pm_populateDropdowns(); pm_renderDashboard(); });
+        if (id === 'pm-sec-create')   pm_load(function(){ pm_populateDropdowns(); });
+        if (id === 'pm-sec-update')   pm_reload(function(){ pm_populateDropdowns(); });
+        if (id === 'pm-sec-timeline') pm_load(function(){ pm_populateDropdowns(); pm_renderTL(); });
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    };
+
+    /* ── CREATE FORM ─────────────────────────────────────────────────────────── */
+    window.pm_calcDur = function () {
+        var s = document.getElementById('pm_cp_start').value;
+        var e = document.getElementById('pm_cp_deadline').value;
+        if (s && e) {
+            var diff = Math.ceil((new Date(e) - new Date(s)) / 86400000);
+            document.getElementById('pm_cp_dur').value = diff > 0 ? diff : '';
+        }
+    };
+
+    window.pm_resetCreate = function () {
+        ['pm_cp_name','pm_cp_desc','pm_cp_start','pm_cp_deadline','pm_cp_review','pm_cp_golive'].forEach(function(id){ var e=document.getElementById(id); if(e)e.value=''; });
+        document.getElementById('pm_cp_priority').value = '';
+        document.getElementById('pm_cp_dur').value      = '';
+        document.getElementById('pm_cp_id').value       = pm_genId();
+        document.getElementById('pm_cp_edit_id').value  = '';
+        pm_clearPerson('lead');
+        pm_clearPerson('assignee');
+        var banner = document.getElementById('pm-edit-banner'); if(banner) banner.style.display='none';
+        var btn = document.getElementById('pm-submit-btn');
+        if(btn){ btn.style.display=''; btn.disabled=false; btn.innerHTML='<i data-lucide="plus-circle" style="width:13px;height:13px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>Create Project'; }
+        document.getElementById('pm-create-alert').innerHTML='';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    };
+    window.pm_cancelEdit = function () { pm_resetCreate(); };
+
+    window.pm_submitProject = function () {
+        var name     = document.getElementById('pm_cp_name').value.trim();
+        var pr       = document.getElementById('pm_cp_priority').value;
+        var desc     = document.getElementById('pm_cp_desc').value.trim();
+        var sd       = document.getElementById('pm_cp_start').value;
+        var dl       = document.getElementById('pm_cp_deadline').value;
+        var lead     = pm_getPersonValue('lead');
+        var assignee = pm_getPersonValue('assignee');
+
+        if (!name || !pr || !desc || !sd || !dl || !lead.name || !assignee.name) {
+            pm_alert('pm-create-alert', 'error', 'Fill required: Name, Priority, Description, Lead, Assignee, Start Date, Deadline.');
+            return;
+        }
+
+        var btn = document.getElementById('pm-submit-btn');
+        btn.disabled = true; btn.textContent = 'Creating…';
+
+        var projectData = {
+            Title                           : name,
+            Project_x0020_ID                : document.getElementById('pm_cp_id').value,
+            Priority                        : pr,
+            Status                          : 'Not Started',
+            Description                     : desc,
+            Project_x0020_Lead              : lead.name,
+            Project_x0020_Lead_x0020_Email  : lead.email,
+            Project_x0020_Assignee          : assignee.name,
+            Project_x0020_Assignee_x0020_Ema: assignee.email,
+            Start_x0020_Date                : sd,
+            Target_x0020_Deadline           : dl,
+            Review_x0020_Date               : document.getElementById('pm_cp_review').value || null,
+            Go_x0020_Live_x0020_Date        : document.getElementById('pm_cp_golive').value || null,
+            Current_x0020_Progress          : 0
+        };
+
+        if (PM_DUMMY_MODE) {
+            var payload = Object.assign({ Id: _pm.nextId++, Created: new Date().toISOString(), Modified: new Date().toISOString() }, projectData);
+            setTimeout(function(){
+                _pm.projects.unshift(payload);
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="plus-circle" style="width:13px;height:13px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>Create Project';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                pm_alert('pm-create-alert', 'success', '[DEMO] Project created — ' + payload.Project_x0020_ID);
+                pm_draftCreateEmail(payload);
+                pm_resetCreate(); pm_populateDropdowns();
+            }, 280);
+        } else {
+            var spPayload = Object.assign({ __metadata: { type: 'SP.Data.PM_x005f_ProjectsListItem' } }, projectData);
+            pm_spWrite(pm_site() + '/_api/web/lists/getbytitle(\'' + PM_SP_LIST + '\')/items', spPayload, 'POST', function(ok, code) {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="plus-circle" style="width:13px;height:13px;display:inline-block;vertical-align:middle;margin-right:4px;"></i>Create Project';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                if (ok) {
+                    pm_alert('pm-create-alert', 'success', 'Project created!');
+                    pm_draftCreateEmail(projectData);
+                    _pm.loaded = false;
+                    pm_resetCreate();
+                } else {
+                    pm_alert('pm-create-alert', 'error', 'Error ' + code);
+                }
+            });
+        }
+    };
+
+    window.pm_updateProject = function () {
+        var id = document.getElementById('pm_cp_edit_id').value; if (!id) return;
+        var lead     = pm_getPersonValue('lead');
+        var assignee = pm_getPersonValue('assignee');
+
+        var spPayload = {
+            __metadata                      : { type: 'SP.Data.PM_x005f_ProjectsListItem' },
+            Title                           : document.getElementById('pm_cp_name').value.trim(),
+            Priority                        : document.getElementById('pm_cp_priority').value,
+            Description                     : document.getElementById('pm_cp_desc').value.trim(),
+            Project_x0020_Lead              : lead.name,
+            Project_x0020_Lead_x0020_Email  : lead.email,
+            Project_x0020_Assignee          : assignee.name,
+            Project_x0020_Assignee_x0020_Ema: assignee.email,
+            Start_x0020_Date                : document.getElementById('pm_cp_start').value || null,
+            Target_x0020_Deadline           : document.getElementById('pm_cp_deadline').value || null,
+            Review_x0020_Date               : document.getElementById('pm_cp_review').value || null,
+            Go_x0020_Live_x0020_Date        : document.getElementById('pm_cp_golive').value || null
+        };
+
+        if (PM_DUMMY_MODE) {
+            setTimeout(function(){
+                var idx = _pm.projects.findIndex(function(p){ return String(p.Id)===String(id); });
+                if (idx >= 0) _pm.projects[idx] = Object.assign(_pm.projects[idx], spPayload);
+                pm_alert('pm-create-alert', 'success', '[DEMO] Project updated!');
+                pm_resetCreate(); pm_populateDropdowns();
+            }, 280);
+        } else {
+            pm_spWrite(pm_site() + '/_api/web/lists/getbytitle(\'' + PM_SP_LIST + '\')/items(' + id + ')', spPayload, 'PATCH', function(ok, code){
+                if (ok) { pm_alert('pm-create-alert', 'success', 'Updated!'); _pm.loaded = false; pm_resetCreate(); }
+                else pm_alert('pm-create-alert', 'error', 'Update failed: ' + code);
+            });
+        }
+    };
+
+    /* ── UPDATE PROGRESS ─────────────────────────────────────────────────────── */
+    window.pm_onUpProj = function () {
+        var id   = document.getElementById('pm_up_project').value;
+        var info = document.getElementById('pm-up-info');
+        if (!id) { info.style.display = 'none'; return; }
+        var p = _pm.projects.find(function(x){ return String(x.Id) === String(id); });
+        if (!p) { info.style.display = 'none'; return; }
+        var pct = +p.Current_x0020_Progress || 0;
+        var dl  = pm_daysLeft(p.Target_x0020_Deadline);
+        var dlTxt = dl === null ? 'N/A' : (dl < 0 ? '<span style="color:#ef4444;font-weight:700;">Overdue '+Math.abs(dl)+' days</span>' : '<span style="color:'+(dl<14?'#f59e0b':'#22c55e')+';">'+dl+' days remaining</span>');
+        info.innerHTML = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;font-size:.82rem;">' +
+            '<div><div style="font-size:.71rem;font-weight:600;color:var(--t3);margin-bottom:.22rem;">Progress</div><div class="pm-prog-wrap"><div class="pm-prog-bar '+pm_progColor(pct)+'" style="width:'+pct+'%;"></div></div><span style="font-size:.76rem;color:var(--t3);">'+pct+'%</span></div>' +
+            '<div><div style="font-size:.71rem;font-weight:600;color:var(--t3);margin-bottom:.22rem;">Status</div>'+pm_statusBadge(p.Status)+'</div>' +
+            '<div><div style="font-size:.71rem;font-weight:600;color:var(--t3);margin-bottom:.22rem;">Deadline</div>'+pm_fmtDate(p.Target_x0020_Deadline)+'<br>'+dlTxt+'</div>' +
+            '<div><div style="font-size:.71rem;font-weight:600;color:var(--t3);margin-bottom:.22rem;">Lead / Assignee</div>'+pm_esc(p.Project_x0020_Lead||'—')+' / '+pm_esc(p.Project_x0020_Assignee||'—')+'</div>' +
+            '</div>';
+        info.style.display = 'block';
+    };
+
+    window.pm_onUpStatus = function () {
+        var s = document.getElementById('pm_up_status').value;
+        var prog = document.getElementById('pm_up_progress');
+        if (s === 'Completed')   prog.value = 100;
+        else if (s === 'Not Started') prog.value = 0;
+    };
+
+    window.pm_resetUpdate = function () {
+        ['pm_up_project','pm_up_status','pm_up_notes'].forEach(function(id){ var e=document.getElementById(id); if(e)e.value=''; });
+        document.getElementById('pm_up_progress').value = '';
+        var ubEl = document.getElementById('pm_up_updatedby');
+        if (ubEl && typeof USER_CONTEXT !== 'undefined' && USER_CONTEXT.userName) ubEl.value = USER_CONTEXT.userName;
+        var info = document.getElementById('pm-up-info'); if(info) info.style.display = 'none';
+        document.getElementById('pm-update-alert').innerHTML = '';
+    };
+
+    window.pm_submitUpdate = function () {
+        var projId    = document.getElementById('pm_up_project').value;
+        var status    = document.getElementById('pm_up_status').value;
+        var progress  = document.getElementById('pm_up_progress').value;
+        var updatedBy = document.getElementById('pm_up_updatedby').value.trim();
+        var notes     = document.getElementById('pm_up_notes').value.trim();
+
+        if (!projId || !status || progress === '' || !updatedBy || !notes) {
+            pm_alert('pm-update-alert', 'error', 'Fill required: Project, Status, Progress %, Updated By, Notes.');
+            return;
+        }
+
+        var pct = Math.min(100, Math.max(0, parseInt(progress, 10)));
+        var p = _pm.projects.find(function(x){ return String(x.Id) === String(projId); });
+        if (!p) return;
+
+        var oldStatus = p.Status;
+
+        if (PM_DUMMY_MODE) {
+            setTimeout(function(){
+                p.Current_x0020_Progress = pct;
+                p.Status = status;
+                p.Modified = new Date().toISOString();
+                pm_alert('pm-update-alert', 'success', '[DEMO] Progress updated to ' + pct + '% — Status: ' + status);
+                pm_draftUpdateEmail(p, oldStatus, status, pct, notes, updatedBy);
+                pm_resetUpdate(); pm_populateDropdowns();
+            }, 250);
+        } else {
+            var payload = { __metadata: { type: 'SP.Data.PM_x005f_ProjectsListItem' }, Status: status, Current_x0020_Progress: pct };
+            pm_spWrite(pm_site() + '/_api/web/lists/getbytitle(\'' + PM_SP_LIST + '\')/items(' + projId + ')', payload, 'PATCH', function(ok, code){
+                if (ok) {
+                    p.Current_x0020_Progress = pct;
+                    p.Status = status;
+                    pm_alert('pm-update-alert', 'success', 'Progress updated!');
+                    pm_draftUpdateEmail(p, oldStatus, status, pct, notes, updatedBy);
+                    pm_resetUpdate(); pm_populateDropdowns();
+                } else {
+                    pm_alert('pm-update-alert', 'error', 'Error ' + code);
+                }
+            });
+        }
+    };
+
+    /* ── MODAL ───────────────────────────────────────────────────────────────── */
+    window.pm_openModal = function (id) {
+        var p = _pm.projects.find(function(x){ return x.Id === id; }); if (!p) return;
+        var pct = +p.Current_x0020_Progress || 0;
+        var dl  = pm_daysLeft(p.Target_x0020_Deadline);
+        var dlTxt = dl === null ? 'N/A' : (dl < 0 ? '<span style="color:#ef4444;">Overdue '+Math.abs(dl)+' days</span>' : '<span style="color:'+(dl<14?'#f59e0b':'#22c55e')+';">'+dl+' days left</span>');
+        document.getElementById('pm-modal-title').textContent = p.Title || 'Project Details';
+
+        var fields = [
+            ['Project ID',     pm_esc(p.Project_x0020_ID||'—')],
+            ['Priority',       pm_priorityBadge(p.Priority)],
+            ['Status',         pm_statusBadge(p.Status)],
+            ['Project Lead',   pm_esc(p.Project_x0020_Lead||'—') + (p.Project_x0020_Lead_x0020_Email ? ' <span style="color:var(--t3);font-size:.75rem;">(' + pm_esc(p.Project_x0020_Lead_x0020_Email) + ')</span>' : '')],
+            ['Assignee',       pm_esc(p.Project_x0020_Assignee||'—') + (p.Project_x0020_Assignee_x0020_Ema ? ' <span style="color:var(--t3);font-size:.75rem;">(' + pm_esc(p.Project_x0020_Assignee_x0020_Ema) + ')</span>' : '')],
+            ['Start Date',     pm_fmtDate(p.Start_x0020_Date)],
+            ['Deadline',       pm_fmtDate(p.Target_x0020_Deadline)],
+            ['Review Date',    pm_fmtDate(p.Review_x0020_Date)],
+            ['Go-Live Date',   pm_fmtDate(p.Go_x0020_Live_x0020_Date)]
+        ];
+
+        var html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.38rem .8rem;margin-bottom:.85rem;">';
+        fields.forEach(function(f){ html += '<div><div style="font-size:.7rem;font-weight:600;color:var(--t3);margin-bottom:.1rem;">'+f[0]+'</div><div style="font-size:.82rem;color:var(--t2);">'+f[1]+'</div></div>'; });
+        html += '</div>';
+        html += '<div style="margin-bottom:.82rem;"><div style="font-size:.7rem;font-weight:600;color:var(--t3);margin-bottom:.22rem;">Progress</div>' +
+                '<div style="display:flex;align-items:center;gap:.45rem;"><div class="pm-prog-wrap" style="flex:1;height:10px;"><div class="pm-prog-bar '+pm_progColor(pct)+'" style="width:'+pct+'%;height:10px;"></div></div><span style="font-weight:700;color:var(--t1);">'+pct+'%</span> '+dlTxt+'</div></div>';
+        if (p.Description) html += '<div><div style="font-size:.7rem;font-weight:600;color:var(--t3);margin-bottom:.18rem;">Description</div><p style="color:var(--t2);font-size:.8rem;line-height:1.55;margin:0;">'+pm_esc(p.Description)+'</p></div>';
+        html += '<div style="display:flex;gap:.45rem;justify-content:flex-end;margin-top:.85rem;">' +
+                '<button type="button" class="pm-btn pm-btn-primary pm-btn-sm" onclick="pm_editFromModal('+p.Id+')">' +
+                    '<i data-lucide="pencil" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:3px;"></i>Edit' +
+                '</button>' +
+                '<button type="button" class="pm-btn pm-btn-sm" onclick="pm_closeModal()">' +
+                    '<i data-lucide="x" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:3px;"></i>Close' +
+                '</button>' +
+                '</div>';
+
+        document.getElementById('pm-modal-body').innerHTML = html;
+        document.getElementById('pm-modal').style.display = 'flex';
+        setTimeout(function(){ if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
+    };
+
+    window.pm_closeModal = function (e) {
+        if (!e || e.target === document.getElementById('pm-modal')) document.getElementById('pm-modal').style.display = 'none';
+    };
+
+    window.pm_editFromModal = function (id) {
+        pm_closeModal();
+        var p = _pm.projects.find(function(x){ return x.Id === id; }); if (!p) return;
+
+        document.getElementById('pm_cp_name').value     = p.Title || '';
+        document.getElementById('pm_cp_id').value       = p.Project_x0020_ID || '';
+        document.getElementById('pm_cp_priority').value = p.Priority || '';
+        document.getElementById('pm_cp_desc').value     = p.Description || '';
+        document.getElementById('pm_cp_start').value    = pm_fmtDateInput(p.Start_x0020_Date);
+        document.getElementById('pm_cp_deadline').value = pm_fmtDateInput(p.Target_x0020_Deadline);
+        document.getElementById('pm_cp_review').value   = pm_fmtDateInput(p.Review_x0020_Date);
+        document.getElementById('pm_cp_golive').value   = pm_fmtDateInput(p.Go_x0020_Live_x0020_Date);
+        pm_calcDur();
+
+        // Restore lead
+        if (p.Project_x0020_Lead) {
+            pm_selectPerson('lead', p.Project_x0020_Lead, p.Project_x0020_Lead_x0020_Email || '', 'Project Lead');
+        }
+        // Restore assignee
+        if (p.Project_x0020_Assignee) {
+            pm_selectPerson('assignee', p.Project_x0020_Assignee, p.Project_x0020_Assignee_x0020_Ema || '', 'Assignee');
+        }
+
+        document.getElementById('pm_cp_edit_id').value = id;
+        var banner = document.getElementById('pm-edit-banner'); if(banner) banner.style.display = 'flex';
+        var btn = document.getElementById('pm-submit-btn'); if(btn) btn.style.display = 'none';
+        pmNav('pm-sec-create');
+    };
+
+} // end guard
