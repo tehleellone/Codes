@@ -204,7 +204,27 @@ html:not(.geo-full) #geoRoot .minbtn .i-min,html:not(.geo-full) #geoRoot .minbtn
 #geoRoot .tile{height:clamp(380px,50vh,540px);min-height:380px;border:0;background:none;padding:0;text-align:left;cursor:pointer}
 #geoRoot .tile.hide{display:none}
 #geoRoot .flip{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .8s cubic-bezier(.19,1,.22,1)}
-#geoRoot .tile:hover .flip,#geoRoot .tile.go .flip{transform:rotateY(180deg)}
+/* Click: quick press-and-zoom, then the workspace view opens (no flip) */
+#geoRoot .tile.go .flip{transform:scale(1.04);transition:transform .32s cubic-bezier(.19,1,.22,1)}
+#geoRoot .tile.go .cta{opacity:0;transition:opacity .25s}
+#geoRoot .tile.go .body{opacity:0}
+#geoRoot .side.back{display:none}
+/* Hover: calm overlay with a big call-to-action instead of flipping */
+#geoRoot .cta{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:28px;
+  background:linear-gradient(180deg,rgba(6,2,16,.35),rgba(6,2,16,.78));opacity:0;transition:opacity .45s ease;pointer-events:none}
+#geoRoot .cta b{font-size:clamp(1.5rem,2.4vw,2.3rem);font-weight:800;letter-spacing:-.04em;line-height:1.08;color:#fff;text-shadow:0 4px 24px rgba(0,0,0,.5);
+  transform:translateY(14px);transition:transform .5s cubic-bezier(.19,1,.22,1)}
+#geoRoot .cta span{margin-top:12px;font-size:.82rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#fff;opacity:.85;
+  transform:translateY(14px);transition:transform .6s cubic-bezier(.19,1,.22,1)}
+#geoRoot .tile:hover .cta{opacity:1}
+#geoRoot .tile:hover .cta b,#geoRoot .tile:hover .cta span{transform:none}
+#geoRoot .tile:hover .body{opacity:0;transition:opacity .3s}
+#geoRoot .body{transition:opacity .3s}
+/* Back face (seen during the click flip) */
+#geoRoot .cta-big{margin:auto 0;text-align:left}
+#geoRoot .cta-k{display:inline-block;font-size:.7rem;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);margin-bottom:12px}
+#geoRoot .cta-big h3{font-size:clamp(1.7rem,2.6vw,2.5rem);letter-spacing:-.04em;line-height:1.05}
+#geoRoot .cta-big p{margin-top:12px;font-size:.95rem;font-weight:600;opacity:.85;max-width:34ch}
 #geoRoot .side{
   position:absolute;inset:0;border-radius:28px;overflow:hidden;
   backface-visibility:hidden;-webkit-backface-visibility:hidden;
@@ -278,8 +298,13 @@ html[data-theme="light"] #geoRoot .shot:after{display:none}
 }
 #geoRoot .card:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(199,36,177,.22)}
 #geoRoot .tag{width:max-content;padding:4px 8px;border-radius:999px;background:rgba(0,169,206,.16);color:var(--cyan);font-size:.65rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
-#geoRoot .card b{font-size:.92rem;line-height:1.35}
-#geoRoot .card i{font-style:normal;margin-top:auto;color:var(--du);font-size:.75rem;font-weight:800}
+#geoRoot .card b{font-size:.95rem;line-height:1.35}
+#geoRoot .card p{font-size:.78rem;font-weight:500;line-height:1.5;color:var(--muted)}
+#geoRoot .card .foot{margin-top:auto;display:flex;justify-content:space-between;align-items:center;gap:10px;padding-top:8px;border-top:1px solid var(--line)}
+#geoRoot .card small{font-size:.68rem;font-weight:700;color:var(--muted);letter-spacing:.04em}
+#geoRoot .card i{font-style:normal;color:var(--du);font-size:.75rem;font-weight:800}
+#geoRoot .card.pending{opacity:.6;cursor:default}
+#geoRoot .card.pending i{color:var(--muted)}
 
 #geoRoot .bar{display:flex;align-items:center;gap:12px;margin-bottom:16px}
 #geoRoot .back-btn{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:10px 14px;font-weight:800;cursor:pointer}
@@ -407,20 +432,20 @@ html[data-theme="light"] #geoRoot .shot:after{display:none}
               <div class="shine"></div>
               <div class="idx">01</div>
               <div class="live"><i class="dot"></i><b><span class="w1">Offline</span><span class="w2">Linking</span><span class="w3">Connected</span></b></div>
+              <div class="cta"><b>Click to enter the Consumer workspace</b><span>Geo portals · Geo apps · Power BI dashboards</span></div>
               <div class="body">
                 <h2>Consumer</h2>
                 <p>BTL coverage and shared buildings</p>
-                <div class="stat"><span class="pill" data-count="consumer">geo apps</span><span class="pill">FNE dashboard</span></div>
+                <div class="stat"><span class="pill" data-count="consumer">geo apps</span><span class="pill" data-pbi="consumer">Power BI</span></div>
               </div>
             </div>
             <div class="side back">
-              <h3>Consumer</h3>
-              <ul>
-                <li>BTL Consumer geoportal</li>
-                <li>Shared Building duGIS Portal</li>
-                <li>FNE Monetization Geo Dashboard</li>
-              </ul>
-              <div class="go">Enter workspace</div>
+              <div class="cta-big">
+                <span class="cta-k">Consumer workspace</span>
+                <h3>Enter the Consumer workspace</h3>
+                <p>All Consumer geo portals, geo apps and Power BI dashboards in one place.</p>
+                <div class="go">Open workspace →</div>
+              </div>
             </div>
           </div>
         </button>
@@ -437,21 +462,20 @@ html[data-theme="light"] #geoRoot .shot:after{display:none}
               <div class="shine"></div>
               <div class="idx">02</div>
               <div class="live"><i class="dot"></i><b><span class="w1">Offline</span><span class="w2">Linking</span><span class="w3">Connected</span></b></div>
+              <div class="cta"><b>Click to enter the SME workspace</b><span>Geo portals · Geo apps · Power BI dashboards</span></div>
               <div class="body">
                 <h2>SME</h2>
                 <p>XGSPON, fixed, office wireless</p>
-                <div class="stat"><span class="pill" data-count="sme">geo apps</span><span class="pill">KPI + FNE dashboards</span></div>
+                <div class="stat"><span class="pill" data-count="sme">geo apps</span><span class="pill" data-pbi="sme">Power BI</span></div>
               </div>
             </div>
             <div class="side back">
-              <h3>SME</h3>
-              <ul>
-                <li>XGSPON Building</li>
-                <li>SME Fixed Building</li>
-                <li>BTL Shared · Office Wireless · Sharjah</li>
-                <li>SME KPI · FNE Monetization Dashboards</li>
-              </ul>
-              <div class="go">Enter workspace</div>
+              <div class="cta-big">
+                <span class="cta-k">SME workspace</span>
+                <h3>Enter the SME workspace</h3>
+                <p>All SME geo portals, geo apps and Power BI dashboards in one place.</p>
+                <div class="go">Open workspace →</div>
+              </div>
             </div>
           </div>
         </button>
@@ -468,19 +492,20 @@ html[data-theme="light"] #geoRoot .shot:after{display:none}
               <div class="shine"></div>
               <div class="idx">03</div>
               <div class="live"><i class="dot"></i><b><span class="w1">Offline</span><span class="w2">Linking</span><span class="w3">Connected</span></b></div>
+              <div class="cta"><b>Click to enter the GLK workspace</b><span>Geo portals · Geo apps · Power BI dashboards</span></div>
               <div class="body">
                 <h2>GLK</h2>
                 <p>Connected POIs and enterprise KPI</p>
-                <div class="stat"><span class="pill" data-count="glk">geo apps</span><span class="pill">KPI + FNE dashboards</span></div>
+                <div class="stat"><span class="pill" data-count="glk">geo apps</span><span class="pill" data-pbi="glk">Power BI</span></div>
               </div>
             </div>
             <div class="side back">
-              <h3>GLK</h3>
-              <ul>
-                <li>GLK Connected POIs geoportal</li>
-                <li>GLK KPI · FNE Monetization Dashboards</li>
-              </ul>
-              <div class="go">Enter workspace</div>
+              <div class="cta-big">
+                <span class="cta-k">GLK workspace</span>
+                <h3>Enter the GLK workspace</h3>
+                <p>All GLK geo portals, geo apps and Power BI dashboards in one place.</p>
+                <div class="go">Open workspace →</div>
+              </div>
             </div>
           </div>
         </button>
@@ -589,11 +614,13 @@ const META = { consumer:"Consumer", sme:"SME", glk:"GLK" };
 // ╚════════════════════════════════════════════════════════════════╝
 
 // ══════════════════════════════════════════════════════════════════
-//  ① REPORT MONTH — change once per month.
-//     This text is added to the end of every Power BI dashboard title,
-//     e.g.  "SME KPI Dashboard - Aug-2026"
+//  ① DATES — change once per month.
+//     REPORT_MONTH  → added to the end of every Power BI title, e.g. "SME KPI Dashboard - Aug-2026"
+//     LAST_UPDATE   → shown on every card as "Updated · Sep 2026"
+//                     (a single link can override it with its own  updated:"..."  field)
 // ══════════════════════════════════════════════════════════════════
 const REPORT_MONTH = "Aug-2026";
+const LAST_UPDATE  = "Sep 2026";
 
 // ══════════════════════════════════════════════════════════════════
 //  ② POWER BI DASHBOARDS — paste the new report link between the quotes.
@@ -601,67 +628,108 @@ const REPORT_MONTH = "Aug-2026";
 //     HOW TO GET THE LINK: open the report in Power BI in the browser,
 //     copy the full address from the address bar, paste it into  url:
 //
-//     Do NOT change the names FNE_MONETIZATION / SME_KPI / GLK_KPI —
-//     the portal uses them to decide which team sees which dashboard.
+//     Fields:  title  → card heading (month is added automatically)
+//              desc   → one-line description shown under the heading
+//              url    → the Power BI link.  Leave ""  →  card shows "Link pending"
+//
+//     Do NOT rename FNE_MONETIZATION / SME_KPI / GLK_KPI / GLK_POI_GROWTH —
+//     the portal uses these names to decide which team sees which dashboard.
 // ══════════════════════════════════════════════════════════════════
 const POWERBI = {
 
   // Shown to ALL segments (Consumer + SME + GLK)
   FNE_MONETIZATION: {
     title: "FNE 2026 Monetization Geo Dashboard",
+    desc:  "View monthly progress and monetization of FNE 2026 program connected buildings.",
     url:   "https://app.powerbi.com/groups/me/reports/0d6dd276-77af-49eb-8bfd-d0ae2a6898b4/ReportSection?experience=power-bi"
   },
 
   // Shown to SME team only
   SME_KPI: {
     title: "SME KPI Dashboard",
+    desc:  "View monthly GLK contract base, project and emirate wise.",
     url:   "https://app.powerbi.com/groups/me/reports/b18e0878-b53f-4310-86df-fd831a6fb3db/ReportSection?ctid=634c271c-fd02-4c16-9c9f-dd50af6f016c&experience=power-bi"
   },
 
   // Shown to GLK team only
   GLK_KPI: {
     title: "GLK KPI Dashboard",
+    desc:  "View monthly GLK contract base, project and emirate wise.",
     url:   "https://app.powerbi.com/groups/me/reports/bec1fc6b-5dd7-4cfa-974b-a5efc42ae812/ReportSection?ctid=634c271c-fd02-4c16-9c9f-dd50af6f016c&experience=power-bi"
+  },
+  GLK_POI_GROWTH: {
+    title: "GLK Active POIs Growth – GeoMarketing Dashboard",
+    desc:  "View quarterly GLK POIs base, project and emirate wise.",
+    url:   ""      // ← PASTE the Power BI link here (not provided yet — card shows "Link pending" until filled)
   }
 };
 
 // ══════════════════════════════════════════════════════════════════
-//  ③ GEO APPS (ArcGIS / duGIS) — one line per link, grouped by team.
+//  ③ GEO APPS (ArcGIS / duGIS) — one block per link, grouped by team.
 //
 //     TO UPDATE a link : replace the text inside  url: "..."
-//     TO ADD a link    : copy any line, paste it below, change title + url
-//                        (keep the comma at the end of every line except the last)
-//     TO REMOVE a link : delete the whole line
+//     TO ADD a link    : copy a whole { ... } block, paste it below, change title / desc / url
+//                        (keep the comma after every block except the last one)
+//     TO REMOVE a link : delete the whole { ... } block
 //
-//     badge = the small label shown on the card  →  "ArcGIS", "duGIS", "Dashboard"
-//     The "N geo apps" number on each big tile updates automatically.
+//     Fields:  badge → small label on the card: "ArcGIS", "duGIS", "Dashboard"
+//              title → card heading
+//              desc  → one-line description
+//              url   → the link
+//     The "N geo apps" / "N Power BI" numbers on each big tile update automatically.
 // ══════════════════════════════════════════════════════════════════
 const GEO_APPS = {
 
   // ── CONSUMER team ────────────────────────────────────────────────
   consumer: [
-    { badge:"ArcGIS", title:"BTL Consumer geoportal",                   url:"https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=7102497c4a8a415985e8a2f92d9ed6bc" },
-    { badge:"duGIS",  title:"Shared Building Geomarketing duGIS Portal", url:"https://dugis.corp.du.ae/Html5Viewer/index.html?viewer=gisportal.DU_gisportal&project=f1e1d6b3d58b4a51b14181f8407bb255&link=559f1363eca9405e981692b8b425b65d_7-Ty_iNbbJhkxZfx" },
-    { badge:"duGIS",  title:"FNE - Fixed Expansion Program",                 url:"https://dugis.corp.du.ae/Html5Viewer/index.html?viewer=gisportal.DU_gisportal&project=0b49320193de4ce1987885f5cd13a59e" }   // FNE Consumer Buildings commercialization (Batch53)
+    { badge:"ArcGIS", title:"BTL Consumer geoportal",
+      desc:"Visualization platform for Consumer BTL buildings and designated target areas.",
+      url:"https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=7102497c4a8a415985e8a2f92d9ed6bc" },
+
+    { badge:"duGIS",  title:"Shared Building Geomarketing duGIS Portal",
+      desc:"Visibility of shared buildings; a working tool for retail agents.",
+      url:"https://dugis.corp.du.ae/Html5Viewer/index.html?viewer=gisportal.DU_gisportal&project=f1e1d6b3d58b4a51b14181f8407bb255&link=559f1363eca9405e981692b8b425b65d_7-Ty_iNbbJhkxZfx" },
+
+    { badge:"duGIS",  title:"FNE - Fixed Expansion Program",
+      desc:"FNE Consumer buildings commercialization (Batch 53).",
+      url:"https://dugis.corp.du.ae/Html5Viewer/index.html?viewer=gisportal.DU_gisportal&project=0b49320193de4ce1987885f5cd13a59e" }
   ],
 
   // ── SME team ─────────────────────────────────────────────────────
   sme: [
-    { badge:"ArcGIS", title:"XGSPON Building geoportal",                                       url:"https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=9214446a2ff14293ab66c561fe6cca72" },
-    { badge:"ArcGIS", title:"SME Fixed Building geoportal",                                    url:"https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=97f53c979aa74096bb25cb722ad84ae7" },
-    { badge:"ArcGIS", title:"BTL Shared geoportal",                                            url:"https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=edd7496df515494e8b24b2001705fac8" },
-    { badge:"ArcGIS", title:"Office Wireless geoportal",                                       url:"https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=487777765419480b924de4fc3c0e4e01" },
-    { badge:"ArcGIS", title:"Sharjah Prioritized Communities for Office wireless geoportal",   url:"https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=bf9e74ee269249e4af2eb57d7d93dca4" }
+    { badge:"ArcGIS", title:"XGSPON Building geoportal",
+      desc:"Helps users locate XGS-PON-enabled buildings.",
+      url:"https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=9214446a2ff14293ab66c561fe6cca72" },
+
+    { badge:"ArcGIS", title:"SME Fixed Building geoportal",
+      desc:"Visibility into fiber-connected buildings with potential SME POIs.",
+      url:"https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=97f53c979aa74096bb25cb722ad84ae7" },
+
+    { badge:"ArcGIS", title:"BTL Shared geoportal",
+      desc:"Visualization platform for SME BTL buildings and designated target areas.",
+      url:"https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=edd7496df515494e8b24b2001705fac8" },
+
+    { badge:"ArcGIS", title:"Office Wireless geoportal",
+      desc:"Identify and visualize high-potential SME POIs for Office Wireless acquisition campaigns.",
+      url:"https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=487777765419480b924de4fc3c0e4e01" },
+
+    { badge:"ArcGIS", title:"Sharjah Prioritized Communities for Office Wireless geoportal",
+      desc:"Helps Sharjah sales teams prioritize high-potential communities for Office Wireless / FMS acquisition.",
+      url:"https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=bf9e74ee269249e4af2eb57d7d93dca4" }
   ],
 
   // ── GLK team ─────────────────────────────────────────────────────
   glk: [
-    { badge:"ArcGIS", title:"GLK Connected POIs geoportal", url:"https://du-geomarketing.maps.arcgis.com/apps/instant/interactivelegend/index.html?appid=7f37388cbfa9412a8e9d8e6d791fbf0a" }
+    { badge:"ArcGIS", title:"GLK Connected POIs geoportal",
+      desc:"Visibility into fiber-connected buildings with potential GLK POIs.",
+      url:"https://du-geomarketing.maps.arcgis.com/apps/instant/interactivelegend/index.html?appid=7f37388cbfa9412a8e9d8e6d791fbf0a" }
   ],
 
-  // ── SHARED — added to the Geo apps of EVERY team (Consumer + SME + GLK) ──
+  // ── SHARED (Geomarketing internal) — added to the Geo apps of EVERY team ──
   shared: [
-    { badge:"Dashboard", title:"Segment insights per community Dashboard", url:"https://du-geomarketing.maps.arcgis.com/apps/dashboards/c58b2d1040a6412d973840c245015a8a#" }
+    { badge:"Dashboard", title:"Segment insights per community Dashboard",
+      desc:"Staging and testing environment for Geomarketing initiatives and enhancements.",
+      url:"https://du-geomarketing.maps.arcgis.com/apps/dashboards/c58b2d1040a6412d973840c245015a8a#" }
   ]
 };
 
@@ -673,13 +741,13 @@ const GEO_APPS = {
 // Which Power BI dashboards each team sees:
 //   Consumer → FNE
 //   SME      → SME KPI + FNE
-//   GLK      → GLK KPI + FNE
-function pbiCard(item){ return { badge:"Power BI", title:item.title+" - "+REPORT_MONTH, url:item.url }; }
+//   GLK      → GLK KPI + GLK POI Growth + FNE
+function pbiCard(item){ return { badge:"Power BI", title:item.title+" - "+REPORT_MONTH, desc:item.desc, url:item.url, updated:item.updated }; }
 const LINKS = {
   pbi: {
     consumer: [ pbiCard(POWERBI.FNE_MONETIZATION) ],
     sme:      [ pbiCard(POWERBI.SME_KPI), pbiCard(POWERBI.FNE_MONETIZATION) ],
-    glk:      [ pbiCard(POWERBI.GLK_KPI), pbiCard(POWERBI.FNE_MONETIZATION) ]
+    glk:      [ pbiCard(POWERBI.GLK_KPI), pbiCard(POWERBI.GLK_POI_GROWTH), pbiCard(POWERBI.FNE_MONETIZATION) ]
   },
   consumer: GEO_APPS.consumer.concat(GEO_APPS.shared),
   sme:      GEO_APPS.sme.concat(GEO_APPS.shared),
@@ -699,8 +767,14 @@ function spChoiceValues(v){
   return String(v).split(/;#|;|,/);
 }
 function initials(n){ return String(n||"U").split(/\s+/).slice(0,2).map(p=>p[0]||"").join("").toUpperCase(); }
+function esc(t){ return String(t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
 function cardHTML(item){
-  return '<a class="card" href="'+item.url+'" target="_blank" rel="noopener"><div class="tag">'+item.badge+'</div><b>'+item.title+'</b><i>Open →</i></a>';
+  const pending = !item.url;
+  const upd = item.updated || LAST_UPDATE;
+  return '<a class="card'+(pending?' pending':'')+'" '+(pending ? 'href="#" onclick="return false"' : 'href="'+item.url+'" target="_blank" rel="noopener"')+'>'
+       + '<div class="tag">'+esc(item.badge)+'</div><b>'+esc(item.title)+'</b>'
+       + (item.desc ? '<p>'+esc(item.desc)+'</p>' : '')
+       + '<div class="foot"><small>Updated · '+esc(upd)+'</small><i>'+(pending?'Link pending':'Open →')+'</i></div></a>';
 }
 function showHome(){
   document.getElementById("view-home").classList.add("on");
@@ -729,6 +803,10 @@ function render(){
   document.querySelectorAll("[data-count]").forEach(function(el){
     const n = (LINKS[el.getAttribute("data-count")]||[]).length;
     el.textContent = n+" geo app"+(n===1?"":"s");
+  });
+  document.querySelectorAll("[data-pbi]").forEach(function(el){
+    const n = (LINKS.pbi[el.getAttribute("data-pbi")]||[]).length;
+    el.textContent = n+" Power BI dashboard"+(n===1?"":"s");
   });
   showHome();
 }
@@ -834,7 +912,7 @@ document.getElementById("heroes").addEventListener("click", function(e){
   const btn = e.target.closest(".tile");
   if(!btn || btn.classList.contains("hide")) return;
   btn.classList.add("go");
-  setTimeout(function(){ openSeg(btn.getAttribute("data-seg")); }, 520);
+  setTimeout(function(){ openSeg(btn.getAttribute("data-seg")); }, 260);
 });
 document.getElementById("backHome").onclick = showHome;
 document.getElementById("devApply").onclick = function(){
