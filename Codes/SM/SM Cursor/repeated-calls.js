@@ -1,5 +1,5 @@
 // ============================================================
-// repeated-calls.js — Repeated Calls Module v1.9.7
+// repeated-calls.js — Repeated Calls Module v1.9.17
 // List: Repeated_Calls | Agents: Account Mapping (CTI match, all teams)
 // SP fields: RC_Status, Upload_Date, Assignment_Date, Reassign_Date, Resolved_Date, Assigned_To
 // ============================================================
@@ -18,7 +18,7 @@ var rcCharts        = {};
 var rcGrids         = { dash: null, assign: null, assigned: null, agentQueue: null, agentRecords: null };
 var rcUploadRows    = []; 
 var rcSelectedAgent = null;
-window.RC_MODULE_VERSION = '1.9.16';
+window.RC_MODULE_VERSION = '1.9.17';
 
 var RC_DELETE_ALL_EMAILS = ['tehleel.lone@du.ae', 'ubaid.mir@du.ae'];
 var RC_MIN_REPEAT_CALLS = 3;
@@ -198,7 +198,11 @@ function rcItemsForMsisdnStatus(msisdn, status) {
     var m = rcMsisdnKey(msisdn);
     if (!m) return [];
     return rcAllItems.filter(function (it) {
-        return rcMsisdnKey(it) === m && rcDisplayStatus(it) === status;
+        if (rcMsisdnKey(it) !== m) return false;
+        if (status === RC_STATUS.PENDING) return !rcIsAssigned(it);
+        if (status === RC_STATUS.INPROGRESS) return rcIsAssigned(it) && rcRowWorkflowStatus(it) === RC_STATUS.INPROGRESS;
+        if (status === RC_STATUS.RESOLVED) return rcIsAssigned(it) && rcRowWorkflowStatus(it) === RC_STATUS.RESOLVED;
+        return rcDisplayStatus(it) === status;
     });
 }
 
@@ -266,11 +270,20 @@ function rcMsisdnHasAssignment(msisdn, items) {
     });
 }
 
-/** KPI + grid status: driven by assignment + callback workflow — NOT raw RC_Status alone. */
+function rcMsisdnHasUnassigned(msisdn, items) {
+    var m = rcMsisdnKey(msisdn);
+    if (!m) return false;
+    return (items || rcAllItems).some(function (it) {
+        return rcMsisdnKey(it) === m && !rcIsAssigned(it);
+    });
+}
+
+/** KPI + grid status: unassigned rows in this set = Pending, even if an older row was assigned. */
 function rcWorkflowStatusForCaller(msisdn, items) {
     items = items || rcAllItems;
     var m = rcMsisdnKey(msisdn);
     if (!m) return RC_STATUS.PENDING;
+    if (rcMsisdnHasUnassigned(m, items)) return RC_STATUS.PENDING;
     if (!rcMsisdnHasAssignment(m, items)) return RC_STATUS.PENDING;
 
     var rec = rcGetCallerWorkflowRecord(m, items);
@@ -378,9 +391,7 @@ function rcAssignQueueItems(dateF) {
     var source = rcApplyDateFilters(rcAllItems, dateF);
     rcRebuildMsisdnCounts(source);
     var pending = source.filter(function (it) {
-        if (!rcIsRepeatMsisdn(it.MSISDN)) return false;
-        if (rcMsisdnHasAssignment(it.MSISDN, rcAllItems)) return false;
-        return !rcIsAssigned(it);
+        return rcIsRepeatMsisdn(it.MSISDN) && !rcIsAssigned(it);
     });
     return rcDedupeUniqueCallers(pending);
 }
@@ -391,7 +402,8 @@ function rcAssignedQueueItems(dateF) {
     rcRebuildMsisdnCounts(source);
     var assigned = source.filter(function (it) {
         if (!rcIsRepeatMsisdn(it.MSISDN)) return false;
-        return rcIsAssigned(it) && rcWorkflowStatusForCaller(it.MSISDN, rcAllItems) !== RC_STATUS.RESOLVED;
+        if (!rcIsAssigned(it)) return false;
+        return rcRowWorkflowStatus(it) !== RC_STATUS.RESOLVED;
     });
     return rcDedupeUniqueCallers(assigned);
 }
@@ -746,6 +758,19 @@ function rcWeekOfMonth(d) {
     return Math.ceil(d.getDate() / 7);
 }
 
+function rcParseFilterDate(val, endOfDay) {
+    if (!val) return null;
+    var s = String(val).trim();
+    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    var d;
+    if (m) d = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+    else d = new Date(s);
+    if (isNaN(d.getTime())) return null;
+    if (endOfDay) d.setHours(23, 59, 59, 999);
+    else d.setHours(0, 0, 0, 0);
+    return d.getTime();
+}
+
 function rcDateMeta(iso) {
     if (!iso) return null;
     var d = new Date(iso);
@@ -774,28 +799,17 @@ function rcApplyDateFilters(items, f) {
         var meta = rcDateMeta(rcItemDateValue(it, field));
         if (!meta) return false;
         if (mode === 'range') {
-            if (f.from) {
-                var fromD = new Date(f.from);
-                if (!isNaN(fromD.getTime())) {
-                    fromD.setHours(0, 0, 0, 0);
-                    if (meta.dayStart < fromD.getTime()) return false;
-                }
-            }
-            if (f.to) {
-                var toD = new Date(f.to);
-                if (!isNaN(toD.getTime())) {
-                    toD.setHours(23, 59, 59, 999);
-                    if (meta.dayStart > toD.getTime()) return false;
-                }
-            }
+            var fromTs = rcParseFilterDate(f.from, false);
+            if (fromTs != null && meta.dayStart < fromTs) return false;
+            var toTs = rcParseFilterDate(f.to, true);
+            if (toTs != null && meta.dayStart > toTs) return false;
             return true;
         }
         if (mode === 'single') {
             if (!f.specific) return true;
-            var spec = new Date(f.specific);
-            if (isNaN(spec.getTime())) return true;
-            spec.setHours(0, 0, 0, 0);
-            return meta.dayStart === spec.getTime();
+            var specTs = rcParseFilterDate(f.specific, false);
+            if (specTs == null) return true;
+            return meta.dayStart === specTs;
         }
         if (mode === 'period') {
             if (f.years && f.years.length && f.years.indexOf(String(meta.year)) < 0) return false;
@@ -1870,7 +1884,8 @@ function rcUniqueValues(items, field) {
 function rcApplyDashFilters(items) {
     var f = rcDashFilters;
     return items.filter(function (it) {
-        if (!rcMatchMulti(rcDisplayStatus(it), f.status)) return false;
+        var st = rcIsRepeatMsisdn(it.MSISDN) ? rcWorkflowStatusForCaller(it.MSISDN, items) : rcDisplayStatus(it, items);
+        if (!rcMatchMulti(st, f.status)) return false;
         if (!rcMatchMulti(it.Language, f.language)) return false;
         if (!rcMatchMulti(it.LOB, f.lob)) return false;
         if (!rcMatchMulti(it.Segment_Value, f.segment)) return false;
@@ -2068,8 +2083,8 @@ function rcCountUniquePendingCallers(items) {
     var seen = {};
     var n = 0;
     (items || []).forEach(function (it) {
-        if (rcDisplayStatus(it) !== RC_STATUS.PENDING) return;
         if (typeof rcIsRepeatMsisdn === 'function' && !rcIsRepeatMsisdn(it.MSISDN)) return;
+        if (rcWorkflowStatusForCaller(it.MSISDN, items) !== RC_STATUS.PENDING) return;
         var k = String(it.MSISDN || '');
         if (!k || seen[k]) return;
         seen[k] = 1;
@@ -2177,8 +2192,8 @@ function rcAgentStats(items) {
         if (!stats[key]) stats[key] = { name: canon, email: it.AssignedToEmail || '', assigned: 0, inprogress: 0, completed: 0, slaSum: 0, slaN: 0 };
         var st = stats[key];
         st.assigned++;
-        if (rcDisplayStatus(it) === RC_STATUS.INPROGRESS) st.inprogress++;
-        if (rcDisplayStatus(it) === RC_STATUS.RESOLVED) {
+        if (rcRowWorkflowStatus(it) === RC_STATUS.INPROGRESS) st.inprogress++;
+        if (rcRowWorkflowStatus(it) === RC_STATUS.RESOLVED) {
             st.completed++;
             var sla = rcSlaDays(it);
             if (sla != null) { st.slaSum += sla; st.slaN++; }
@@ -3490,10 +3505,10 @@ function rcRefreshMyQueueContent() {
     var mine = rcApplyDateFilters(rcScopedItems(), rcDateFilters);
     var s = rcSummary(mine);
     var inq = rcDedupeUniqueCallers(mine.filter(function (it) {
-        return rcIsRepeatMsisdn(it.MSISDN) && rcDisplayStatus(it) === RC_STATUS.INPROGRESS;
+        return rcIsRepeatMsisdn(it.MSISDN) && rcIsAssigned(it) && rcRowWorkflowStatus(it) === RC_STATUS.INPROGRESS;
     }));
     var resolvedUnique = rcDedupeUniqueCallers(mine.filter(function (it) {
-        return rcIsRepeatMsisdn(it.MSISDN) && rcDisplayStatus(it) === RC_STATUS.RESOLVED;
+        return rcIsRepeatMsisdn(it.MSISDN) && rcIsAssigned(it) && rcRowWorkflowStatus(it) === RC_STATUS.RESOLVED;
     }));
     var main = document.getElementById('rcMyQueueMain');
     if (!main) {
@@ -3754,8 +3769,8 @@ function rcBuildDashboardCharts(items, s) {
         var agent = rcCanonicalAgentName(it.AssignedToName);
         if (!agent) return;
         if (!agentMap[agent]) agentMap[agent] = { completed: 0, inprogress: 0 };
-        if (rcDisplayStatus(it) === RC_STATUS.RESOLVED) agentMap[agent].completed++;
-        else if (rcDisplayStatus(it) === RC_STATUS.INPROGRESS) agentMap[agent].inprogress++;
+        if (rcRowWorkflowStatus(it) === RC_STATUS.RESOLVED) agentMap[agent].completed++;
+        else if (rcRowWorkflowStatus(it) === RC_STATUS.INPROGRESS) agentMap[agent].inprogress++;
     });
     var names = Object.keys(agentMap).filter(function (n) {
         return agentMap[n].completed + agentMap[n].inprogress > 0;
@@ -4390,10 +4405,10 @@ function rcRenderMyQueue(body) {
     var mine = rcApplyDateFilters(rcScopedItems(), rcDateFilters);
     var s = rcSummary(mine);
     var inq = rcDedupeUniqueCallers(mine.filter(function (it) {
-        return rcIsRepeatMsisdn(it.MSISDN) && rcDisplayStatus(it) === RC_STATUS.INPROGRESS;
+        return rcIsRepeatMsisdn(it.MSISDN) && rcIsAssigned(it) && rcRowWorkflowStatus(it) === RC_STATUS.INPROGRESS;
     }));
     var resolvedUnique = rcDedupeUniqueCallers(mine.filter(function (it) {
-        return rcIsRepeatMsisdn(it.MSISDN) && rcDisplayStatus(it) === RC_STATUS.RESOLVED;
+        return rcIsRepeatMsisdn(it.MSISDN) && rcIsAssigned(it) && rcRowWorkflowStatus(it) === RC_STATUS.RESOLVED;
     }));
 
     body.innerHTML =
