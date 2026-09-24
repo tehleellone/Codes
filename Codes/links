@@ -1,17 +1,133 @@
-http://sharedspaces:8081/sites/GM/_layouts/15/start.aspx#/Lists/GEO_ACCESS/AllItems.aspx
- 
-http://sharedspaces:8081/sites/GM/_layouts/15/start.aspx#/SiteAssets/Forms/AllItems.aspx?RootFolder=%2Fsites%2FGM%2FSiteAssets%2Fgeo%2Dportal&FolderCTID=0x012000472623090687864691ECAA485B056CC1&View=%7BD2907E3E%2D2106%2D43EC%2DB7D4%2D31AAF311C741%7D
- 
-http://sharedspaces:8081/sites/GM/SiteAssets/geo-portal/du-geo-bg-dark.png
-http://sharedspaces:8081/sites/GM/SiteAssets/geo-portal/du-geo-bg-light.png
-http://sharedspaces:8081/sites/GM/SiteAssets/geo-portal/du-geo-consumer-dark.png
-http://sharedspaces:8081/sites/GM/SiteAssets/geo-portal/du-geo-consumer-light.png
-http://sharedspaces:8081/sites/GM/SiteAssets/geo-portal/du-geo-glk-dark.png
-http://sharedspaces:8081/sites/GM/SiteAssets/geo-portal/du-geo-glk-light.png
-http://sharedspaces:8081/sites/GM/SiteAssets/geo-portal/du-geo-sme-dark.png
-http://sharedspaces:8081/sites/GM/SiteAssets/geo-portal/du-geo-sme-light.png
- 
-https://dugis.corp.du.ae/Html5Viewer/index.html?viewer=gisportal.DU_gisportal&project=0b49320193de4ce1987885f5cd13a59e
- 
-Title FNE - Fixed Expansion Program  // FNE Consumer Buildings commercialization (Batch53)
- 
+GEO PORTALS:
+
+
+Consumer: 
+
+1.	BTL Consumer geoportal 
+
+Link: https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=7102497c4a8a415985e8a2f92d9ed6bc
+
+Description: The portal serves as a visualization platform for Consumer BTL buildings and designated target areas
+Last Update: Sep 2026
+
+2.	Shared Building Geomarketing duGIS Portal
+
+
+https://dugis.corp.du.ae/Html5Viewer/index.html?viewer=gisportal.DU_gisportal&project=f1e1d6b3d58b4a51b14181f8407bb255&link=559f1363eca9405e981692b8b425b65d_7-Ty_iNbbJhkxZfx
+
+Description: The portal provides visibility of shared buildings and serves as a tool for retail agents
+Last Update: Sep 2026
+
+
+SME
+
+1.	XGSPON Building geoportal
+
+LInk: https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=9214446a2ff14293ab66c561fe6cca72
+
+Description: This portal is designed to help users locate XGS-PON-enabled buildings
+Last Update: Sep 2026
+
+
+2.	SME Fixed Building geoportal
+
+Link: https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=97f53c979aa74096bb25cb722ad84ae7
+
+Description: This portal provides visibility into fiber-connected buildings that have potential SME POIs
+Last Update: Sep 2026
+
+
+3.	BTL Shared geoportal
+
+Link: https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=edd7496df515494e8b24b2001705fac8
+
+Description: The portal serves as a visualization platform for SME BTL buildings and designated target areas
+Last Update: Sep 2026
+
+
+4.	Office Wireless geoportal
+
+Link: https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=487777765419480b924de4fc3c0e4e01
+
+Description: This portal helps users identify and visualize high-potential SME POIs for Office Wireless acquisition campaigns.
+Last Update: Sep 2026
+
+
+5.	Sharjah Prioritized Communities for Office wireless geoportal
+
+Link: https://du-geomarketing.maps.arcgis.com/apps/instant/basic/index.html?appid=bf9e74ee269249e4af2eb57d7d93dca4
+
+Description: This portal is designed to help sales teams in Sharjah identify and prioritize high-potential communities for Office Wrieless/FMS, enabling more targeted and effective customer acquisition efforts.
+Last Update: Sep 2026
+
+
+GLK
+
+1.	GLK Connected POIs geoportal
+
+Link: https://du-geomarketing.maps.arcgis.com/apps/instant/interactivelegend/index.html?appid=7f37388cbfa9412a8e9d8e6d791fbf0a
+
+Description: This portal provides visibility into fiber-connected buildings that have potential GLK POIs
+Last Update: Sep 2026
+
+
+
+4. Geomarketing internal 
+
+Segment insights per community Dashboard
+
+Link: https://du-geomarketing.maps.arcgis.com/apps/dashboards/c58b2d1040a6412d973840c245015a8a#
+
+Description: The portal serves as a staging and testing environment for Geomarketing initiatives and enhancements.
+Last Update: Sep 2026
+
+
+
+POWER BI Dashboards
+
+For GLK Segment:
+
+1.	GLK KPI Dashboard - AUG 2026
+
+
+https://app.powerbi.com/groups/me/reports/bec1fc6b-5dd7-4cfa-974b-a5efc42ae812/ReportSection?ctid=634c271c-fd02-4c16-9c9f-dd50af6f016c&experience=power-bi
+
+Description:  View Monthly GLK Contract Base Project & Emirate wise.
+
+Last Update : Sep 2026
+
+2.	GLK Active POIs Growth – GeoMarketing Dashboard
+
+Total Fixed - GLK Active POIs Growth - GeoMarketing Dashboard - Power BI
+
+Description:  View Quarterly GLK POIs Base Project & Emirate wise.
+
+Last Update : Sep 2026
+
+
+FOR SME Segment:
+
+
+1.	SME KPI Dashboard - AUG 2026
+
+
+https://app.powerbi.com/groups/me/reports/b18e0878-b53f-4310-86df-fd831a6fb3db/ReportSection?ctid=634c271c-fd02-4c16-9c9f-dd50af6f016c&experience=power-bi
+
+Description:  View Monthly GLK Contract Base Project & Emirate wise
+
+Last Update : Sep 2026
+
+
+
+To Include in All Segment (GLK, SME & Consumer ) : Under Power Bi
+
+
+1.	FNE 2026 Monetization Geo Dashboard - Aug-2026 
+
+
+https://app.powerbi.com/groups/me/reports/0d6dd276-77af-49eb-8bfd-d0ae2a6898b4/ReportSection?experience=power-bi
+
+Description:  View Monthly Progress and Monetization of FNE 2026 program Connected Buildings
+
+Last Update : Sep 2026
+
