@@ -1,5 +1,5 @@
 // ============================================================
-// repeated-calls.js — Repeated Calls Module v1.9.17
+// repeated-calls.js — Repeated Calls Module v1.9.18
 // List: Repeated_Calls | Agents: Account Mapping (CTI match, all teams)
 // SP fields: RC_Status, Upload_Date, Assignment_Date, Reassign_Date, Resolved_Date, Assigned_To
 // ============================================================
@@ -18,7 +18,7 @@ var rcCharts        = {};
 var rcGrids         = { dash: null, assign: null, assigned: null, agentQueue: null, agentRecords: null };
 var rcUploadRows    = []; 
 var rcSelectedAgent = null;
-window.RC_MODULE_VERSION = '1.9.17';
+window.RC_MODULE_VERSION = '1.9.18';
 
 var RC_DELETE_ALL_EMAILS = ['tehleel.lone@du.ae', 'ubaid.mir@du.ae'];
 var RC_MIN_REPEAT_CALLS = 3;
@@ -99,6 +99,8 @@ var rcRepeatVisible = false;
 var rcDateFilters   = { dateField: 'UploadDate', dateMode: 'any', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
 var rcAssignDateFilters   = rcDateFilters;
 var rcAssignedDateFilters = rcDateFilters;
+var rcTodayOnly = true;
+var rcCallerFlags = { itemsRef: null, map: {} };
 var rcTrendGranularity = 'monthly';
 var rcChartsBuilt   = false;
 var rcLastChartItems = null;
@@ -262,20 +264,37 @@ function rcInProgressSiblingIds(msisdn) {
     return rcItemsForMsisdnStatus(msisdn, RC_STATUS.INPROGRESS).map(function (it) { return it.ID; });
 }
 
+function rcRebuildCallerFlags(items) {
+    var map = {};
+    (items || []).forEach(function (it) {
+        var m = rcMsisdnKey(it);
+        if (!m) return;
+        if (!map[m]) map[m] = { unassigned: false, assigned: false };
+        if (rcIsAssigned(it)) map[m].assigned = true;
+        else map[m].unassigned = true;
+    });
+    rcCallerFlags = { itemsRef: items, map: map };
+    return map;
+}
+
+function rcCallerFlagsFor(items) {
+    items = items || rcAllItems;
+    if (rcCallerFlags.itemsRef === items) return rcCallerFlags.map;
+    return rcRebuildCallerFlags(items);
+}
+
 function rcMsisdnHasAssignment(msisdn, items) {
     var m = rcMsisdnKey(msisdn);
     if (!m) return false;
-    return (items || rcAllItems).some(function (it) {
-        return rcMsisdnKey(it) === m && rcIsAssigned(it);
-    });
+    var f = rcCallerFlagsFor(items)[m];
+    return !!(f && f.assigned);
 }
 
 function rcMsisdnHasUnassigned(msisdn, items) {
     var m = rcMsisdnKey(msisdn);
     if (!m) return false;
-    return (items || rcAllItems).some(function (it) {
-        return rcMsisdnKey(it) === m && !rcIsAssigned(it);
-    });
+    var f = rcCallerFlagsFor(items)[m];
+    return !!(f && f.unassigned);
 }
 
 /** KPI + grid status: unassigned rows in this set = Pending, even if an older row was assigned. */
@@ -390,6 +409,7 @@ function rcAssignQueueItems(dateF) {
     dateF = dateF || rcDateFilters;
     var source = rcApplyDateFilters(rcAllItems, dateF);
     rcRebuildMsisdnCounts(source);
+    rcRebuildCallerFlags(source);
     var pending = source.filter(function (it) {
         return rcIsRepeatMsisdn(it.MSISDN) && !rcIsAssigned(it);
     });
@@ -400,6 +420,7 @@ function rcAssignedQueueItems(dateF) {
     dateF = dateF || rcDateFilters;
     var source = rcApplyDateFilters(rcAllItems, dateF);
     rcRebuildMsisdnCounts(source);
+    rcRebuildCallerFlags(source);
     var assigned = source.filter(function (it) {
         if (!rcIsRepeatMsisdn(it.MSISDN)) return false;
         if (!rcIsAssigned(it)) return false;
@@ -758,6 +779,15 @@ function rcWeekOfMonth(d) {
     return Math.ceil(d.getDate() / 7);
 }
 
+function rcPad2(n) {
+    return (n < 10 ? '0' : '') + n;
+}
+
+function rcTodayIso() {
+    var d = new Date();
+    return d.getFullYear() + '-' + rcPad2(d.getMonth() + 1) + '-' + rcPad2(d.getDate());
+}
+
 function rcParseFilterDate(val, endOfDay) {
     if (!val) return null;
     var s = String(val).trim();
@@ -792,9 +822,16 @@ function rcItemDateValue(item, field) {
 
 function rcApplyDateFilters(items, f) {
     f = f || rcDateFilters;
+    var field = f.dateField || 'UploadDate';
+    if (rcTodayOnly) {
+        var todayTs = rcParseFilterDate(rcTodayIso(), false);
+        return items.filter(function (it) {
+            var meta = rcDateMeta(rcItemDateValue(it, field));
+            return !!(meta && todayTs != null && meta.dayStart === todayTs);
+        });
+    }
     var mode = f.dateMode || 'any';
     if (mode === 'any') return items;
-    var field = f.dateField || 'UploadDate';
     return items.filter(function (it) {
         var meta = rcDateMeta(rcItemDateValue(it, field));
         if (!meta) return false;
@@ -824,6 +861,8 @@ function rcApplyDateFilters(items, f) {
 
 function rcReadDateFiltersFromDom(prefix) {
     prefix = prefix || 'rcFilter';
+    var todayEl = document.getElementById(prefix + 'TodayOnly');
+    if (todayEl) rcTodayOnly = !!todayEl.checked;
     var f = rcDateFiltersRef(prefix);
     f.dateField = rcGetSelectVal(prefix + 'DateField') || 'UploadDate';
     f.dateMode = rcGetSelectVal(prefix + 'DateMode') || 'any';
@@ -837,6 +876,7 @@ function rcReadDateFiltersFromDom(prefix) {
 }
 
 function rcResetDateFiltersState() {
+    rcTodayOnly = true;
     rcDateFilters = rcFreshDateFilters();
     rcAssignDateFilters = rcDateFilters;
     rcAssignedDateFilters = rcDateFilters;
@@ -855,6 +895,7 @@ function rcReportDateLabel(f) {
     RC_DATE_FIELD_OPTS.forEach(function (o) {
         if (o.key === f.dateField) fieldLabel = o.label;
     });
+    if (rcTodayOnly) return fieldLabel + ': Today';
     var mode = f.dateMode || 'any';
     if (mode === 'range') {
         if (f.from && f.to) return fieldLabel + ': ' + rcFmtDate(f.from) + ' – ' + rcFmtDate(f.to);
@@ -880,6 +921,7 @@ function rcGetReportData() {
     var base = rcAllItems;
     var dateFiltered = rcApplyDateFilters(base, rcDateFilters);
     rcRebuildMsisdnCounts(dateFiltered);
+    rcRebuildCallerFlags(dateFiltered);
     var items = rcApplyDashFilters(dateFiltered);
     return {
         items: items,
@@ -935,8 +977,31 @@ function rcBuildSlaChartData(items) {
     };
 }
 
+window.rcOnTodayOnlyChange = function (prefix, onChangeFn) {
+    prefix = prefix || 'rcFilter';
+    var el = document.getElementById(prefix + 'TodayOnly');
+    rcTodayOnly = !!(el && el.checked);
+    rcSyncTodayOnlyUI(prefix);
+    if (onChangeFn && typeof window[onChangeFn] === 'function') window[onChangeFn]();
+};
+
+function rcSyncTodayOnlyUI(prefix) {
+    prefix = prefix || 'rcFilter';
+    var cb = document.getElementById(prefix + 'TodayOnly');
+    if (cb) cb.checked = !!rcTodayOnly;
+    var wrap = document.getElementById(prefix + 'DateCustomWrap');
+    if (wrap) wrap.style.opacity = rcTodayOnly ? '0.45' : '1';
+    ['DateMode', 'DateFrom', 'DateTo', 'DateSpecific'].forEach(function (suffix) {
+        var el = document.getElementById(prefix + suffix);
+        if (el) el.disabled = !!rcTodayOnly;
+    });
+}
+
 window.rcOnDateModeChange = function (prefix, onChangeFn) {
     var f = rcDateFiltersRef(prefix);
+    rcTodayOnly = false;
+    var cb = document.getElementById(prefix + 'TodayOnly');
+    if (cb) cb.checked = false;
     f.dateMode = rcGetSelectVal(prefix + 'DateMode') || 'any';
     rcSyncDateModeUI(prefix);
 };
@@ -952,7 +1017,10 @@ function rcSyncDateModeUI(prefix) {
     if (rangeG) rangeG.style.display = mode === 'range' ? 'grid' : 'none';
     if (singleG) singleG.style.display = mode === 'single' ? 'grid' : 'none';
     if (periodG) periodG.style.display = mode === 'period' ? 'grid' : 'none';
-    if (hint) hint.textContent = rcDateModeHint(mode);
+    if (hint) hint.textContent = rcTodayOnly
+        ? 'Showing today’s records only. Uncheck the box to use a custom date range.'
+        : rcDateModeHint(mode);
+    rcSyncTodayOnlyUI(prefix);
 }
 
 function rcCollectDateMetas(items, field) {
@@ -1155,6 +1223,11 @@ function rcDateFilterRowHTML(prefix, onChangeFn) {
         return '<option value="' + o.v + '"' + (mode === o.v ? ' selected' : '') + '>' + o.l + '</option>';
     }).join('');
     return '<div style="grid-column:1/-1;margin-top:.55rem;padding-top:.55rem;border-top:1px dashed var(--border);">' +
+        '<label style="display:inline-flex;align-items:center;gap:8px;margin:0 0 .55rem;cursor:pointer;font-weight:700;font-size:.86rem;color:var(--t1);">' +
+            '<input type="checkbox" id="' + prefix + 'TodayOnly" ' + (rcTodayOnly ? 'checked' : '') +
+            ' onchange="rcOnTodayOnlyChange(\'' + prefix + '\',\'' + onChangeFn + '\')" style="width:16px;height:16px;cursor:pointer;">' +
+            'View today’s data only</label>' +
+        '<div id="' + prefix + 'DateCustomWrap">' +
         '<div class="filter-bar-grid">' +
             '<div class="fb-group"><div class="fb-group-label">Which date field?</div>' +
                 '<select class="fb-select" id="' + prefix + 'DateField" onchange="' + onChangeFn + '()">' + fieldOpts + '</select></div>' +
@@ -1177,6 +1250,7 @@ function rcDateFilterRowHTML(prefix, onChangeFn) {
             rcMsFilterHTML(prefix, 'DateQuarter', 'Quarters') +
             rcMsFilterHTML(prefix, 'DateMonth', 'Months') +
             rcMsFilterHTML(prefix, 'DateWeek', 'Weeks') +
+        '</div>' +
         '</div>' +
     '</div>';
 }
@@ -1883,9 +1957,13 @@ function rcUniqueValues(items, field) {
 
 function rcApplyDashFilters(items) {
     var f = rcDashFilters;
+    var needStatus = f.status && f.status.length;
+    if (needStatus) rcCallerFlagsFor(items);
     return items.filter(function (it) {
-        var st = rcIsRepeatMsisdn(it.MSISDN) ? rcWorkflowStatusForCaller(it.MSISDN, items) : rcDisplayStatus(it, items);
-        if (!rcMatchMulti(st, f.status)) return false;
+        if (needStatus) {
+            var st = rcIsRepeatMsisdn(it.MSISDN) ? rcWorkflowStatusForCaller(it.MSISDN, items) : rcDisplayStatus(it, items);
+            if (!rcMatchMulti(st, f.status)) return false;
+        }
         if (!rcMatchMulti(it.Language, f.language)) return false;
         if (!rcMatchMulti(it.LOB, f.lob)) return false;
         if (!rcMatchMulti(it.Segment_Value, f.segment)) return false;
@@ -2080,15 +2158,11 @@ function rcApplyQueueFilters(items, f, includeAgent, dateF) {
 }
 
 function rcCountUniquePendingCallers(items) {
-    var seen = {};
+    var flags = rcCallerFlagsFor(items);
     var n = 0;
-    (items || []).forEach(function (it) {
-        if (typeof rcIsRepeatMsisdn === 'function' && !rcIsRepeatMsisdn(it.MSISDN)) return;
-        if (rcWorkflowStatusForCaller(it.MSISDN, items) !== RC_STATUS.PENDING) return;
-        var k = String(it.MSISDN || '');
-        if (!k || seen[k]) return;
-        seen[k] = 1;
-        n++;
+    Object.keys(flags).forEach(function (m) {
+        if (!m || !rcIsRepeatMsisdn(m)) return;
+        if (flags[m] && flags[m].unassigned) n++;
     });
     return n;
 }
@@ -3433,6 +3507,7 @@ function rcRefreshDashboardContent() {
     var base = rcAllItems;
     var dateFiltered = rcApplyDateFilters(base, rcDateFilters);
     rcRebuildMsisdnCounts(dateFiltered);
+    rcRebuildCallerFlags(dateFiltered);
     var items = rcApplyDashFilters(dateFiltered);
     rcWarmPerfCache(items);
     var s = rcSummary(items, dateFiltered);
@@ -3536,7 +3611,9 @@ function rcRenderDashboard(body) {
     var base = rcAllItems;
     var dateFiltered = rcApplyDateFilters(base, rcDateFilters);
     rcRebuildMsisdnCounts(dateFiltered);
+    rcRebuildCallerFlags(dateFiltered);
     var items = rcApplyDashFilters(dateFiltered);
+    rcWarmPerfCache(items);
     var s = rcSummary(items, dateFiltered);
     var gridItems = rcDashboardGridItems(items);
     rcChartsBuilt = false;
