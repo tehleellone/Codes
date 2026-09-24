@@ -1,5 +1,5 @@
 // ============================================================
-// repeated-calls.js — Repeated Calls Module v1.9.22
+// repeated-calls.js — Repeated Calls Module v1.9.24
 // List: Repeated_Calls | Agents: Account Mapping (CTI match, all teams)
 // SP fields: RC_Status, Upload_Date, Assignment_Date, Reassign_Date, Resolved_Date, Assigned_To
 // ============================================================
@@ -18,7 +18,7 @@ var rcCharts        = {};
 var rcGrids         = { dash: null, assign: null, assigned: null, agentQueue: null, agentRecords: null };
 var rcUploadRows    = []; 
 var rcSelectedAgent = null;
-window.RC_MODULE_VERSION = '1.9.22';
+window.RC_MODULE_VERSION = '1.9.24';
 
 var RC_DELETE_ALL_EMAILS = ['tehleel.lone@du.ae', 'ubaid.mir@du.ae'];
 var RC_MIN_REPEAT_CALLS = 3;
@@ -687,9 +687,7 @@ function rcProcessUploadRowsAgainst(rawRows, existingItems) {
         seen[k] = true;
         candidates.push(rec);
     });
-    var mergedCounts = rcBuildMsisdnCounts(
-        candidates.map(function (r) { return { MSISDN: r.MSISDN }; }).concat(existingItems)
-    );
+    var mergedCounts = rcBuildMsisdnCounts(candidates);
     var toAdd = [];
     candidates.forEach(function (rec) {
         var m = String(rec.MSISDN || '').trim();
@@ -4405,46 +4403,22 @@ window.rcParseFile = function (ev) {
 function rcRenderUploadPreview() {
     var prev = document.getElementById('rcUploadPreview');
     var result = rcProcessUploadRows(rcUploadRows);
-    var fileOnly = rcProcessUploadRowsAgainst(rcUploadRows, []);
     var toAdd = result.toAdd;
     var ignored = result.ignored;
     rcUploadRows._toAdd = toAdd;
     rcUploadRows._ignored = ignored;
-    var unmapped = 0;
-    toAdd.forEach(function (rec) { if (rec.Agent_Name && !rcLookupCti(rec.Agent_Name)) unmapped++; });
     var uniqN = rcUploadUniqueCount(toAdd);
-    var fileOnlyUniq = rcUploadUniqueCount(fileOnly.toAdd);
-    var reasonCounts = {};
-    ignored.forEach(function (r) { reasonCounts[r.reason] = (reasonCounts[r.reason] || 0) + 1; });
-    var reasonRows = Object.keys(reasonCounts).map(function (k) {
-        return '<tr><td style="padding:.2rem .5rem 0 0;color:var(--t3);">' + rcEsc(k) + '</td><td style="font-weight:700;">' + reasonCounts[k] + '</td></tr>';
-    }).join('');
     var fileRows = (rcUploadRows || []).length;
-    var extraFromList = toAdd.length - fileOnly.toAdd.length;
     prev.innerHTML =
-        '<div style="font-size:.82rem;color:var(--t1);margin-bottom:.85rem;">' +
-            '<div style="font-weight:800;margin-bottom:.45rem;">This file</div>' +
-            '<table style="border-collapse:collapse;font-size:.8rem;">' +
-                '<tr><td style="padding:.15rem .75rem .15rem 0;color:var(--t3);">Rows in file</td><td style="font-weight:800;">' + fileRows + '</td></tr>' +
-                '<tr><td style="padding:.15rem .75rem .15rem 0;color:var(--t3);">Ready to write (list + file, 3+ calls)</td><td style="font-weight:800;color:#16a34a;">' + toAdd.length + ' rows · ' + uniqN + ' numbers</td></tr>' +
-                '<tr><td style="padding:.15rem .75rem .15rem 0;color:var(--t3);">If the list were empty</td><td style="font-weight:700;">' + fileOnly.toAdd.length + ' rows · ' + fileOnlyUniq + ' numbers</td></tr>' +
-                (extraFromList > 0 ? '<tr><td style="padding:.15rem .75rem .15rem 0;color:var(--t3);">Extra rows only because list already has calls</td><td style="font-weight:700;">' + extraFromList + '</td></tr>' : '') +
-                '<tr><td style="padding:.15rem .75rem .15rem 0;color:var(--t3);">Ignored</td><td style="font-weight:800;color:#dc2626;">' + ignored.length + '</td></tr>' +
-                (unmapped ? '<tr><td style="padding:.15rem .75rem .15rem 0;color:var(--t3);">CTI not in Account Mapping</td><td style="font-weight:700;color:#d97706;">' + unmapped + ' (still uploaded)</td></tr>' : '') +
-            '</table>' +
-            (reasonRows ? '<table style="border-collapse:collapse;font-size:.76rem;margin-top:.4rem;">' + reasonRows + '</table>' : '') +
-            '<div style="font-weight:800;margin:.85rem 0 .35rem;">After you click Confirm (Today + Upload Date)</div>' +
-            '<div style="font-size:.74rem;color:var(--t3);margin-bottom:.35rem;">Tiles above stay 0 until Confirm. Then today’s tiles become:</div>' +
-            '<table style="border-collapse:collapse;font-size:.8rem;">' +
-                '<tr><td style="padding:.15rem .75rem .15rem 0;color:var(--t3);">Repeat Call Volume</td><td style="font-weight:800;">' + toAdd.length + '</td><td style="padding-left:.5rem;color:var(--t3);">uploaded rows</td></tr>' +
-                '<tr><td style="padding:.15rem .75rem .15rem 0;color:var(--t3);">Repeat Callers</td><td style="font-weight:800;">' + uniqN + '</td><td style="padding-left:.5rem;color:var(--t3);">unique numbers</td></tr>' +
-                '<tr><td style="padding:.15rem .75rem .15rem 0;color:var(--t3);">Pending</td><td style="font-weight:800;">' + uniqN + '</td><td style="padding-left:.5rem;color:var(--t3);">Assign Queue</td></tr>' +
-                '<tr><td style="padding:.15rem .75rem .15rem 0;color:var(--t3);">In Progress</td><td style="font-weight:800;">0</td><td style="padding-left:.5rem;color:var(--t3);">Assigned Queue</td></tr>' +
-                '<tr><td style="padding:.15rem .75rem .15rem 0;color:var(--t3);">Resolved</td><td style="font-weight:800;">0</td></tr>' +
-            '</table>' +
+        '<div style="font-size:.88rem;color:var(--t1);line-height:1.55;margin-bottom:.85rem;">' +
+            '<div><b>' + fileRows + '</b> rows in the Excel</div>' +
+            '<div style="color:#16a34a;font-weight:800;">Will upload <b>' + toAdd.length + '</b> call rows from <b>' + uniqN + '</b> phone numbers (3+ calls in this file)</div>' +
+            '<div style="color:#dc2626;">Will skip <b>' + ignored.length + '</b> rows (number has fewer than 3 calls, or duplicate)</div>' +
+            '<div style="margin-top:.65rem;font-weight:800;">After Confirm, today\'s tiles:</div>' +
+            '<div>Volume <b>' + toAdd.length + '</b> &nbsp;·&nbsp; Callers <b>' + uniqN + '</b> &nbsp;·&nbsp; Pending <b>' + uniqN + '</b> &nbsp;·&nbsp; In Progress <b>0</b> &nbsp;·&nbsp; Resolved <b>0</b></div>' +
+            '<div style="font-size:.74rem;color:var(--t3);margin-top:.25rem;">Volume is call rows. Callers / Pending is unique numbers. Tiles stay 0 until you confirm.</div>' +
         '</div>' +
-        (toAdd.length ? '<button type="button" class="export-btn" id="rcConfirmUploadBtn" onclick="rcConfirmUpload()">Confirm Upload (' + toAdd.length + ' rows)</button>' : '<div style="color:var(--t3);">Nothing qualifies for upload.</div>') +
-        rcUploadIgnoredTableHTML(ignored) +
+        (toAdd.length ? '<button type="button" class="export-btn" id="rcConfirmUploadBtn" onclick="rcConfirmUpload()">Confirm Upload (' + toAdd.length + ')</button>' : '<div style="color:var(--t3);">Nothing to upload.</div>') +
         '<div id="rcUploadProgress" style="margin-top:.75rem;"></div>';
 }
 
