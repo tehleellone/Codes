@@ -1,5 +1,5 @@
 // ============================================================
-// repeated-calls.js — Repeated Calls Module v1.9.18
+// repeated-calls.js — Repeated Calls Module v1.9.20
 // List: Repeated_Calls | Agents: Account Mapping (CTI match, all teams)
 // SP fields: RC_Status, Upload_Date, Assignment_Date, Reassign_Date, Resolved_Date, Assigned_To
 // ============================================================
@@ -18,7 +18,7 @@ var rcCharts        = {};
 var rcGrids         = { dash: null, assign: null, assigned: null, agentQueue: null, agentRecords: null };
 var rcUploadRows    = []; 
 var rcSelectedAgent = null;
-window.RC_MODULE_VERSION = '1.9.18';
+window.RC_MODULE_VERSION = '1.9.20';
 
 var RC_DELETE_ALL_EMAILS = ['tehleel.lone@du.ae', 'ubaid.mir@du.ae'];
 var RC_MIN_REPEAT_CALLS = 3;
@@ -405,28 +405,30 @@ function rcDashboardGridItems(items) {
     return unique.filter(function (it) { return rcMatchesTreeFilter(it, items); });
 }
 
-function rcAssignQueueItems(dateF) {
-    dateF = dateF || rcDateFilters;
-    var source = rcApplyDateFilters(rcAllItems, dateF);
+function rcDateScopedItems(dateF) {
+    var source = rcApplyDateFilters(rcAllItems, dateF || rcDateFilters);
     rcRebuildMsisdnCounts(source);
     rcRebuildCallerFlags(source);
-    var pending = source.filter(function (it) {
-        return rcIsRepeatMsisdn(it.MSISDN) && !rcIsAssigned(it);
+    return source;
+}
+
+function rcRepeatCallersWithStatus(items, status) {
+    rcRebuildMsisdnCounts(items);
+    rcRebuildCallerFlags(items);
+    return rcUniqueRepeatCallers(items).filter(function (it) {
+        return rcWorkflowStatusForCaller(it.MSISDN, items) === status;
     });
-    return rcDedupeUniqueCallers(pending);
+}
+
+function rcAssignQueueItems(dateF) {
+    var source = rcDateScopedItems(dateF);
+    return rcDedupeUniqueCallers(source.filter(function (it) {
+        return rcIsRepeatMsisdn(it.MSISDN) && !rcIsAssigned(it);
+    }));
 }
 
 function rcAssignedQueueItems(dateF) {
-    dateF = dateF || rcDateFilters;
-    var source = rcApplyDateFilters(rcAllItems, dateF);
-    rcRebuildMsisdnCounts(source);
-    rcRebuildCallerFlags(source);
-    var assigned = source.filter(function (it) {
-        if (!rcIsRepeatMsisdn(it.MSISDN)) return false;
-        if (!rcIsAssigned(it)) return false;
-        return rcRowWorkflowStatus(it) !== RC_STATUS.RESOLVED;
-    });
-    return rcDedupeUniqueCallers(assigned);
+    return rcRepeatCallersWithStatus(rcDateScopedItems(dateF), RC_STATUS.INPROGRESS);
 }
 
 function rcExpandAssignPairs(pairs, isReassign) {
@@ -2190,11 +2192,10 @@ function rcSummary(items, countSource) {
             s.repeatCalls += counts[m];
         }
     });
-    var uniqueCounts = rcUniqueRepeatStatusCounts(items);
-    s.pending = rcCountUniquePendingCallers(items);
-    if (s.pending < uniqueCounts.pending) s.pending = uniqueCounts.pending;
-    s.inprogress = uniqueCounts.inprogress;
-    s.completed = uniqueCounts.completed;
+    var statusItems = countSource || items;
+    s.pending = rcRepeatCallersWithStatus(statusItems, RC_STATUS.PENDING).length;
+    s.inprogress = rcRepeatCallersWithStatus(statusItems, RC_STATUS.INPROGRESS).length;
+    s.completed = rcRepeatCallersWithStatus(statusItems, RC_STATUS.RESOLVED).length;
     items.forEach(function (it) {
         var ag = rcAging(it); if (ag != null) { s.agingSum += ag; s.agingN++; }
         var ttc = rcTimeToComplete(it); if (ttc != null) { s.ttcSum += ttc; s.ttcN++; }
@@ -3474,8 +3475,8 @@ function rcDashboardMainHTML(dateFiltered, items, s, gridItems) {
     return '<div class="top-stats">' +
             rcKpiTile('Repeat Call Volume', s.repeatCalls, 'Total calls from 3+ repeaters', '#ef4444', 'volume') +
             rcKpiTile('Repeat Callers', s.repeatCallers, 'Pending + In Progress + Resolved = ' + statusSum, '#f59e0b', 'callers') +
-            rcKpiTile('Pending', s.pending, 'Not assigned to an agent yet', rcStatusColor(RC_STATUS.PENDING), 'pending') +
-            rcKpiTile('In Progress', s.inprogress, 'Assigned · callback/resolution incomplete', rcStatusColor(RC_STATUS.INPROGRESS), 'inprogress') +
+            rcKpiTile('Pending', s.pending, 'Assign Queue — not assigned yet', rcStatusColor(RC_STATUS.PENDING), 'pending') +
+            rcKpiTile('In Progress', s.inprogress, 'Assigned Queue — assigned and still open', rcStatusColor(RC_STATUS.INPROGRESS), 'inprogress') +
             rcKpiTile('Resolved', s.completed, 'Not reachable OR reachable + issue resolved', rcStatusColor(RC_STATUS.RESOLVED), 'resolved') +
         '</div>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:1rem 0;">' +
@@ -3569,7 +3570,7 @@ function rcRefreshAssignedContent() {
         return;
     }
     main.innerHTML = rcBulkBarHTML('reassign') +
-        rcGridSectionHTML('Assigned Queue — Unique callers', 'rcAssignedGrid', 'rcAssignedCount', 'rcAssignedSearch', 'rcExportAssignedCsv()', assigned.length);
+        rcGridSectionHTML('Assigned Queue — In Progress callers', 'rcAssignedGrid', 'rcAssignedCount', 'rcAssignedSearch', 'rcExportAssignedCsv()', assigned.length);
     rcRenderGrid('assigned', 'rcAssignedGrid', 'rcAssignedCount', assigned, 'assigned');
     rcSafeUpdateDateFilterOptions('rcAssignedF', assignedAll, 'rcApplyAssignedFilters');
     rcSyncDateModeUI('rcAssignedF');
@@ -4292,7 +4293,7 @@ function rcRenderAssignedQueue(body) {
     body.innerHTML = rcQueueFilterBarHTML('assigned', assignedAll) +
         '<div id="rcAssignedMain">' +
         rcBulkBarHTML('reassign') +
-        rcGridSectionHTML('Assigned Queue — Unique callers', 'rcAssignedGrid', 'rcAssignedCount', 'rcAssignedSearch', 'rcExportAssignedCsv()', assigned.length) +
+        rcGridSectionHTML('Assigned Queue — In Progress callers', 'rcAssignedGrid', 'rcAssignedCount', 'rcAssignedSearch', 'rcExportAssignedCsv()', assigned.length) +
         '</div>';
     rcRenderGrid('assigned', 'rcAssignedGrid', 'rcAssignedCount', assigned, 'assigned');
     rcBindMsOutsideClick();
