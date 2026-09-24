@@ -18,7 +18,7 @@ var rcCharts        = {};
 var rcGrids         = { dash: null, assign: null, assigned: null, agentQueue: null, agentRecords: null };
 var rcUploadRows    = []; 
 var rcSelectedAgent = null;
-window.RC_MODULE_VERSION = '1.9.15';
+window.RC_MODULE_VERSION = '1.9.16';
 
 var RC_DELETE_ALL_EMAILS = ['tehleel.lone@du.ae', 'ubaid.mir@du.ae'];
 var RC_MIN_REPEAT_CALLS = 3;
@@ -97,8 +97,8 @@ var rcChartPluginsRegistered = false;
 var rcMsisdnCounts  = {};
 var rcRepeatVisible = false;
 var rcDateFilters   = { dateField: 'UploadDate', dateMode: 'any', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
-var rcAssignDateFilters   = { dateField: 'UploadDate', dateMode: 'any', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
-var rcAssignedDateFilters = { dateField: 'UploadDate', dateMode: 'any', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
+var rcAssignDateFilters   = rcDateFilters;
+var rcAssignedDateFilters = rcDateFilters;
 var rcTrendGranularity = 'monthly';
 var rcChartsBuilt   = false;
 var rcLastChartItems = null;
@@ -373,18 +373,25 @@ function rcDashboardGridItems(items) {
     return unique.filter(function (it) { return rcMatchesTreeFilter(it, items); });
 }
 
-function rcAssignQueueItems() {
-    var pending = rcAllItems.filter(function (it) {
-        return rcIsRepeatMsisdn(it.MSISDN) && rcDisplayStatus(it) === RC_STATUS.PENDING;
+function rcAssignQueueItems(dateF) {
+    dateF = dateF || rcDateFilters;
+    var source = rcApplyDateFilters(rcAllItems, dateF);
+    rcRebuildMsisdnCounts(source);
+    var pending = source.filter(function (it) {
+        if (!rcIsRepeatMsisdn(it.MSISDN)) return false;
+        if (rcMsisdnHasAssignment(it.MSISDN, rcAllItems)) return false;
+        return !rcIsAssigned(it);
     });
-    return rcDedupeUniqueCallers(pending).filter(function (it) {
-        return !rcMsisdnHasInProgressAssignment(it.MSISDN);
-    });
+    return rcDedupeUniqueCallers(pending);
 }
 
-function rcAssignedQueueItems() {
-    var assigned = rcAllItems.filter(function (it) {
-        return rcIsRepeatMsisdn(it.MSISDN) && rcDisplayStatus(it) === RC_STATUS.INPROGRESS;
+function rcAssignedQueueItems(dateF) {
+    dateF = dateF || rcDateFilters;
+    var source = rcApplyDateFilters(rcAllItems, dateF);
+    rcRebuildMsisdnCounts(source);
+    var assigned = source.filter(function (it) {
+        if (!rcIsRepeatMsisdn(it.MSISDN)) return false;
+        return rcIsAssigned(it) && rcWorkflowStatusForCaller(it.MSISDN, rcAllItems) !== RC_STATUS.RESOLVED;
     });
     return rcDedupeUniqueCallers(assigned);
 }
@@ -532,8 +539,6 @@ function rcCanonicalStatus(s) {
 }
 
 function rcDateFiltersRef(prefix) {
-    if (prefix === 'rcAssignF') return rcAssignDateFilters;
-    if (prefix === 'rcAssignedF') return rcAssignedDateFilters;
     return rcDateFilters;
 }
 function rcFreshDateFilters() {
@@ -818,7 +823,9 @@ function rcReadDateFiltersFromDom(prefix) {
 }
 
 function rcResetDateFiltersState() {
-    rcDateFilters = { dateField: 'UploadDate', dateMode: 'any', from: '', to: '', specific: '', years: [], quarters: [], months: [], weeks: [] };
+    rcDateFilters = rcFreshDateFilters();
+    rcAssignDateFilters = rcDateFilters;
+    rcAssignedDateFilters = rcDateFilters;
 }
 
 function rcDateModeHint(mode) {
@@ -1807,7 +1814,11 @@ function rcRoleLabel() {
     return rcRole();
 }
 
-window.rcSwitchTab = function (id) { rcActiveTab = id; rcRenderShell(); };
+window.rcSwitchTab = function (id) {
+    rcActiveTab = id;
+    rcPerfCache = { itemsRef: null, records: {}, status: {}, treeData: null };
+    rcRenderShell();
+};
 
 function rcRenderTabBody() {
     var body = document.getElementById('rcTabBody');
@@ -2026,7 +2037,7 @@ window.rcApplyAssignFilters = function () {
 };
 window.rcResetAssignFilters = function () {
     rcAssignFilters = { language: [], lob: [], segment: [] };
-    rcAssignDateFilters = rcFreshDateFilters();
+    rcResetDateFiltersState();
     rcRenderTabBody();
 };
 window.rcApplyAssignedFilters = function () {
@@ -2039,7 +2050,7 @@ window.rcApplyAssignedFilters = function () {
 };
 window.rcResetAssignedFilters = function () {
     rcAssignedFilters = { language: [], lob: [], segment: [], agent: [] };
-    rcAssignedDateFilters = rcFreshDateFilters();
+    rcResetDateFiltersState();
     rcRenderTabBody();
 };
 
@@ -2236,7 +2247,7 @@ function rcMapRow(it) {
         callBackStatus: vBlank(it.Call_Back_Status),
         pendingWith: vBlank(it.Pending_With),
         resolutionStatus: vBlank(it.Resolution_Status),
-        rcStatus: rcStatusForItem(it) || '—',
+        rcStatus: rcRowWorkflowStatus(it),
         assignedTo: v(it.AssignedToName),
         uploadDate: it.UploadDate || null,
         assignmentDate: it.AssignmentDate || null,
@@ -2494,14 +2505,24 @@ function rcGetCallerWorkflowRecord(msisdn, items) {
     return rec;
 }
 
+function rcRowWorkflowStatus(it) {
+    if (!it) return RC_STATUS.PENDING;
+    var st = rcDisplayStatus(it, rcAllItems);
+    if (rcIsAssigned(it) && st === RC_STATUS.PENDING) return RC_STATUS.INPROGRESS;
+    return st || '—';
+}
+
 function rcStatusForItem(it, items) {
     items = items || rcAllItems;
     if (!it) return RC_STATUS.PENDING;
+    if (items === rcAllItems && rcIsAssigned(it) && rcDisplayStatus(it, rcAllItems) === RC_STATUS.PENDING) {
+        return RC_STATUS.INPROGRESS;
+    }
     if (!rcIsRepeatMsisdn(it.MSISDN)) return rcDisplayStatus(it, items);
     var m = rcMsisdnKey(it.MSISDN);
-    if (rcPerfCache.status[m]) return rcPerfCache.status[m];
+    if (rcPerfCache.itemsRef === items && rcPerfCache.status[m]) return rcPerfCache.status[m];
     var st = rcWorkflowStatusForCaller(m, items);
-    rcPerfCache.status[m] = st;
+    if (rcPerfCache.itemsRef === items) rcPerfCache.status[m] = st;
     return st;
 }
 
