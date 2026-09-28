@@ -9569,13 +9569,18 @@ function mqSyncChartLabels(chart,bars){
       if(b.verticalHint){
         var letters=mqVerticalLetters(b.verticalHint);
         if(letters.length){
-          var bot=Math.max(bar.y,bar.base);
+          var barTop=Math.min(bar.y,bar.base);
+          var barBot=Math.max(bar.y,bar.base);
+          var barH=Math.abs(barBot-barTop);
           var blockH=letters.length*12+8;
-          var limit=(canvas.clientHeight||340)-blockH-4;
+          var area=chart.chartArea;
+          var areaBot=area?area.bottom:(canvas.clientHeight||340)-56;
+          var placeAbove=barH<48||barBot>areaBot-54;
+          var topPx=placeAbove?Math.max(8,barTop-blockH-8):Math.min(barBot+7,(canvas.clientHeight||340)-blockH-4);
           var vcell=document.createElement('div');
           vcell.className='mq-v-onbar'+(GLK_MQ_DETAIL_IDX===i?' sel':'');
           vcell.style.left=bar.x+'px';
-          vcell.style.top=Math.min(bot+7,limit)+'px';
+          vcell.style.top=topPx+'px';
           var hd=mqVertHdGroup((b.bids&&b.bids[0]&&b.bids[0].vertical)||b.verticalHint);
           vcell.innerHTML=mqVerticalStackBlock(b.verticalHint);
           var stack=vcell.querySelector('.mq-v-stack');
@@ -9654,8 +9659,8 @@ function glkMobileQtdSectionPlugin(bars){
         var alignRight=(sp.key==='churn'||sp.key==='empty');
         ctx.fillStyle='rgba(30,41,59,.88)';
         ctx.font='800 11px Inter';
-        ctx.textBaseline='bottom';
-        var titleY=area.bottom-6;
+        ctx.textBaseline='top';
+        var titleY=area.top+8;
         if(alignRight){
           ctx.textAlign='right';
           ctx.fillText(MQ_SECTION_TITLES[sp.key],x2-8,titleY);
@@ -10012,7 +10017,13 @@ function glkMobileQtdLabelPlugin(bars){
       ctx.textBaseline='bottom';
       var tw=ctx.measureText(lbl).width+10;
       var th=18;
-      var lx=bar.x, ly=top-6;
+      var lx=bar.x, ly=top-8;
+      var bottomClear=52;
+      if(h<44||bot>area.bottom-bottomClear){
+        ly=top-22;
+        if(ly-th<area.top+6) ly=Math.max(area.top+6+th,top+h+10);
+      }
+      if(ly>area.bottom-bottomClear) ly=area.bottom-bottomClear;
       if(ly-th<area.top+2) ly=area.top+2+th;
       var pillColor=b.color||MQ_CLR_INFLIGHT[0];
       if(b.type==='base') pillColor=MQ_CLR_ACTUALS;
@@ -10251,7 +10262,7 @@ function renderMobileQtdBridge(){
   var plugins=[
     glkMobileQtdSectionPlugin(bars),
     glkMobileQtdFlowPlugin(bars),
-    glkMobileQtdMinPxPlugin(bars,26),
+    glkMobileQtdMinPxPlugin(bars,32),
     glkMobileQtdLabelPlugin(bars),
     glkMobileQtdSepPlugin(churnSepIdx,c)
   ];
@@ -10274,7 +10285,7 @@ function renderMobileQtdBridge(){
         barPercentage:.88,categoryPercentage:.92,minBarLength:0,maxBarThickness:52
       }]},
       options:{responsive:true,maintainAspectRatio:false,
-        layout:{padding:{bottom:axisPad,top:36,left:4,right:8}},
+        layout:{padding:{bottom:axisPad,top:42,left:4,right:8}},
         animation:{duration:0},
         onClick:function(evt,elements){
           if(!elements.length){ mqCloseBarDetail(); return; }
