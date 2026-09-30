@@ -5,7 +5,7 @@
 //
 // Add these SharePoint columns if missing (internal name → type):
 //   Record_Type            Choice: Pending | Escalation
-//   Line_Manager           Single line text (auto-filled from account mapping)
+//   Line_x0020_Manager    Single line text (display name: Line Manager)
 //   Escalation_Level       Choice: L1 | L2 | L3 | Executive
 //   Escalation_Date        Date and Time
 //   Escalation_Reason      Choice: SLA Breach | Customer Complaint | Technical | Billing | Management Request | Other
@@ -489,7 +489,7 @@
             escalationLevel: tspePlain(item.Escalation_Level),
             escalationDate: tspeParseDate(item.Escalation_Date),
             escalationReason: tspePlain(item.Escalation_Reason),
-            lineManager: tspePlain(item.Line_Manager),
+            lineManager: tspePlain(item.Line_x0020_Manager),
             escalationStatus: tspePlain(item.Escalation_Status) || 'Open',
             resolutionNotes: tspePlain(item.Resolution_Notes)
         };
@@ -520,7 +520,7 @@
     async function tspeFetchItems() {
         var extendedSelect = 'ID,Title,Email_Received_Date,Sender_Type,Subject_Line,Account_Code,Customer_Name,' +
             'Pending_With,Case_Status,Issue_Type,Record_Type,Agent_Name,Team_Name,Resolved_Date,Priority,Remarks,Logged_By,' +
-            'Linked_Ref_ID,Escalated_To,Escalation_Level,Escalation_Date,Escalation_Reason,Line_Manager,Escalation_Status,Resolution_Notes,' +
+            'Linked_Ref_ID,Escalated_To,Escalation_Level,Escalation_Date,Escalation_Reason,Line_x0020_Manager,Escalation_Status,Resolution_Notes,' +
             'Escalation_Logged_By,Escalation_Log_Date';
         var midSelect = 'ID,Title,Email_Received_Date,Sender_Type,Subject_Line,Account_Code,Customer_Name,' +
             'Pending_With,Case_Status,Issue_Type,Record_Type,Agent_Name,Team_Name,Resolved_Date,Priority,Remarks,Logged_By,' +
@@ -713,7 +713,7 @@
                 '</div>' +
                 '<div id="tspeGrid" class="ag-theme-alpine" style="height:560px;width:100%;"></div>' +
             '</div>' +
-            '<div id="tspeModal" style="display:none;position:fixed;inset:0;z-index:2147483640;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:24px;">' +
+            '<div id="tspeModal" style="display:none;position:fixed;inset:0;z-index:10060;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:24px;">' +
                 '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:18px;max-width:920px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 64px rgba(0,0,0,.35);">' +
                     '<div style="padding:18px 22px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">' +
                         '<div style="font-size:18px;font-weight:800;" id="tspeModalTitle">Log Case</div>' +
@@ -1111,10 +1111,7 @@
                 escalationFields +
                 (isEsc ? '<div class="filter-group" style="grid-column:1/-1;"><label class="filter-label">Resolution Notes</label><textarea class="filter-select" id="tspeFormResolutionNotes" rows="2" style="resize:vertical;font-size:13px;padding:10px;">' + tspeEsc(tspeStripHtml(row ? row.resolutionNotes : '')) + '</textarea></div>' : '') +
             '</div>';
-        var tspeModal = document.getElementById('tspeModal');
-        tspeModal.style.display = 'flex';
-        if (typeof smMountPopup === 'function') smMountPopup(tspeModal);
-        else if (typeof smBoostPopupZ === 'function') smBoostPopupZ(tspeModal);
+        document.getElementById('tspeModal').style.display = 'flex';
         window._tspeAgentAll = tspeTsmAgents();
         tspeFilterAgentOptions('');
         var agentSel = document.getElementById('tspeFormAgent');
@@ -1257,7 +1254,7 @@
             Agent_Name: agentName,
             Team_Name: teamName,
             Logged_By: tspeUserName(),
-            Line_Manager: lmEl ? lmEl.value.trim() : tspeLookupLm(accountCode, agentName)
+            Line_x0020_Manager: lmEl ? lmEl.value.trim() : tspeLookupLm(accountCode, agentName)
         };
 
         if (recordType !== 'Escalation') {
@@ -1286,7 +1283,7 @@
     function tspeStripExtendedFields(payload) {
         var copy = Object.assign({}, payload);
         ['Record_Type', 'Linked_Ref_ID', 'Escalated_To', 'Escalation_Level',
-            'Escalation_Date', 'Escalation_Reason', 'Line_Manager', 'Escalation_Status', 'Resolution_Notes',
+            'Escalation_Date', 'Escalation_Reason', 'Line_x0020_Manager', 'Escalation_Status', 'Resolution_Notes',
             'Escalation_Logged_By', 'Escalation_Log_Date'
         ].forEach(function (k) { delete copy[k]; });
         return copy;
