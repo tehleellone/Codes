@@ -1,20 +1,48 @@
-{
-    "error": {
-        "code": "-1, Microsoft.SharePoint.Client.InvalidClientQueryException",
-        "message": {
-            "lang": "en-US",
-            "value": "The property 'Line_Manager' does not exist on type 'SP.Data.ME_x005f_Pending_x005f_TrackingListItem'. Make sure to only use property names that are defined by the type."
-        }
-    }
-}
+Skip Navigation LinksTSM_SE_Accounts : Settings
+List Information
+Name:	TSM_SE_Accounts
+Web Address:	http://sharedspaces:8086/sites/SM/Lists/TSM_SE_Accounts/AllItems.aspx
 
+Columns
+A column stores information about each item in the list. The following columns are currently available in this list:
+Column (click to edit)	Type	Required
+Title	Single line of text	
+ParentCode	Single line of text	
+CustomerName	Single line of text	
+AccountManager	Single line of text	
+AccountDirector	Single line of text	
+ServiceManager	Single line of text	
+LineManager	Single line of text	
+Team	Single line of text	
+Segment	Single line of text	
+Jan26	Number	
+Feb26	Number	
+Apr26	Number	
+Mar26	Number	
+May26	Number	
+Jun26	Number	
+Jul26	Number	
+Aug26	Number	
+Sep26	Number	
+Oct26	Number	
+Nov26	Number	
+Dec26	Number	
+Modified	Date and Time	
+Created	Date and Time	
+Created By	Person or Group	
+Modified By	Person or Group
 
-{
-    "error": {
-        "code": "-1, Microsoft.SharePoint.SPException",
-        "message": {
-            "lang": "en-US",
-            "value": "The field or property 'Line_Manager' does not exist."
-        }
-    }
-}
+Jan26 internal name : _x004a_an26
+feb26: _x0046_eb26
+apr26: _x0041_pr26
+Mar26: _x004d_ar26
+May26: _x004d_ay26
+Jun26:_x004a_un26
+Jul26: _x004a_ul26
+Aug26: _x0041_ug26
+Sep26: _x0053_ep26
+Oct26: _x004f_ct26
+Nov26: _x004e_ov26
+Dec26: _x0044_ec26
+
+	
