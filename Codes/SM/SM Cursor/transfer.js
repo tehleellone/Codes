@@ -1060,7 +1060,7 @@ async function reviewTransferBySD(itemId) {
         // Pre-fill final team with proposed team
         var finalTeamEl = document.getElementById('sdFinalTeam');
         if (finalTeamEl) {
-            finalTeamEl.value = CURRENT_TRANSFER_ITEM.Proposed_x0020_Team || '';
+            finalTeamEl.value = transferCanonicalTeam(CURRENT_TRANSFER_ITEM.Proposed_x0020_Team || '');
             if (typeof sdFinalTeamChanged === 'function') sdFinalTeamChanged();
         }
 
@@ -1111,8 +1111,18 @@ function transferNormTeam(team) {
     return String(team || '').toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function transferCanonicalTeam(team) {
+    var norm = transferNormTeam(team);
+    if (norm === 'tsm se') return 'TSM_SE';
+    if (norm === 'tsm me') return 'TSM_ME';
+    if (norm === 'call centre' || norm === 'call center') return 'Call Centre';
+    if (norm === 'dsm') return 'DSM';
+    if (norm === 'psd') return 'PSD';
+    return String(team || '').trim();
+}
+
 function transferTeamRows(team) {
-    var want = transferNormTeam(team);
+    var want = transferNormTeam(transferCanonicalTeam(team));
     return (window.ALL_DATA || []).filter(function (a) {
         return transferNormTeam(a.team) === want;
     });
@@ -1148,7 +1158,7 @@ function transferFillSelect(select, values, selected) {
 }
 
 function sdFinalTeamChanged() {
-    var team = (document.getElementById('sdFinalTeam') || {}).value || '';
+    var team = transferCanonicalTeam((document.getElementById('sdFinalTeam') || {}).value || '');
     var lmSelect = document.getElementById('sdTransferLM');
     var smSelect = document.getElementById('sdTransferSM');
     if (!lmSelect || !smSelect) return;
@@ -1183,7 +1193,7 @@ function sdFinalTeamChanged() {
 }
 
 function sdTransferLMChanged() {
-    var team = (document.getElementById('sdFinalTeam') || {}).value || '';
+    var team = transferCanonicalTeam((document.getElementById('sdFinalTeam') || {}).value || '');
     if (team === 'TSM_SE') {
         var smSelect = document.getElementById('sdTransferSM');
         if (smSelect) {
@@ -1309,7 +1319,7 @@ async function transferDeleteMainAccount(itemId) {
     if (!res.ok) throw new Error('Could not remove account from main list: ' + (await res.text()).slice(0, 180));
 }
 async function finalizeTransfer() {
-   const finalTeam = document.getElementById('sdFinalTeam') ? document.getElementById('sdFinalTeam').value : (CURRENT_TRANSFER_ITEM.Proposed_x0020_Team || '');
+   const finalTeam = transferCanonicalTeam(document.getElementById('sdFinalTeam') ? document.getElementById('sdFinalTeam').value : (CURRENT_TRANSFER_ITEM.Proposed_x0020_Team || ''));
     const lmName = document.getElementById('sdTransferLM').value;
     const smName = document.getElementById('sdTransferSM').value;
 
@@ -1762,4 +1772,3 @@ async function submitDeclineTransfer() {
         alert('Error: ' + e.message);
     }
 }
-
