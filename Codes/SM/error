@@ -1291,7 +1291,7 @@ async function transferResolveSmId(smName) {
 }
 
 async function transferFindTsmSeItem(accountCode) {
-    var safeCode = String(accountCode || '').replace(/'/g, "''");
+    var safeCode = String(accountCode || '').trim().replace(/'/g, "''");
     var url = SP_URL + "/_api/web/lists/getbytitle('" + TRANSFER_TSM_SE_LIST + "')/items?" +
         "$select=ID,Title&$filter=Title eq '" + safeCode + "'&$top=1";
     var res = await fetch(url, {
@@ -1304,11 +1304,15 @@ async function transferFindTsmSeItem(accountCode) {
 }
 
 async function transferCopyToTsmSeList(item, lmName, smName) {
-    var src = (window.ALL_DATA || []).find(function (a) { return a.code === item.Title; }) || {};
+    var accountCode = String(item.Title || '').trim();
+    if (!accountCode) throw new Error('Cannot move to TSM_SE_Accounts: missing account code.');
+    var src = (window.ALL_DATA || []).find(function (a) {
+        return String(a.code || '').trim() === accountCode;
+    }) || {};
     var digest = await transferGetDigest();
     var payload = {
         __metadata: { type: TRANSFER_TSM_SE_ENTITY },
-        Title: item.Title,
+        Title: accountCode,
         ParentCode: src.parent || '',
         CustomerName: item.Customer_x0020_Name || src.customer || '',
         AccountManager: (item.Account_x0020_Manager && item.Account_x0020_Manager.Title) || src.am || '',
@@ -1326,7 +1330,7 @@ async function transferCopyToTsmSeList(item, lmName, smName) {
         payload[m.odata] = typeof raw === 'number' ? raw : (parseFloat(String(raw).replace(/,/g, '')) || 0);
     });
 
-    var existing = await transferFindTsmSeItem(item.Title);
+    var existing = await transferFindTsmSeItem(accountCode);
     var url = existing
         ? SP_URL + "/_api/web/lists/getbytitle('" + TRANSFER_TSM_SE_LIST + "')/items(" + existing.ID + ")"
         : SP_URL + "/_api/web/lists/getbytitle('" + TRANSFER_TSM_SE_LIST + "')/items";
@@ -1346,7 +1350,7 @@ async function transferCopyToTsmSeList(item, lmName, smName) {
         body: JSON.stringify(payload)
     });
     if (!res.ok) throw new Error('Could not add account to TSM_SE_Accounts: ' + (await res.text()).slice(0, 180));
-    var verified = await transferFindTsmSeItem(item.Title);
+    var verified = await transferFindTsmSeItem(accountCode);
     if (!verified) throw new Error('TSM_SE_Accounts save could not be verified. Main account was not deleted.');
     return verified.ID;
 }
@@ -1428,6 +1432,7 @@ ${USER_CONTEXT.userName}`);
 
     const _cc = [_newLmEmail, _newSmEmail, _oldLmEmail, _oldSmEmail, USER_CONTEXT.userEmail].filter(Boolean).join(';');
     const transferMailHref = `mailto:${_to}?subject=${_subj}&body=${_bdy}&cc=${_cc}`;
+    let completedTsmSeItemId = null;
 
     // SharePoint calls using .then() - no async/await
     getUserId(lmName)
@@ -1445,7 +1450,8 @@ ${USER_CONTEXT.userName}`);
             const accountCode = CURRENT_TRANSFER_ITEM.Title;
             if (finalTeam === 'TSM_SE') {
                 return transferCopyToTsmSeList(CURRENT_TRANSFER_ITEM, lmName, TRANSFER_TSM_SE_POOL_SM)
-                    .then(function () {
+                    .then(function (tsmSeItemId) {
+                        completedTsmSeItemId = tsmSeItemId;
                         return transferDeleteMainAccount(CURRENT_TRANSFER_ITEM.ID);
                     })
                     .then(function () {
@@ -1477,7 +1483,8 @@ ${USER_CONTEXT.userName}`);
         })
         
             .then(() => {
-            document.getElementById('sdTransferMessage').innerHTML = '<span style="color: var(--success);">Transfer completed successfully!</span>';
+            document.getElementById('sdTransferMessage').innerHTML = '<span style="color: var(--success);">Transfer completed successfully' +
+                (completedTsmSeItemId ? ' — TSM_SE_Accounts item ID: ' + completedTsmSeItemId : '') + '.</span>';
             window.location.href = transferMailHref;
             if (typeof logAccountHistory === 'function') {
                 logAccountHistory(
