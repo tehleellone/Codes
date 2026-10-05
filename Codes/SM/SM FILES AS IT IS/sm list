@@ -1,0 +1,120 @@
+	
+Skip Navigation LinksTSM_SE_Accounts : Settings
+List Information
+Name:	TSM_SE_Accounts
+Web Address:	http://sharedspaces:8086/sites/SM/Lists/TSM_SE_Accounts/AllItems.aspx
+
+Columns
+A column stores information about each item in the list. The following columns are currently available in this list:
+Column (click to edit)	Type	Required
+Title	Single line of text	
+ParentCode	Single line of text	
+CustomerName	Single line of text	
+AccountManager	Single line of text	
+AccountDirector	Single line of text	
+ServiceManager	Single line of text	
+LineManager	Single line of text	
+Team	Single line of text	
+Segment	Single line of text	
+Jan26	Number	
+Feb26	Number	
+Apr26	Number	
+Mar26	Number	
+May26	Number	
+Jun26	Number	
+Jul26	Number	
+Aug26	Number	
+Sep26	Number	
+Oct26	Number	
+Nov26	Number	
+Dec26	Number	
+Jan27	Number	
+Feb27	Number	
+Mar27	Number	
+Apr27	Number	
+May27	Number	
+Jun27	Number	
+Jul27	Number	
+Sep27	Number	
+Oct27	Number	
+Aug27	Number	
+Nov27	Number	
+Dec27	Number	
+Modified	Date and Time	
+Created	Date and Time	
+Created By	Person or Group	
+Modified By	Person or Group	
+
+all column sbelow with nternal name:
+
+0	'Account Code'	'Title'
+1	'Account Director'	'Account_x0020_Director'
+2	'Account Manager'	'Account_x0020_Manager'
+3	'Account_Source'	'Account_Source'
+4	'AccountType'	'AccountType'
+5	'Apr-26'	'Apr_x002d_26'
+6	'Apr-27'	'Apr_x002d_27'
+7	'Assignment_Date'	'Assignment_Date'
+8	'Aug-26'	'Aug_x002d_26'
+9	'Aug-27'	'Aug_x002d_27'
+10	'Created'	'Created'
+11	'Customer Name'	'Customer_x0020_Name'
+12	'Dashboard_Active'	'Dashboard_Active'
+13	'Dec-25'	'Dec_x002d_25'
+14	'Dec-26'	'Dec_x002d_26'
+15	'Dec-27'	'Dec_x002d_27'
+16	'Feb-26'	'Feb_x002d_26'
+17	'Feb-27'	'Feb_x002d_27'
+18	'Introduction_Done'	'Introduction_Done'
+19	'Jan-26'	'Jan_x002d_26'
+20	'Jan-27'	'Jan_x002d_27'
+21	'Jul-26'	'Jul_x002d_26'
+22	'Jul-27'	'Jul_x002d_27'
+23	'Jun-26'	'Jun_x002d_26'
+24	'Jun-27'	'Jun_x002d_27'
+25	'Line Manager'	'Line_x0020_Manager'
+26	'Mar-26'	'Mar_x002d_26'
+27	'Mar-27'	'Mar_x002d_27'
+28	'May-26'	'May_x002d_26'
+29	'May-27'	'May_x002d_27'
+30	'Modified'	'Modified'
+31	'New_Account_Request_Date'	'New_Account_Request_Date'
+32	'Nov-25'	'Nov_x002d_25'
+33	'Nov-26'	'Nov_x002d_26'
+34	'Nov-27'	'Nov_x002d_27'
+35	'Oct-25'	'Oct_x002d_25'
+36	'Oct-26'	'Oct_x002d_26'
+37	'Oct-27'	'Oct_x002d_27'
+38	'Parent Code'	'Parent_x0020_Code'
+39	'POC Contact No'	'POC_x0020_Contact_x0020_No'
+40	'POC Email ID'	'POC_x0020_Email_x0020_ID'
+41	'POC Name'	'POC_x0020_Name'
+42	'Proposed Team'	'Proposed_x0020_Team'
+43	'Reject_New_Account_Reason'	'Reject_New_Account_Reason'
+44	'Rejection Reason'	'Rejection_x0020_Reason'
+45	'Request Status'	'Request_x0020_Status'
+46	'Request Type'	'Request_x0020_Type'
+47	'Requested By'	'Requested_x0020_By'
+48	'RNPS_Eligibility'	'RNPS_Eligibility'
+49	'RNPS_Not_Eligible_Reason'	'RNPS_Not_Eligible_Reason'
+50	'RNPS_POC'	'RNPS_POC'
+51	'Secondary POC Contact'	'Secondary_x0020_POC_x0020_Contac'
+52	'Secondary POC Details'	'Secondary_x0020_POC_x0020_Detail'
+53	'Secondary POC Email'	'Secondary_x0020_POC_x0020_Email'
+54	'Secondary POC Name'	'Secondary_x0020_POC_x0020_Name'
+55	'Secondary Service Manager'	'Secondary_x0020_Service_x0020_Ma'
+56	'Segment'	'Segment'
+57	'Sep-26'	'Sep_x002d_26'
+58	'Sep-27'	'Sep_x002d_27'
+59	'Service Director'	'Service_x0020_Director'
+60	'Service Manager'	'Service_x0020_Manager'
+61	'Service_Required'	'Service_Required'
+62	'Team'	'Team'
+63	'Technical POC Contact'	'Technical_x0020_POC_x0020_Contac'
+64	'Technical POC Email'	'Technical_x0020_POC_x0020_Email'
+65	'Technical POC Name'	'Technical_x0020_POC_x0020_Name'
+66	'Transfer Reason'	'Transfer_x0020_Reason'
+67	'Transfer_Request_Date'	'Transfer_Request_Date'
+68	'TSM_SE_ITEM_ID'	'TSM_SE_ITEM_ID'
+69	'Created By'	'Author'
+70	'Modified By'	'Editor'
