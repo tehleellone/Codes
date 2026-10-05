@@ -1112,7 +1112,6 @@ async function loadAdminTransferRequests() {
         const url = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items?" +
             "$select=ID,Title,Customer_x0020_Name,Team,Proposed_x0020_Team," +
             "Request_x0020_Type,Request_x0020_Status,Transfer_Request_Date," +
-            "Account_Manager_Text,Account_Director_Text," +
             "Account_x0020_Manager/Title,Account_x0020_Director/Title," +
             "Service_x0020_Manager/Title,Line_x0020_Manager/Title&" +
             "$expand=Account_x0020_Manager,Account_x0020_Director,Service_x0020_Manager,Line_x0020_Manager&" +
@@ -1307,7 +1306,7 @@ async function reviewTransferBySD(itemId) {
     try {
         const url = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items(" + itemId + ")?" +
             "$select=ID,Title,Customer_x0020_Name,Team,Proposed_x0020_Team,Transfer_x0020_Reason," +
-            "Account_Source,TSM_SE_ITEM_ID,Dashboard_Active,Account_Manager_Text,Account_Director_Text," +
+            "Account_Source,TSM_SE_ITEM_ID,Dashboard_Active," +
             "Line_x0020_Manager/Title,Line_x0020_Manager/EMail," +
             "Service_x0020_Manager/Title,Service_x0020_Manager/EMail," +
             "Account_x0020_Manager/Title,Account_x0020_Manager/EMail," +
@@ -1468,23 +1467,13 @@ async function transferDeleteTsmSeAccountById(itemId) {
     if (!res.ok) throw new Error('Could not remove account from TSM_SE_Accounts: ' + (await res.text()).slice(0, 180));
 }
 
-/** Optional SM list text backup (Single line) when Person lookup is used on main list */
-var TRANSFER_AM_TEXT_FIELD = 'Account_Manager_Text';
-var TRANSFER_AD_TEXT_FIELD = 'Account_Director_Text';
-
 function transferDisplayAm(item) {
     if (!item) return '';
-    return (item.Account_x0020_Manager && item.Account_x0020_Manager.Title) || item.Account_Manager_Text || '';
+    return (item.Account_x0020_Manager && item.Account_x0020_Manager.Title) || '';
 }
 function transferDisplayAd(item) {
     if (!item) return '';
-    return (item.Account_x0020_Director && item.Account_x0020_Director.Title) || item.Account_Director_Text || '';
-}
-function transferDisplayAmEmail(item) {
-    if (!item) return '';
-    if (item.Account_x0020_Manager && item.Account_x0020_Manager.EMail) return item.Account_x0020_Manager.EMail;
-    var t = item.Account_Manager_Text || '';
-    return t.indexOf('@') >= 1 ? t : '';
+    return (item.Account_x0020_Director && item.Account_x0020_Director.Title) || '';
 }
 
 function transferParseEnsureUserId(json) {
@@ -1536,40 +1525,22 @@ async function transferGetUserIdByEmail(email) {
     return null;
 }
 
-async function transferMergeSePeopleTextFields(itemId, digest, amText, adText) {
-    if (!itemId || (!amText && !adText)) return;
-    var patch = {
-        __metadata: { type: 'SP.Data.Service_x0020_Manager_x0020_RequestListItem' }
-    };
-    if (amText) patch[TRANSFER_AM_TEXT_FIELD] = String(amText).trim();
-    if (adText) patch[TRANSFER_AD_TEXT_FIELD] = String(adText).trim();
-    try {
-        var res = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items(" + itemId + ")", {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json;odata=verbose',
-                'Content-Type': 'application/json;odata=verbose',
-                'X-RequestDigest': digest,
-                'IF-MATCH': '*',
-                'X-HTTP-Method': 'MERGE'
-            },
-            credentials: 'include',
-            body: JSON.stringify(patch)
-        });
-        if (!res.ok) {
-            console.warn('[Transfer] Text AM/AD not saved — add columns Account_Manager_Text & Account_Director_Text on SM list.');
-        }
-    } catch (e) {
-        console.warn('[Transfer] Text AM/AD merge skipped:', e.message);
-    }
-}
-
 async function transferApplySePeopleToSmItem(itemId, seRow, digest) {
     if (!itemId || !seRow) return { amId: null, adId: null };
+    var amId = null;
+    var adId = null;
+    if (seRow.amUserId) {
+        var amUid = parseInt(String(seRow.amUserId).trim(), 10);
+        if (!isNaN(amUid) && amUid > 0) amId = amUid;
+    }
+    if (seRow.adUserId) {
+        var adUid = parseInt(String(seRow.adUserId).trim(), 10);
+        if (!isNaN(adUid) && adUid > 0) adId = adUid;
+    }
     var amRaw = String(seRow.am || '').trim();
     var adRaw = String(seRow.ad || '').trim();
-    var amId = amRaw ? await transferResolvePersonId(amRaw) : null;
-    var adId = adRaw ? await transferResolvePersonId(adRaw) : null;
+    if (!amId && amRaw) amId = await transferResolvePersonId(amRaw);
+    if (!adId && adRaw) adId = await transferResolvePersonId(adRaw);
     var personPatch = {
         __metadata: { type: 'SP.Data.Service_x0020_Manager_x0020_RequestListItem' }
     };
@@ -1589,7 +1560,6 @@ async function transferApplySePeopleToSmItem(itemId, seRow, digest) {
             body: JSON.stringify(personPatch)
         });
     }
-    await transferMergeSePeopleTextFields(itemId, digest, amRaw, adRaw);
     return { amId: amId, adId: adId };
 }
 
@@ -1681,8 +1651,6 @@ async function transferCreateSmRequestFromTsmSe(seRow, newTeam, reason, currentU
     if (adId) payload.Account_x0020_DirectorId = adId;
     if (lmId) payload.Line_x0020_ManagerId = lmId;
     if (smId) payload.Service_x0020_ManagerId = smId;
-    if (seRow.am) payload[TRANSFER_AM_TEXT_FIELD] = String(seRow.am).trim();
-    if (seRow.ad) payload[TRANSFER_AD_TEXT_FIELD] = String(seRow.ad).trim();
 
     var res = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items", {
         method: 'POST',
@@ -1695,24 +1663,7 @@ async function transferCreateSmRequestFromTsmSe(seRow, newTeam, reason, currentU
         body: JSON.stringify(payload)
     });
     if (!res.ok) {
-        var errBody = await res.text();
-        if (errBody.indexOf(TRANSFER_AM_TEXT_FIELD) >= 0 || errBody.indexOf(TRANSFER_AD_TEXT_FIELD) >= 0) {
-            delete payload[TRANSFER_AM_TEXT_FIELD];
-            delete payload[TRANSFER_AD_TEXT_FIELD];
-            res = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items", {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json;odata=verbose',
-                    'Content-Type': 'application/json;odata=verbose',
-                    'X-RequestDigest': digest
-                },
-                credentials: 'include',
-                body: JSON.stringify(payload)
-            });
-            if (!res.ok) throw new Error('Could not create transfer request on main list: ' + (await res.text()).slice(0, 220));
-        } else {
-            throw new Error('Could not create transfer request on main list: ' + errBody.slice(0, 220));
-        }
+        throw new Error('Could not create transfer request on main list: ' + (await res.text()).slice(0, 220));
     }
     var created = await res.json();
     var newId = created.d && created.d.ID ? created.d.ID : null;
