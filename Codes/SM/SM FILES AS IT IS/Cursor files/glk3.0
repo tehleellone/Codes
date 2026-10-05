@@ -9778,20 +9778,6 @@ function glkMobileQtdSectionPlugin(bars){
       var x1=b0.x-(b0.width||14)/2-6, x2=b1.x+(b1.width||14)/2+6;
       ctx.fillStyle=MQ_SECTION_FILLS[sp.key]||MQ_SECTION_FILLS.gross;
       ctx.fillRect(x1,area.top,x2-x1,area.bottom-area.top);
-      if(MQ_SECTION_TITLES[sp.key]){
-        var alignRight=(sp.key==='churn'||sp.key==='empty');
-        ctx.fillStyle='rgba(30,41,59,.88)';
-        ctx.font='800 11px Inter';
-        ctx.textBaseline='bottom';
-        var titleY=area.bottom-6;
-        if(alignRight){
-          ctx.textAlign='right';
-          ctx.fillText(MQ_SECTION_TITLES[sp.key],x2-8,titleY);
-        }else{
-          ctx.textAlign='left';
-          ctx.fillText(MQ_SECTION_TITLES[sp.key],x1+8,titleY);
-        }
-      }
     });
     ctx.restore();
   }};
@@ -10085,8 +10071,22 @@ function glkMobileQtdMinPxPlugin(bars,minPx){
     });
   }};
 }
+function mqSignedBarValue(b){
+  if(b&&b.signedValue!=null&&b.signedValue!=='') return num(b.signedValue);
+  return num(b&&b.value);
+}
+function mqFormatBridgeBarLabel(b){
+  var val=mqSignedBarValue(b);
+  if(b.isPlaceholder&&val===0) return '+0';
+  if(b.type==='decrease') return '-'+fmtLines(Math.abs(val));
+  if(b.type==='increase'||b.type==='base') return (val<0?'-':'+')+fmtLines(Math.abs(val));
+  if(b.type==='total'||b.type==='target'||b.type==='gap'||b.type==='growth') return (val<0?'-':'')+fmtLines(Math.abs(val));
+  return fmtLines(val);
+}
 function mqBarTooltipLines(b){
-  var lines=['Value: '+fmtLines(Math.abs(b.value))+(b.type==='decrease'?' (churn)':'')];
+  var val=mqSignedBarValue(b);
+  var sign=val<0?'-':'';
+  var lines=['Value: '+sign+fmtLines(Math.abs(val))+(b.type==='decrease'?' (churn)':'')];
   if(b.bids&&b.bids.length) lines.push(b.bids.length+' account(s) · click bar for details');
   else if(b.vertBreakdown&&b.vertBreakdown.length) lines.push('Click bar for vertical split');
   return lines;
@@ -10121,13 +10121,9 @@ function glkMobileQtdLabelPlugin(bars){
     if(!meta||!meta.data||!area) return;
     meta.data.forEach(function(bar,i){
       var b=bars[i]; if(!b) return;
-      var val=b.value, top=Math.min(bar.y,bar.base), bot=Math.max(bar.y,bar.base), h=bot-top;
+      var val=mqSignedBarValue(b), top=Math.min(bar.y,bar.base), bot=Math.max(bar.y,bar.base), h=bot-top;
       ctx.save();
-      var lbl=fmtLines(Math.abs(val));
-      if(b.isPlaceholder&&val===0) lbl='+0';
-      if(b.type==='decrease') lbl='-'+lbl;
-      else if(b.type==='increase'||b.type==='base') lbl='+'+lbl.replace(/^\+/,'');
-      else if(b.type==='total'||b.type==='target'||b.type==='gap'||b.type==='growth') lbl=(val<0?'-':'')+fmtLines(Math.abs(val));
+      var lbl=mqFormatBridgeBarLabel(b);
       if(b.type==='empty'){
         ctx.fillStyle='#64748b';
         ctx.font='bold 11px Inter';
@@ -10246,10 +10242,10 @@ function renderMobileQtdBridge(){
     var actualsVert=(!calc.activeReportLevels.length&&calc.actualsByVertical)?calc.actualsByVertical.map(function(v){return {name:v.name,value:v.actualQtd};}):null;
     trueCum=calc.actualsQtd; dispTop=calc.actualsQtd;
     pushBar({
-      value:calc.actualsQtd,trueCum:trueCum,displayStart:0,displayEnd:dispH(calc.actualsQtd,calc.actualsQtd===0,true),
+      value:calc.actualsQtd,signedValue:calc.actualsRaw,trueCum:trueCum,displayStart:0,displayEnd:dispH(calc.actualsQtd,calc.actualsQtd===0,true),
       color:MQ_CLR_ACTUALS,type:'base',custName:actualsLbl,section:'actuals',bids:[],
       vertBreakdown:actualsVert
-    },actualsLbl+' · '+fmtLines(calc.actualsQtd)+(calc.reportScopeMissing?' (vertical not in report!)':''));
+    },actualsLbl+' · '+mqFormatBridgeBarLabel({type:'base',signedValue:calc.actualsRaw,value:calc.actualsQtd})+(calc.reportScopeMissing?' (vertical not in report!)':''));
     dispTop=dispH(calc.actualsQtd,calc.actualsQtd===0,true);
     var wonLbl=mqWonBarLabel(calc);
     var wonVal=calc.gross100||0;
@@ -10402,7 +10398,7 @@ function renderMobileQtdBridge(){
         barPercentage:.88,categoryPercentage:.92,minBarLength:0,maxBarThickness:52
       }]},
       options:{responsive:true,maintainAspectRatio:false,
-        layout:{padding:{bottom:axisPad,top:36,left:4,right:8}},
+        layout:{padding:{bottom:axisPad,top:28,left:4,right:8}},
         animation:{duration:0},
         onClick:function(evt,elements){
           if(!elements.length){ mqCloseBarDetail(); return; }
