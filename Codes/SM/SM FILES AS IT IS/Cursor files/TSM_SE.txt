@@ -505,6 +505,10 @@
                 <div style="font-size:.85rem;font-weight:700;color:var(--t1);margin-bottom:.2rem;">Drop Excel file here or click to browse</div>
                 <div style="font-size:.72rem;color:var(--t3);">.xlsx files only</div>
             </div>
+            <div style="font-size:.72rem;color:var(--t2);line-height:1.45;margin-bottom:1rem;padding:.65rem .75rem;background:rgba(168,85,247,.08);border-radius:8px;border-left:3px solid var(--acc);">
+                <strong>Account Manager / Director columns:</strong> use <strong>corporate email</strong> (e.g. name@du.ae) or exact SharePoint display name.
+                Keep these as <strong>text</strong> in TSM_SE_Accounts — do not use Person type on this list. Transfer will map email → Person on Service Manager Request.
+            </div>
             <input type="file" id="tsmSeFileInput" accept=".xlsx" style="display:none;" onchange="tsmSeHandleFileSelect(this)">
 
             <!-- Upload mode -->
