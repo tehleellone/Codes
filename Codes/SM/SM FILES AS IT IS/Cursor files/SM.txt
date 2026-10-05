@@ -3279,6 +3279,10 @@
                                 <label class="filter-label">Account Director *</label>
                                 <select class="filter-select" id="editAD"></select>
                             </div>
+                            <div class="filter-group">
+                                <label class="filter-label">Segment</label>
+                                <select class="filter-select" id="editSegment"></select>
+                            </div>
                         </div>
 
                         <div style="display: flex; gap: 16px; margin-top: 32px;">
@@ -5182,11 +5186,7 @@ function computeLMRNPS(rnpsGrouped) {
                 "Secondary_x0020_POC_x0020_Name,Secondary_x0020_POC_x0020_Email,Secondary_x0020_POC_x0020_Contac," +
                 "Technical_x0020_POC_x0020_Name,Technical_x0020_POC_x0020_Email,Technical_x0020_POC_x0020_Contac," +
                 "AccountType,RNPS_Eligibility,RNPS_POC,RNPS_Not_Eligible_Reason," +
-                // 2025 months
-                "Oct_x002d_25,Nov_x002d_25,Dec_x002d_25," +
-                // 2026 months
-                "Jan_x002d_26,Feb_x002d_26,Mar_x002d_26,Apr_x002d_26,May_x002d_26,Jun_x002d_26," +
-                "Jul_x002d_26,Aug_x002d_26,Sep_x002d_26,Oct_x002d_26,Nov_x002d_26,Dec_x002d_26," +
+                smRevenueMonthSelectCsv() + "," +
                 "Request_x0020_Status,Request_x0020_Type,Reject_New_Account_Reason," +
                 "Segment,Account_Source,TSM_SE_ITEM_ID,Dashboard_Active&" +
                 "$expand=Line_x0020_Manager,Service_x0020_Manager,Secondary_x0020_Service_x0020_Ma,Account_x0020_Manager,Account_x0020_Director&" +
@@ -5202,7 +5202,13 @@ function computeLMRNPS(rnpsGrouped) {
             if (!res.ok) throw new Error('Failed: ' + res.statusText);
 
             const data = await res.json();
-            return data.d.results.map(item => {
+            function smIsDashboardActiveItem(spItem) {
+                var v = spItem.Dashboard_Active;
+                if (v === false || v === 0 || v === '0') return false;
+                if (String(v || '').toLowerCase() === 'no' || String(v || '').toLowerCase() === 'false') return false;
+                return true;
+            }
+            return data.d.results.filter(smIsDashboardActiveItem).map(item => {
                 const isApproved = item.Request_x0020_Status === 'OnBoarded' || item.Request_x0020_Status === 'AM_Approved';
 
                 // [NEW] Get last 3 completed months dynamically
@@ -5262,6 +5268,9 @@ function computeLMRNPS(rnpsGrouped) {
                     rnpsEligibility: parseChoiceField(item.RNPS_Eligibility) || '',
                     rnpsPoc: smNormalizeRnpsPoc(parseChoiceField(item.RNPS_POC) || 'Primary'),
                     rnpsNotEligibleReason: smPlainTextFromSharePoint(item.RNPS_Not_Eligible_Reason),
+                    segment: parseChoiceField(item.Segment) || '',
+                    accountSource: item.Account_Source || 'Main',
+                    tsmSeItemId: item.TSM_SE_ITEM_ID || null,
 
                     // [NEW] Store last 3 months values with keys
                     [lastThreeMonths[0].key]: monthRevenues[0] || 0, // e.g., 'oct25'
@@ -5278,25 +5287,17 @@ function computeLMRNPS(rnpsGrouped) {
                     rejectReason: item.Reject_New_Account_Reason || '',
                     transferDaysPassed: item.Transfer_Request_Date ? Math.floor((new Date() - new Date(item.Transfer_Request_Date)) / 86400000) : null,
 
-                    // [NEW] Store ALL month values for edit view
-                    allMonths: {
-                        'Oct_x002d_25': parseFloat(item.Oct_x002d_25) || 0,
-                        'Nov_x002d_25': parseFloat(item.Nov_x002d_25) || 0,
-                        'Dec_x002d_25': parseFloat(item.Dec_x002d_25) || 0,
-                        'Jan_x002d_26': parseFloat(item.Jan_x002d_26) || 0,
-                        'Feb_x002d_26': parseFloat(item.Feb_x002d_26) || 0,
-                        'Mar_x002d_26': parseFloat(item.Mar_x002d_26) || 0,
-                        'Apr_x002d_26': parseFloat(item.Apr_x002d_26) || 0,
-                        'May_x002d_26': parseFloat(item.May_x002d_26) || 0,
-                        'Jun_x002d_26': parseFloat(item.Jun_x002d_26) || 0,
-                        'Jul_x002d_26': parseFloat(item.Jul_x002d_26) || 0,
-                        'Aug_x002d_26': parseFloat(item.Aug_x002d_26) || 0,
-                        'Sep_x002d_26': parseFloat(item.Sep_x002d_26) || 0,
-                        'Oct_x002d_26': parseFloat(item.Oct_x002d_26) || 0,
-                        'Nov_x002d_26': parseFloat(item.Nov_x002d_26) || 0,
-                        'Dec_x002d_26': parseFloat(item.Dec_x002d_26) || 0
-                    }
+                    allMonths: smBuildAllMonthsFromSpItem(item)
                 };
+
+                SM_REVENUE_MONTH_SP_FIELDS.forEach(function (field) {
+                    if (result[field] === undefined) {
+                        var mi = field.match(/^([A-Za-z]{3})_x002d_(\d{2})$/);
+                        if (mi) {
+                            result[mi[1].toLowerCase() + mi[2]] = result.allMonths[field] || 0;
+                        }
+                    }
+                });
 
                 return result;
             });
@@ -5308,7 +5309,6 @@ function computeLMRNPS(rnpsGrouped) {
                 if (account.type !== 'Group') return;
 
                 const lastThree = getLastThreeCompletedMonths();
-                const latestKey = lastThree[2].key;
 
                 // Find all children
                 const children = ALL_DATA.filter(a =>
@@ -5317,9 +5317,14 @@ function computeLMRNPS(rnpsGrouped) {
                     a.code !== account.code
                 );
 
-                // Combined latest month revenue
-                const combinedLatest = (account[latestKey] || 0) +
-                    children.reduce((sum, c) => sum + (c[latestKey] || 0), 0);
+                const combined0 = (account[lastThree[0].key] || 0) +
+                    children.reduce((sum, c) => sum + (c[lastThree[0].key] || 0), 0);
+                const combined1 = (account[lastThree[1].key] || 0) +
+                    children.reduce((sum, c) => sum + (c[lastThree[1].key] || 0), 0);
+                const combined2 = (account[lastThree[2].key] || 0) +
+                    children.reduce((sum, c) => sum + (c[lastThree[2].key] || 0), 0);
+                const combinedLatest = combined2;
+                const combinedAvg = (combined0 + combined1 + combined2) / 3;
 
                 account.isRevDrop = false;
                 account.isRevUpgrade = false;
@@ -5329,16 +5334,47 @@ function computeLMRNPS(rnpsGrouped) {
                 const team = account.team;
                 if (team === 'DSM' && combinedLatest < 50000) account.isRevDrop = true;
                 if (team === 'TSM_ME' && combinedLatest < 10000) account.isRevDrop = true;
-                if (team === 'TSM_SE' && combinedLatest >= 10000) account.isRevUpgrade = true;
                 if (team === 'TSM_ME' && combinedLatest >= 50000) account.isRevUpgrade = true;
+                if (team === 'TSM_SE') {
+                    if (combinedAvg < 1000) account.isRevDrop = true;
+                    else if (combinedAvg >= 10000) account.isRevUpgrade = true;
+                }
 
-                // Store combined revenue for use in transfer form
                 account.combinedLatestRev = combinedLatest;
+                account.combinedAvgRev = combinedAvg;
             });
         }
         // ========================================
         // DYNAMIC REVENUE MONTH FUNCTIONS
         // ========================================
+
+        /** SharePoint internal names for revenue months on Service Manager Request (Oct-25 … Dec-27) */
+        const SM_REVENUE_MONTH_SP_FIELDS = (function () {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const fields = ['Oct_x002d_25', 'Nov_x002d_25', 'Dec_x002d_25'];
+            ['26', '27'].forEach(function (yy) {
+                months.forEach(function (m) {
+                    fields.push(m + '_x002d_' + yy);
+                });
+            });
+            return fields;
+        })();
+
+        function smRevenueMonthSelectCsv() {
+            return SM_REVENUE_MONTH_SP_FIELDS.join(',');
+        }
+
+        function smBuildAllMonthsFromSpItem(item) {
+            const out = {};
+            SM_REVENUE_MONTH_SP_FIELDS.forEach(function (field) {
+                out[field] = parseFloat(item[field]) || 0;
+            });
+            return out;
+        }
+
+        function smLastThreeMonthSelectCsv() {
+            return getLastThreeCompletedMonths().map(function (m) { return m.field; }).join(',');
+        }
 
         /**
          * Get the last 3 COMPLETED months
@@ -10020,7 +10056,11 @@ else if (sectionId === 'portalAnalyticsView') {
             'Jan_x002d_26': 'Jan-26', 'Feb_x002d_26': 'Feb-26', 'Mar_x002d_26': 'Mar-26',
             'Apr_x002d_26': 'Apr-26', 'May_x002d_26': 'May-26', 'Jun_x002d_26': 'Jun-26',
             'Jul_x002d_26': 'Jul-26', 'Aug_x002d_26': 'Aug-26', 'Sep_x002d_26': 'Sep-26',
-            'Oct_x002d_26': 'Oct-26', 'Nov_x002d_26': 'Nov-26', 'Dec_x002d_26': 'Dec-26'
+            'Oct_x002d_26': 'Oct-26', 'Nov_x002d_26': 'Nov-26', 'Dec_x002d_26': 'Dec-26',
+            'Jan_x002d_27': 'Jan-27', 'Feb_x002d_27': 'Feb-27', 'Mar_x002d_27': 'Mar-27',
+            'Apr_x002d_27': 'Apr-27', 'May_x002d_27': 'May-27', 'Jun_x002d_27': 'Jun-27',
+            'Jul_x002d_27': 'Jul-27', 'Aug_x002d_27': 'Aug-27', 'Sep_x002d_27': 'Sep-27',
+            'Oct_x002d_27': 'Oct-27', 'Nov_x002d_27': 'Nov-27', 'Dec_x002d_27': 'Dec-27'
         };
 
         function smHistoryFmtDate(iso) {
@@ -10861,6 +10901,30 @@ else if (sectionId === 'portalAnalyticsView') {
         window.smShowItemHistory = smShowItemHistory;
         window.smCloseItemHistory = smCloseItemHistory;
 
+        function smPopulateEditSegmentDropdown(currentVal) {
+            var sel = document.getElementById('editSegment');
+            if (!sel) return;
+            var set = {};
+            (ALL_DATA || []).forEach(function (a) { if (a.segment) set[a.segment] = true; });
+            (window.TSM_SE_DATA || []).forEach(function (a) { if (a.segment) set[a.segment] = true; });
+            var opts = Object.keys(set).sort();
+            sel.innerHTML = '<option value="">— Select Segment —</option>';
+            opts.forEach(function (s) {
+                var o = document.createElement('option');
+                o.value = s;
+                o.textContent = s;
+                if (s === currentVal) o.selected = true;
+                sel.appendChild(o);
+            });
+            if (currentVal && !set[currentVal]) {
+                var cur = document.createElement('option');
+                cur.value = currentVal;
+                cur.textContent = currentVal;
+                cur.selected = true;
+                sel.appendChild(cur);
+            }
+        }
+
         async function openEditRequest(accountCode) {
             try {
                 if (typeof smNormalizeContentSections === 'function') smNormalizeContentSections();
@@ -10910,6 +10974,7 @@ else if (sectionId === 'portalAnalyticsView') {
                 // ✅ STEP 5: Reset dropdowns
                 document.getElementById('editAM').selectedIndex = 0;
                 document.getElementById('editAD').selectedIndex = 0;
+                smPopulateEditSegmentDropdown('');
 
                 // ✅ STEP 6: Load fresh account data
                 const account = ALL_DATA.find(a => a.code === accountCode);
@@ -10940,7 +11005,8 @@ else if (sectionId === 'portalAnalyticsView') {
                     ['Line Manager', account.lm],
                     ['Service Manager', account.sm],
                     ['Account Manager', account.am],
-                    ['Account Director', account.ad]
+                    ['Account Director', account.ad],
+                    ['Segment', account.segment || '—']
                 ];
 
                 fields.forEach(function (pair) {
@@ -11070,6 +11136,8 @@ else if (sectionId === 'portalAnalyticsView') {
                     if (ad === account.ad) opt.selected = true;
                     adSelect.appendChild(opt);
                 });
+
+                smPopulateEditSegmentDropdown(account.segment || '');
 
                 // Initialize Lucide icons
                 if (typeof lucide !== 'undefined') {
@@ -11288,6 +11356,7 @@ else if (sectionId === 'portalAnalyticsView') {
         function reviewEditRequest() {
             const newAM = document.getElementById('editAM').value;
             const newAD = document.getElementById('editAD').value;
+            const newSegment = (document.getElementById('editSegment') || {}).value || '';
             const newSecondarySm = smNormalizePersonName((document.getElementById('editSecondarySM') || {}).value);
             const oldSecondarySm = smNormalizePersonName(EDIT_ACCOUNT_DATA.secondarySm);
 
@@ -11331,6 +11400,7 @@ else if (sectionId === 'portalAnalyticsView') {
 
             const amChanged = newAM !== EDIT_ACCOUNT_DATA.am;
             const adChanged = newAD !== EDIT_ACCOUNT_DATA.ad;
+            const segmentChanged = newSegment !== (EDIT_ACCOUNT_DATA.segment || '');
             const secondarySmChanged = newSecondarySm !== oldSecondarySm;
             const revenueChanged = newRevenue !== null && newRevenue !== (EDIT_ACCOUNT_DATA.allMonths[revenueField] || 0);
             let newRnpsEligibility = EDIT_ACCOUNT_DATA.rnpsEligibility || '';
@@ -11385,12 +11455,13 @@ else if (sectionId === 'portalAnalyticsView') {
                 ? newRnpsPoc !== oldRnpsPocDisplay
                 : (EDIT_ACCOUNT_DATA.rnpsPoc && !smIsRnpsNotEligible(EDIT_ACCOUNT_DATA.rnpsEligibility));
 
-            if (!amChanged && !adChanged && !secondarySmChanged && !revenueChanged && !rnpsChanged && !rnpsReasonChanged && !pocChanged && !rnpsPocChanged && window.EDIT_ALL_MONTHS.length === 0) {
+            if (!amChanged && !adChanged && !segmentChanged && !secondarySmChanged && !revenueChanged && !rnpsChanged && !rnpsReasonChanged && !pocChanged && !rnpsPocChanged && window.EDIT_ALL_MONTHS.length === 0) {
                 alert('No changes detected');
                 return;
             }
 
             window.EDIT_SECONDARY_SM = newSecondarySm;
+            window.EDIT_SEGMENT = newSegment;
 
             let html = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">';
             const changes = [
@@ -11402,6 +11473,7 @@ else if (sectionId === 'portalAnalyticsView') {
                 ['Secondary SM', EDIT_ACCOUNT_DATA.secondarySm || '—', newSecondarySm || '—'],
                 ['Account Manager', EDIT_ACCOUNT_DATA.am, newAM],
                 ['Account Director', EDIT_ACCOUNT_DATA.ad, newAD],
+                ['Segment', EDIT_ACCOUNT_DATA.segment || '—', newSegment || '—'],
                 ['Account Type', EDIT_ACCOUNT_DATA.accountType || '—', EDIT_ACCOUNT_DATA.accountType || '—'],
                 ['RNPS Eligibility', EDIT_ACCOUNT_DATA.rnpsEligibility || '—', newRnpsEligibility || '—'],
                 ['Reason for RNPS not Eligible', EDIT_ACCOUNT_DATA.rnpsNotEligibleReason || '—', newRnpsNotEligibleReason || '—'],
@@ -11459,12 +11531,13 @@ else if (sectionId === 'portalAnalyticsView') {
             try {
                 const newAM = document.getElementById('editAM').value;
                 const newAD = document.getElementById('editAD').value;
+                const newSegment = window.EDIT_SEGMENT != null ? window.EDIT_SEGMENT : ((document.getElementById('editSegment') || {}).value || '');
                 const newSecondarySm = smNormalizePersonName((document.getElementById('editSecondarySM') || {}).value);
                 const oldSecondarySm = smNormalizePersonName(EDIT_ACCOUNT_DATA.secondarySm);
 
                 // Find item ID
                 const searchUrl = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items?" +
-                    "$select=ID&$filter=Title eq '" + EDIT_ACCOUNT_DATA.code + "'&$top=1";
+                    "$select=ID,Dashboard_Active&$filter=Title eq '" + EDIT_ACCOUNT_DATA.code.replace(/'/g, "''") + "'&$top=20";
 
                 const searchRes = await fetch(searchUrl, {
                     headers: {
@@ -11477,7 +11550,12 @@ else if (sectionId === 'portalAnalyticsView') {
                 const searchData = await searchRes.json();
                 if (searchData.d.results.length === 0) throw new Error('Account not found');
 
-                const itemId = searchData.d.results[0].ID;
+                var editHits = searchData.d.results || [];
+                var editPick = editHits.find(function (h) {
+                    var v = h.Dashboard_Active;
+                    return v !== false && v !== 0 && String(v || '').toLowerCase() !== 'no';
+                }) || editHits[0];
+                const itemId = editPick.ID;
 
                 // Get user IDs
                 const amId = await getUserId(newAM);
@@ -11510,6 +11588,9 @@ else if (sectionId === 'portalAnalyticsView') {
                     Account_x0020_ManagerId: amId,
                     Account_x0020_DirectorId: adId
                 };
+                if (newSegment !== (EDIT_ACCOUNT_DATA.segment || '')) {
+                    updateData.Segment = newSegment || null;
+                }
                 if (secondarySmChanged) {
                     const replacingExisting = !!oldSecondarySm && !!newSecondarySm;
                     if (replacingExisting) {
@@ -11803,7 +11884,7 @@ else if (sectionId === 'portalAnalyticsView') {
                     "Line_x0020_Manager/Title,Service_x0020_Manager/Title," +
                     "Secondary_x0020_Service_x0020_Ma/Title," +
                     "Account_x0020_Manager/Title,Account_x0020_Director/Title," +
-                    "Service_x0020_Director/Title,Jan_x002d_26" + pocFields + "&" +
+                    "Service_x0020_Director/Title," + smLastThreeMonthSelectCsv() + pocFields + "&" +
                     "$expand=Line_x0020_Manager,Service_x0020_Manager," +
                     "Secondary_x0020_Service_x0020_Ma,Account_x0020_Manager," +
                     "Account_x0020_Director,Service_x0020_Director&" +
@@ -11947,7 +12028,7 @@ else if (sectionId === 'portalAnalyticsView') {
                         "Line_x0020_Manager/Title,Service_x0020_Manager/Title," +
                         "Secondary_x0020_Service_x0020_Ma/Title," +
                         "Account_x0020_Manager/Title,Account_x0020_Director/Title," +
-                        "Service_x0020_Director/Title,Jan_x002d_26&" +
+                        "Service_x0020_Director/Title," + smLastThreeMonthSelectCsv() + "&" +
                         "$expand=Line_x0020_Manager,Service_x0020_Manager," +
                         "Secondary_x0020_Service_x0020_Ma,Account_x0020_Manager," +
                         "Account_x0020_Director,Service_x0020_Director&" +
@@ -11975,7 +12056,7 @@ else if (sectionId === 'portalAnalyticsView') {
                         "Line_x0020_Manager/Title,Service_x0020_Manager/Title," +
                         "Secondary_x0020_Service_x0020_Ma/Title," +
                         "Account_x0020_Manager/Title,Account_x0020_Director/Title," +
-                        "Service_x0020_Director/Title,Jan_x002d_26&" +
+                        "Service_x0020_Director/Title," + smLastThreeMonthSelectCsv() + "&" +
                         "$expand=Line_x0020_Manager,Service_x0020_Manager," +
                         "Secondary_x0020_Service_x0020_Ma,Account_x0020_Manager," +
                         "Account_x0020_Director,Service_x0020_Director&" +
@@ -12301,7 +12382,7 @@ else if (sectionId === 'portalAnalyticsView') {
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-pending-escalation.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/pending.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/am-ad.js"></script>
-<script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/transfer.js"></script>
+<script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/transfer.js?v=tsmse2"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/customerservice.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/analytics.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -12316,7 +12397,7 @@ else if (sectionId === 'portalAnalyticsView') {
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/repeated-calls.js?v=1.9.24"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/rnps.js"></script>
   <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/semailbox.js"></script>
-  <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=4fix1"></script>
+  <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=tsmse2"></script>
     <script>
     </script>
 </body>
