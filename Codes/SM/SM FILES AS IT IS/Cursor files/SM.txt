@@ -5217,8 +5217,7 @@ function computeLMRNPS(rnpsGrouped) {
                 "AccountType,RNPS_Eligibility,RNPS_POC,RNPS_Not_Eligible_Reason," +
                 smRevenueMonthSelectCsv() + "," +
                 "Request_x0020_Status,Request_x0020_Type,Reject_New_Account_Reason," +
-                "Segment,Account_Source,TSM_SE_ITEM_ID,Dashboard_Active," +
-                "Account_Manager_Text,Account_Director_Text&" +
+                "Segment,Account_Source,TSM_SE_ITEM_ID,Dashboard_Active&" +
                 "$expand=Line_x0020_Manager,Service_x0020_Manager,Secondary_x0020_Service_x0020_Ma,Account_x0020_Manager,Account_x0020_Director&" +
                 "$top=10000";
 
@@ -5277,10 +5276,8 @@ function computeLMRNPS(rnpsGrouped) {
                     sm: item.Service_x0020_Manager ? item.Service_x0020_Manager.Title : '',
                     secondarySm: item.Secondary_x0020_Service_x0020_Ma ? item.Secondary_x0020_Service_x0020_Ma.Title : '',
                     secondarySmEmail: item.Secondary_x0020_Service_x0020_Ma ? (item.Secondary_x0020_Service_x0020_Ma.EMail || '') : '',
-                    am: (item.Account_x0020_Manager ? item.Account_x0020_Manager.Title : '') || item.Account_Manager_Text || '',
-                    ad: (item.Account_x0020_Director ? item.Account_x0020_Director.Title : '') || item.Account_Director_Text || '',
-                    amText: item.Account_Manager_Text || '',
-                    adText: item.Account_Director_Text || '',
+                    am: item.Account_x0020_Manager ? item.Account_x0020_Manager.Title : '',
+                    ad: item.Account_x0020_Director ? item.Account_x0020_Director.Title : '',
                     lmEmail: item.Line_x0020_Manager ? (item.Line_x0020_Manager.EMail || '') : '',
                     smEmail: item.Service_x0020_Manager ? (item.Service_x0020_Manager.EMail || '') : '',
                     amEmail: item.Account_x0020_Manager ? (item.Account_x0020_Manager.EMail || '') : '',
@@ -12472,7 +12469,7 @@ else if (sectionId === 'portalAnalyticsView') {
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-pending-escalation.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/pending.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/am-ad.js"></script>
-<script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/transfer.js?v=tsmse6"></script>
+<script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/transfer.js?v=tsmse7"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/customerservice.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/analytics.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
