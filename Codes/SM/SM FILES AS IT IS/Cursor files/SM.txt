@@ -4045,6 +4045,33 @@
                         <label class="filter-label">Transfer Reason</label>
                         <textarea class="filter-select" id="transferReason" rows="4" placeholder="Explain reason for transfer (optional)" style="cursor: text; resize: vertical;"></textarea>
                     </div>
+                    <div id="transferSeAmAdSection" style="display: none;">
+                        <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 16px;">Confirm Account Manager and Account Director from Account Mapping. Type to search, then pick a name from the list.</p>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div class="filter-group">
+                                <label class="filter-label">Account Manager *</label>
+                                <div class="sm-person-wrap">
+                                    <input type="text" id="transferAMInput" class="filter-select" placeholder="Search account manager..." style="font-size: 14px; padding: 10px; width: 100%; cursor: text;" autocomplete="off"
+                                        oninput="transferMappingInput('am'); transferMappingSearch('am', this.value)"
+                                        onfocus="transferMappingSearch('am', this.value)"
+                                        onblur="setTimeout(function(){ var d=document.getElementById('transferAMDD'); if(d) d.style.display='none'; }, 250)">
+                                    <div id="transferAMDD" class="sm-person-dd"></div>
+                                </div>
+                                <input type="hidden" id="transferAMSelected" value="">
+                            </div>
+                            <div class="filter-group">
+                                <label class="filter-label">Account Director *</label>
+                                <div class="sm-person-wrap">
+                                    <input type="text" id="transferADInput" class="filter-select" placeholder="Search account director..." style="font-size: 14px; padding: 10px; width: 100%; cursor: text;" autocomplete="off"
+                                        oninput="transferMappingInput('ad'); transferMappingSearch('ad', this.value)"
+                                        onfocus="transferMappingSearch('ad', this.value)"
+                                        onblur="setTimeout(function(){ var d=document.getElementById('transferADDD'); if(d) d.style.display='none'; }, 250)">
+                                    <div id="transferADDD" class="sm-person-dd"></div>
+                                </div>
+                                <input type="hidden" id="transferADSelected" value="">
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div style="display: flex; gap: 16px; margin-top: 32px;">
@@ -4760,6 +4787,7 @@ let charts = {};
                         userId: String(100 + idx)
                     };
                 });
+                window.SM_MAPPING_DATA = SM_MAPPING_DATA;
                 return;
             }
             try {
@@ -4792,6 +4820,7 @@ let charts = {};
                 });
                 SM_MAPPING_DATA.sort(function(a, b) { return a.name.localeCompare(b.name); });
                 console.log('Account Mapping loaded:', SM_MAPPING_DATA.length, 'records');
+                window.SM_MAPPING_DATA = SM_MAPPING_DATA;
             } catch (e) {
                 console.warn('Account Mapping fetch failed:', e);
             }
@@ -5188,7 +5217,8 @@ function computeLMRNPS(rnpsGrouped) {
                 "AccountType,RNPS_Eligibility,RNPS_POC,RNPS_Not_Eligible_Reason," +
                 smRevenueMonthSelectCsv() + "," +
                 "Request_x0020_Status,Request_x0020_Type,Reject_New_Account_Reason," +
-                "Segment,Account_Source,TSM_SE_ITEM_ID,Dashboard_Active&" +
+                "Segment,Account_Source,TSM_SE_ITEM_ID,Dashboard_Active," +
+                "Account_Manager_Text,Account_Director_Text&" +
                 "$expand=Line_x0020_Manager,Service_x0020_Manager,Secondary_x0020_Service_x0020_Ma,Account_x0020_Manager,Account_x0020_Director&" +
                 "$top=10000";
 
@@ -5247,8 +5277,10 @@ function computeLMRNPS(rnpsGrouped) {
                     sm: item.Service_x0020_Manager ? item.Service_x0020_Manager.Title : '',
                     secondarySm: item.Secondary_x0020_Service_x0020_Ma ? item.Secondary_x0020_Service_x0020_Ma.Title : '',
                     secondarySmEmail: item.Secondary_x0020_Service_x0020_Ma ? (item.Secondary_x0020_Service_x0020_Ma.EMail || '') : '',
-                    am: item.Account_x0020_Manager ? item.Account_x0020_Manager.Title : '',
-                    ad: item.Account_x0020_Director ? item.Account_x0020_Director.Title : '',
+                    am: (item.Account_x0020_Manager ? item.Account_x0020_Manager.Title : '') || item.Account_Manager_Text || '',
+                    ad: (item.Account_x0020_Director ? item.Account_x0020_Director.Title : '') || item.Account_Director_Text || '',
+                    amText: item.Account_Manager_Text || '',
+                    adText: item.Account_Director_Text || '',
                     lmEmail: item.Line_x0020_Manager ? (item.Line_x0020_Manager.EMail || '') : '',
                     smEmail: item.Service_x0020_Manager ? (item.Service_x0020_Manager.EMail || '') : '',
                     amEmail: item.Account_x0020_Manager ? (item.Account_x0020_Manager.EMail || '') : '',
@@ -12440,7 +12472,7 @@ else if (sectionId === 'portalAnalyticsView') {
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-pending-escalation.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/pending.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/am-ad.js"></script>
-<script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/transfer.js?v=tsmse4"></script>
+<script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/transfer.js?v=tsmse6"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/customerservice.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/analytics.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
