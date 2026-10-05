@@ -1309,6 +1309,12 @@ async function transferDeleteTsmSeAccountById(itemId) {
 async function transferResolvePersonId(displayName) {
     var name = String(displayName || '').trim();
     if (!name) return null;
+    if (name.indexOf('@') >= 1) {
+        try {
+            var byEmail = await transferGetUserIdByEmail(name.toLowerCase());
+            if (byEmail) return byEmail;
+        } catch (eEmail) {}
+    }
     if (typeof fetchAccountMapping === 'function' && (!window.SM_MAPPING_DATA || !window.SM_MAPPING_DATA.length)) {
         try { await fetchAccountMapping(); } catch (e) {}
     }
