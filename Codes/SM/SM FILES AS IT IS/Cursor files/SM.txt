@@ -7059,8 +7059,19 @@ if (role === 'Line Manager') {
             selectedSM = null;
             var teamEl = document.getElementById('filterTeam');
             var wasTsmSe = !!window.TSM_SE_ACTIVE;
-            window.TSM_SE_ACTIVE = !!(teamEl && teamEl.value === 'TSM_SE');
-            if (wasTsmSe && !window.TSM_SE_ACTIVE) {
+            var nowTsmSe = !!(teamEl && teamEl.value === 'TSM_SE');
+            window.TSM_SE_ACTIVE = nowTsmSe;
+            if (nowTsmSe && !wasTsmSe) {
+                smClearMsDropdown('LM');
+                smClearMsDropdown('SM');
+                smClearMsDropdown('RevDrop');
+                smClearMsDropdown('Structure');
+                window.TSM_SE_SEGMENT_FILTER = '';
+                window._TRANSFER_FILTER_VAL = '';
+                var tfMain = document.getElementById('transferStatusFilterMain');
+                if (tfMain) tfMain.value = '';
+            }
+            if (wasTsmSe && !nowTsmSe) {
                 smExitTsmSeMode();
             }
             var perfSec = document.getElementById('smPerformanceSection');
@@ -7132,6 +7143,35 @@ if (role === 'Line Manager') {
             }
         }
 
+        function smApplyTsmSeFilters() {
+            window.TSM_SE_ACTIVE = true;
+            var segFilter = window.TSM_SE_SEGMENT_FILTER || '';
+            var allFiltered = (window.TSM_SE_DATA || []).slice();
+            if (segFilter) {
+                allFiltered = allFiltered.filter(function (a) { return a.segment === segFilter; });
+            }
+
+            filtered = allFiltered.slice();
+            window.ALL_FILTERED = allFiltered;
+            updateStats();
+            renderLineManagers();
+            if (selectedLM) {
+                renderServiceManagers();
+            } else {
+                var perfSec = document.getElementById('smPerformanceSection');
+                if (perfSec) perfSec.style.display = 'none';
+            }
+            renderCharts();
+            if (typeof window.tsmSeInjectUploadBtn === 'function') window.tsmSeInjectUploadBtn();
+            if (typeof window.tsmSeRenderGrid === 'function') {
+                window.tsmSeRenderGrid(allFiltered);
+            } else if (typeof window.tsmSeRenderTable === 'function') {
+                window.tsmSeRenderTable();
+            }
+            if (typeof window.tsmSeRenderSegmentChips === 'function') window.tsmSeRenderSegmentChips();
+        }
+        window.smApplyTsmSeFilters = smApplyTsmSeFilters;
+
         function applyFilters() {
             smSyncLegacyFilterSelects(false);
             updateServiceManagerFilter();
@@ -7142,6 +7182,22 @@ if (role === 'Line Manager') {
             const structureSel = smGetMsFilterValues('Structure');
 
             window.TSM_SE_ACTIVE = teamSel.length === 1 && teamSel[0] === 'TSM_SE';
+
+            if (window.TSM_SE_ACTIVE) {
+                if (!window._tsmSeFilterResetDone) {
+                    selectedLM = null;
+                    selectedSM = null;
+                    smClearMsDropdown('LM');
+                    smClearMsDropdown('SM');
+                    smClearMsDropdown('RevDrop');
+                    smClearMsDropdown('Structure');
+                    window.TSM_SE_SEGMENT_FILTER = '';
+                    window._tsmSeFilterResetDone = true;
+                }
+                smApplyTsmSeFilters();
+                return;
+            }
+            window._tsmSeFilterResetDone = false;
 
             // First filter ALL data based on criteria
            const allFiltered = ALL_DATA.filter(a => {
@@ -7214,7 +7270,9 @@ if (role === 'Line Manager') {
 
     updateServiceManagerFilter();
     applyFilters();
-    await renderServiceManagers(); // ← add this
+    if (!window.TSM_SE_ACTIVE) {
+        await renderServiceManagers();
+    }
 }
 
         function selectSM(name) {
@@ -12382,7 +12440,7 @@ else if (sectionId === 'portalAnalyticsView') {
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-pending-escalation.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/pending.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/am-ad.js"></script>
-<script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/transfer.js?v=tsmse2"></script>
+<script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/transfer.js?v=tsmse4"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/customerservice.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/analytics.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -12397,7 +12455,7 @@ else if (sectionId === 'portalAnalyticsView') {
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/repeated-calls.js?v=1.9.24"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/rnps.js"></script>
   <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/semailbox.js"></script>
-  <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=tsmse2"></script>
+  <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=tsmse4"></script>
     <script>
     </script>
 </body>
