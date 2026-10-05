@@ -128,6 +128,134 @@ function inject() {
     } else { inject(); }
 })();
 
+        var TRANSFER_MAPPING_CACHE = null;
+
+        function transferNormalizePersonName(name) {
+            return (name || '').trim().replace(/\s+/g, ' ');
+        }
+
+        async function transferEnsureMappingData() {
+            if (typeof fetchAccountMapping === 'function') {
+                await fetchAccountMapping();
+            }
+            if (typeof window.SM_MAPPING_DATA !== 'undefined' && window.SM_MAPPING_DATA && window.SM_MAPPING_DATA.length) {
+                TRANSFER_MAPPING_CACHE = window.SM_MAPPING_DATA;
+            } else if (typeof SM_MAPPING_DATA !== 'undefined' && SM_MAPPING_DATA && SM_MAPPING_DATA.length) {
+                TRANSFER_MAPPING_CACHE = SM_MAPPING_DATA;
+            } else {
+                TRANSFER_MAPPING_CACHE = TRANSFER_MAPPING_CACHE || [];
+            }
+            return TRANSFER_MAPPING_CACHE;
+        }
+
+        function transferMappingPool() {
+            return TRANSFER_MAPPING_CACHE || window.SM_MAPPING_DATA || [];
+        }
+
+        function transferMappingFieldIds(field) {
+            if (field === 'am') {
+                return { input: 'transferAMInput', dd: 'transferAMDD', hidden: 'transferAMSelected' };
+            }
+            return { input: 'transferADInput', dd: 'transferADDD', hidden: 'transferADSelected' };
+        }
+
+        function transferGetSelectedMapping(field) {
+            var ids = transferMappingFieldIds(field);
+            var el = document.getElementById(ids.hidden);
+            if (!el || !el.value) return null;
+            try {
+                var parsed = JSON.parse(el.value);
+                if (parsed && parsed.confirmed && parsed.name) return parsed;
+            } catch (e) {}
+            return null;
+        }
+
+        window.transferMappingInput = function (field) {
+            var ids = transferMappingFieldIds(field);
+            var hidden = document.getElementById(ids.hidden);
+            if (hidden) hidden.value = '';
+        };
+
+        window.transferMappingSearch = function (field, q) {
+            var ids = transferMappingFieldIds(field);
+            var dd = document.getElementById(ids.dd);
+            if (!dd) return;
+            var lower = (q || '').toLowerCase();
+            var pool = transferMappingPool().slice();
+            var results = lower
+                ? pool.filter(function (a) {
+                    return a.name.toLowerCase().indexOf(lower) >= 0 ||
+                        (a.team || '').toLowerCase().indexOf(lower) >= 0 ||
+                        (a.email || '').toLowerCase().indexOf(lower) >= 0;
+                })
+                : pool.slice(0, 40);
+
+            dd.innerHTML = '';
+            if (!results.length) {
+                dd.innerHTML = '<div class="sm-person-item" style="color:var(--t3);font-size:.82rem;">No matches in Account Mapping</div>';
+                dd.style.display = 'block';
+                return;
+            }
+            results.forEach(function (a) {
+                var item = document.createElement('div');
+                item.className = 'sm-person-item';
+                item.innerHTML = '<div style="font-size:.83rem;font-weight:600;color:var(--t1);">' + a.name + '</div>' +
+                    '<div style="font-size:.72rem;color:var(--t3);">' + (a.team || '') + (a.email ? ' · ' + a.email : '') + '</div>';
+                item.addEventListener('mousedown', function (e) {
+                    e.preventDefault();
+                    transferSelectMappingPerson(field, a.name, a.userId, a.team);
+                });
+                dd.appendChild(item);
+            });
+            dd.style.display = 'block';
+        };
+
+        window.transferSelectMappingPerson = function (field, name, userId, team) {
+            var ids = transferMappingFieldIds(field);
+            var hidden = document.getElementById(ids.hidden);
+            var inp = document.getElementById(ids.input);
+            var dd = document.getElementById(ids.dd);
+            var normalized = transferNormalizePersonName(name);
+            if (hidden) {
+                hidden.value = JSON.stringify({
+                    confirmed: true,
+                    name: normalized,
+                    userId: userId != null ? String(userId).trim() : '',
+                    team: team || ''
+                });
+            }
+            if (inp) inp.value = normalized;
+            if (dd) dd.style.display = 'none';
+        };
+
+        function transferResetSeAmAdPickers() {
+            ['am', 'ad'].forEach(function (field) {
+                var ids = transferMappingFieldIds(field);
+                var inp = document.getElementById(ids.input);
+                var hidden = document.getElementById(ids.hidden);
+                var dd = document.getElementById(ids.dd);
+                if (inp) inp.value = '';
+                if (hidden) hidden.value = '';
+                if (dd) { dd.innerHTML = ''; dd.style.display = 'none'; }
+            });
+            var section = document.getElementById('transferSeAmAdSection');
+            if (section) section.style.display = 'none';
+        }
+
+        async function transferPrepareSeTransferForm(amPrefill, adPrefill) {
+            await transferEnsureMappingData();
+            var section = document.getElementById('transferSeAmAdSection');
+            if (section) section.style.display = 'block';
+            var amInp = document.getElementById('transferAMInput');
+            var adInp = document.getElementById('transferADInput');
+            var amH = document.getElementById('transferAMSelected');
+            var adH = document.getElementById('transferADSelected');
+            if (amInp) amInp.value = transferNormalizePersonName(amPrefill);
+            if (adInp) adInp.value = transferNormalizePersonName(adPrefill);
+            if (amH) amH.value = '';
+            if (adH) adH.value = '';
+        }
+
         function openTransferRequest(code, customer, team, lm, sm, am, ad, opts) {
             opts = opts || {};
             const lastThree = getLastThreeCompletedMonths();
@@ -162,14 +290,17 @@ function inject() {
                 ['Customer Name', customer],
                 ['Current Team', team],
                 ['Line Manager', lm],
-                ['Service Manager', sm],
-                ['Account Manager', am],
-                ['Account Director', ad],
+                ['Service Manager', sm]
+            ];
+            if (!fromTsmSe) {
+                fields.push(['Account Manager', am], ['Account Director', ad]);
+            }
+            fields.push(
                 [lastThree[0].label + ' Revenue (Group+Children)', formatCurrency(combined0)],
                 [lastThree[1].label + ' Revenue (Group+Children)', formatCurrency(combined1)],
                 [lastThree[2].label + ' Revenue (Group+Children)', formatCurrency(combined2)],
                 ['Avg Revenue (Last 3 Completed Months)', formatCurrency(combinedAvg)]
-            ];
+            );
 
             fields.forEach(([label, value]) => {
                 html += `
@@ -185,11 +316,18 @@ function inject() {
             document.getElementById('transferReason').value = '';
             document.getElementById('transferSubmitMessage').innerHTML = '';
 
+            if (fromTsmSe) {
+                transferPrepareSeTransferForm(am, ad);
+            } else {
+                transferResetSeAmAdPickers();
+            }
+
             document.getElementById('dashboardContent').style.display = 'none';
             document.getElementById('transferRequestView').style.display = 'block';
         }
 
         function backToDashboard() {
+            transferResetSeAmAdPickers();
             document.getElementById('transferRequestView').style.display = 'none';
             document.getElementById('dashboardContent').style.display = 'block';
         }
@@ -197,10 +335,22 @@ function inject() {
         function submitTransferRequest() {
             const newTeam = document.getElementById('transferNewTeam').value;
             const reason = document.getElementById('transferReason').value;
+            const tDataEarly = TRANSFER_ACCOUNT_DATA || {};
 
             if (!newTeam) {
                 alert('Please select proposed new team');
                 return;
+            }
+
+            if (tDataEarly.fromTsmSe) {
+                if (!transferGetSelectedMapping('am')) {
+                    alert('Please select Account Manager from the account mapping list.');
+                    return;
+                }
+                if (!transferGetSelectedMapping('ad')) {
+                    alert('Please select Account Director from the account mapping list.');
+                    return;
+                }
             }
 
             const submitBtn = event.target;
@@ -227,6 +377,16 @@ function inject() {
                         ad: tData.ad,
                         _spId: tData.tsmSeItemId
                     });
+                    var amPick = transferGetSelectedMapping('am');
+                    var adPick = transferGetSelectedMapping('ad');
+                    if (amPick) {
+                        seRow.am = amPick.name;
+                        seRow.amUserId = amPick.userId;
+                    }
+                    if (adPick) {
+                        seRow.ad = adPick.name;
+                        seRow.adUserId = adPick.userId;
+                    }
                     return transferCreateSmRequestFromTsmSe(seRow, newTeam, reason, userData.d.Id);
                 }).then(function () {
                     document.getElementById('transferSubmitMessage').innerHTML = '<span style="color: var(--success);">Transfer request submitted successfully!</span>';
@@ -249,6 +409,7 @@ function inject() {
                         document.getElementById('transferNewTeam').value = '';
                         document.getElementById('transferReason').value = '';
                         document.getElementById('transferSubmitMessage').innerHTML = '';
+                        transferResetSeAmAdPickers();
                         TRANSFER_ACCOUNT_DATA = null;
                         document.getElementById('transferAccountInfo').innerHTML = '';
                         backToDashboard();
@@ -951,6 +1112,7 @@ async function loadAdminTransferRequests() {
         const url = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items?" +
             "$select=ID,Title,Customer_x0020_Name,Team,Proposed_x0020_Team," +
             "Request_x0020_Type,Request_x0020_Status,Transfer_Request_Date," +
+            "Account_Manager_Text,Account_Director_Text," +
             "Account_x0020_Manager/Title,Account_x0020_Director/Title," +
             "Service_x0020_Manager/Title,Line_x0020_Manager/Title&" +
             "$expand=Account_x0020_Manager,Account_x0020_Director,Service_x0020_Manager,Line_x0020_Manager&" +
@@ -1006,8 +1168,8 @@ function renderTransferGridFiltered() {
             status:      r.Request_x0020_Status || '',
             requestDate: reqDate,
             daysPassed:  daysPassed,
-            am:          r.Account_x0020_Manager ? r.Account_x0020_Manager.Title : '',
-            ad:          r.Account_x0020_Director ? r.Account_x0020_Director.Title : '',
+            am:          transferDisplayAm(r),
+            ad:          transferDisplayAd(r),
             lm:          r.Line_x0020_Manager ? r.Line_x0020_Manager.Title : '',
             sm:          r.Service_x0020_Manager ? r.Service_x0020_Manager.Title : ''
         };
@@ -1145,7 +1307,7 @@ async function reviewTransferBySD(itemId) {
     try {
         const url = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items(" + itemId + ")?" +
             "$select=ID,Title,Customer_x0020_Name,Team,Proposed_x0020_Team,Transfer_x0020_Reason," +
-            "Account_Source,TSM_SE_ITEM_ID,Dashboard_Active," +
+            "Account_Source,TSM_SE_ITEM_ID,Dashboard_Active,Account_Manager_Text,Account_Director_Text," +
             "Line_x0020_Manager/Title,Line_x0020_Manager/EMail," +
             "Service_x0020_Manager/Title,Service_x0020_Manager/EMail," +
             "Account_x0020_Manager/Title,Account_x0020_Manager/EMail," +
@@ -1177,8 +1339,8 @@ async function reviewTransferBySD(itemId) {
             ['Proposed Team', CURRENT_TRANSFER_ITEM.Proposed_x0020_Team],
             ['Line Manager',  CURRENT_TRANSFER_ITEM.Line_x0020_Manager  ? CURRENT_TRANSFER_ITEM.Line_x0020_Manager.Title  : ''],
             ['Service Manager', CURRENT_TRANSFER_ITEM.Service_x0020_Manager ? CURRENT_TRANSFER_ITEM.Service_x0020_Manager.Title : ''],
-            ['Account Manager', CURRENT_TRANSFER_ITEM.Account_x0020_Manager ? CURRENT_TRANSFER_ITEM.Account_x0020_Manager.Title : ''],
-            ['Account Director', CURRENT_TRANSFER_ITEM.Account_x0020_Director ? CURRENT_TRANSFER_ITEM.Account_x0020_Director.Title : ''],
+            ['Account Manager', transferDisplayAm(CURRENT_TRANSFER_ITEM)],
+            ['Account Director', transferDisplayAd(CURRENT_TRANSFER_ITEM)],
             ['Reason', (CURRENT_TRANSFER_ITEM.Transfer_x0020_Reason || 'Revenue drop').replace(/<[^>]*>/g, '').trim()]
         ];
 
@@ -1306,6 +1468,131 @@ async function transferDeleteTsmSeAccountById(itemId) {
     if (!res.ok) throw new Error('Could not remove account from TSM_SE_Accounts: ' + (await res.text()).slice(0, 180));
 }
 
+/** Optional SM list text backup (Single line) when Person lookup is used on main list */
+var TRANSFER_AM_TEXT_FIELD = 'Account_Manager_Text';
+var TRANSFER_AD_TEXT_FIELD = 'Account_Director_Text';
+
+function transferDisplayAm(item) {
+    if (!item) return '';
+    return (item.Account_x0020_Manager && item.Account_x0020_Manager.Title) || item.Account_Manager_Text || '';
+}
+function transferDisplayAd(item) {
+    if (!item) return '';
+    return (item.Account_x0020_Director && item.Account_x0020_Director.Title) || item.Account_Director_Text || '';
+}
+function transferDisplayAmEmail(item) {
+    if (!item) return '';
+    if (item.Account_x0020_Manager && item.Account_x0020_Manager.EMail) return item.Account_x0020_Manager.EMail;
+    var t = item.Account_Manager_Text || '';
+    return t.indexOf('@') >= 1 ? t : '';
+}
+
+function transferParseEnsureUserId(json) {
+    if (!json || !json.d) return null;
+    var d = json.d;
+    if (d.EnsureUser && d.EnsureUser.Id != null) return d.EnsureUser.Id;
+    if (d.Id != null) return d.Id;
+    return null;
+}
+
+async function transferGetUserIdByEmail(email) {
+    var em = String(email || '').trim().toLowerCase();
+    if (!em || em.indexOf('@') < 1) return null;
+    try {
+        var safe = em.replace(/'/g, "''");
+        var lookups = [
+            SP_URL + "/_api/web/siteusers?$filter=Email eq '" + safe + "'&$select=Id,Email,Title&$top=1",
+            SP_URL + "/_api/web/siteusers?$filter=EMail eq '" + safe + "'&$select=Id,Email,Title&$top=1"
+        ];
+        for (var i = 0; i < lookups.length; i++) {
+            var res = await fetch(lookups[i], { headers: { Accept: 'application/json;odata=verbose' }, credentials: 'include' });
+            if (res.ok) {
+                var data = await res.json();
+                if (data.d.results && data.d.results.length) return data.d.results[0].Id;
+            }
+        }
+        var digest = await transferGetDigest();
+        var logonAttempts = [em, 'i:0#.f|membership|' + em];
+        for (var j = 0; j < logonAttempts.length; j++) {
+            var ensure = await fetch(SP_URL + "/_api/web/ensureuser", {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json;odata=verbose',
+                    'Content-Type': 'application/json;odata=verbose',
+                    'X-RequestDigest': digest
+                },
+                credentials: 'include',
+                body: JSON.stringify({ logonName: logonAttempts[j] })
+            });
+            if (ensure.ok) {
+                var ensData = await ensure.json();
+                var uid = transferParseEnsureUserId(ensData);
+                if (uid) return uid;
+            }
+        }
+    } catch (e) {
+        console.warn('[Transfer] Could not resolve user by email', em, e);
+    }
+    return null;
+}
+
+async function transferMergeSePeopleTextFields(itemId, digest, amText, adText) {
+    if (!itemId || (!amText && !adText)) return;
+    var patch = {
+        __metadata: { type: 'SP.Data.Service_x0020_Manager_x0020_RequestListItem' }
+    };
+    if (amText) patch[TRANSFER_AM_TEXT_FIELD] = String(amText).trim();
+    if (adText) patch[TRANSFER_AD_TEXT_FIELD] = String(adText).trim();
+    try {
+        var res = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items(" + itemId + ")", {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json;odata=verbose',
+                'Content-Type': 'application/json;odata=verbose',
+                'X-RequestDigest': digest,
+                'IF-MATCH': '*',
+                'X-HTTP-Method': 'MERGE'
+            },
+            credentials: 'include',
+            body: JSON.stringify(patch)
+        });
+        if (!res.ok) {
+            console.warn('[Transfer] Text AM/AD not saved — add columns Account_Manager_Text & Account_Director_Text on SM list.');
+        }
+    } catch (e) {
+        console.warn('[Transfer] Text AM/AD merge skipped:', e.message);
+    }
+}
+
+async function transferApplySePeopleToSmItem(itemId, seRow, digest) {
+    if (!itemId || !seRow) return { amId: null, adId: null };
+    var amRaw = String(seRow.am || '').trim();
+    var adRaw = String(seRow.ad || '').trim();
+    var amId = amRaw ? await transferResolvePersonId(amRaw) : null;
+    var adId = adRaw ? await transferResolvePersonId(adRaw) : null;
+    var personPatch = {
+        __metadata: { type: 'SP.Data.Service_x0020_Manager_x0020_RequestListItem' }
+    };
+    if (amId) personPatch.Account_x0020_ManagerId = amId;
+    if (adId) personPatch.Account_x0020_DirectorId = adId;
+    if (amId || adId) {
+        await fetch(SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items(" + itemId + ")", {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json;odata=verbose',
+                'Content-Type': 'application/json;odata=verbose',
+                'X-RequestDigest': digest,
+                'IF-MATCH': '*',
+                'X-HTTP-Method': 'MERGE'
+            },
+            credentials: 'include',
+            body: JSON.stringify(personPatch)
+        });
+    }
+    await transferMergeSePeopleTextFields(itemId, digest, amRaw, adRaw);
+    return { amId: amId, adId: adId };
+}
+
 async function transferResolvePersonId(displayName) {
     var name = String(displayName || '').trim();
     if (!name) return null;
@@ -1351,8 +1638,22 @@ async function transferCreateSmRequestFromTsmSe(seRow, newTeam, reason, currentU
     if (!seRow || !seRow.code) throw new Error('Missing TSM SE account data.');
     var digest = await transferGetDigest();
     var amId = null, adId = null, lmId = null, smId = null;
-    try { amId = seRow.am ? await transferResolvePersonId(seRow.am) : null; } catch (e) {}
-    try { adId = seRow.ad ? await transferResolvePersonId(seRow.ad) : null; } catch (e) {}
+    if (seRow.amUserId) {
+        var amUid = parseInt(String(seRow.amUserId).trim(), 10);
+        if (!isNaN(amUid) && amUid > 0) amId = amUid;
+    }
+    if (seRow.adUserId) {
+        var adUid = parseInt(String(seRow.adUserId).trim(), 10);
+        if (!isNaN(adUid) && adUid > 0) adId = adUid;
+    }
+    try { if (!amId && seRow.am) amId = await transferResolvePersonId(seRow.am); } catch (e) {}
+    try { if (!adId && seRow.ad) adId = await transferResolvePersonId(seRow.ad); } catch (e) {}
+    if (!amId && seRow.am && typeof smResolvePersonId === 'function') {
+        try { amId = await smResolvePersonId(seRow.am); } catch (e) {}
+    }
+    if (!adId && seRow.ad && typeof smResolvePersonId === 'function') {
+        try { adId = await smResolvePersonId(seRow.ad); } catch (e) {}
+    }
     try { lmId = seRow.lm ? await transferResolvePersonId(seRow.lm) : null; } catch (e) {}
     try { smId = seRow.sm ? await transferResolveSmId(seRow.sm) : null; } catch (e) {}
     if (!smId && seRow.sm) {
@@ -1380,6 +1681,8 @@ async function transferCreateSmRequestFromTsmSe(seRow, newTeam, reason, currentU
     if (adId) payload.Account_x0020_DirectorId = adId;
     if (lmId) payload.Line_x0020_ManagerId = lmId;
     if (smId) payload.Service_x0020_ManagerId = smId;
+    if (seRow.am) payload[TRANSFER_AM_TEXT_FIELD] = String(seRow.am).trim();
+    if (seRow.ad) payload[TRANSFER_AD_TEXT_FIELD] = String(seRow.ad).trim();
 
     var res = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items", {
         method: 'POST',
@@ -1391,34 +1694,30 @@ async function transferCreateSmRequestFromTsmSe(seRow, newTeam, reason, currentU
         credentials: 'include',
         body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error('Could not create transfer request on main list: ' + (await res.text()).slice(0, 220));
-    var created = await res.json();
-    var newId = created.d && created.d.ID ? created.d.ID : null;
-    if (newId && (!amId || !adId)) {
-        var patch = {};
-        if (!amId && seRow.am) {
-            amId = await transferResolvePersonId(seRow.am);
-            if (amId) patch.Account_x0020_ManagerId = amId;
-        }
-        if (!adId && seRow.ad) {
-            adId = await transferResolvePersonId(seRow.ad);
-            if (adId) patch.Account_x0020_DirectorId = adId;
-        }
-        if (Object.keys(patch).length) {
-            patch.__metadata = { type: 'SP.Data.Service_x0020_Manager_x0020_RequestListItem' };
-            await fetch(SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items(" + newId + ")", {
+    if (!res.ok) {
+        var errBody = await res.text();
+        if (errBody.indexOf(TRANSFER_AM_TEXT_FIELD) >= 0 || errBody.indexOf(TRANSFER_AD_TEXT_FIELD) >= 0) {
+            delete payload[TRANSFER_AM_TEXT_FIELD];
+            delete payload[TRANSFER_AD_TEXT_FIELD];
+            res = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items", {
                 method: 'POST',
                 headers: {
                     Accept: 'application/json;odata=verbose',
                     'Content-Type': 'application/json;odata=verbose',
-                    'X-RequestDigest': digest,
-                    'IF-MATCH': '*',
-                    'X-HTTP-Method': 'MERGE'
+                    'X-RequestDigest': digest
                 },
                 credentials: 'include',
-                body: JSON.stringify(patch)
+                body: JSON.stringify(payload)
             });
+            if (!res.ok) throw new Error('Could not create transfer request on main list: ' + (await res.text()).slice(0, 220));
+        } else {
+            throw new Error('Could not create transfer request on main list: ' + errBody.slice(0, 220));
         }
+    }
+    var created = await res.json();
+    var newId = created.d && created.d.ID ? created.d.ID : null;
+    if (newId) {
+        await transferApplySePeopleToSmItem(newId, seRow, digest);
     }
     return newId;
 }
@@ -1551,35 +1850,6 @@ function sdTransferLMChanged() {
         smSelect.appendChild(opt);
     });
     smSelect.disabled = false;
-}
-
-async function transferGetUserIdByEmail(email) {
-    if (!email) return null;
-    try {
-        var url = SP_URL + "/_api/web/siteusers?$filter=Email eq '" + email.replace(/'/g, "''") + "'&$select=Id";
-        var res = await fetch(url, { headers: { Accept: 'application/json;odata=verbose' }, credentials: 'include' });
-        if (res.ok) {
-            var data = await res.json();
-            if (data.d.results && data.d.results.length) return data.d.results[0].Id;
-        }
-        var ensure = await fetch(SP_URL + "/_api/web/ensureuser", {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json;odata=verbose',
-                'Content-Type': 'application/json;odata=verbose',
-                'X-RequestDigest': await transferGetDigest()
-            },
-            credentials: 'include',
-            body: JSON.stringify({ logonName: 'i:0#.f|membership|' + email })
-        });
-        if (ensure.ok) {
-            var ensData = await ensure.json();
-            return ensData.d && ensData.d.Id ? ensData.d.Id : null;
-        }
-    } catch (e) {
-        console.warn('[Transfer] Could not resolve user by email', email, e);
-    }
-    return null;
 }
 
 async function transferGetDigest() {
