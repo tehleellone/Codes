@@ -1145,6 +1145,7 @@ async function reviewTransferBySD(itemId) {
     try {
         const url = SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items(" + itemId + ")?" +
             "$select=ID,Title,Customer_x0020_Name,Team,Proposed_x0020_Team,Transfer_x0020_Reason," +
+            "Account_Source,TSM_SE_ITEM_ID,Dashboard_Active," +
             "Line_x0020_Manager/Title,Line_x0020_Manager/EMail," +
             "Service_x0020_Manager/Title,Service_x0020_Manager/EMail," +
             "Account_x0020_Manager/Title,Account_x0020_Manager/EMail," +
@@ -1305,15 +1306,51 @@ async function transferDeleteTsmSeAccountById(itemId) {
     if (!res.ok) throw new Error('Could not remove account from TSM_SE_Accounts: ' + (await res.text()).slice(0, 180));
 }
 
+async function transferResolvePersonId(displayName) {
+    var name = String(displayName || '').trim();
+    if (!name) return null;
+    if (typeof fetchAccountMapping === 'function' && (!window.SM_MAPPING_DATA || !window.SM_MAPPING_DATA.length)) {
+        try { await fetchAccountMapping(); } catch (e) {}
+    }
+    if (typeof smResolvePersonId === 'function') {
+        try {
+            var mapped = await smResolvePersonId(name);
+            if (mapped) return mapped;
+        } catch (e) {}
+    }
+    if (typeof getUserId === 'function') {
+        try {
+            var exact = await getUserId(name);
+            if (exact) return exact;
+        } catch (e) {}
+    }
+    try {
+        var token = name.replace(/'/g, "''");
+        var url = SP_URL + "/_api/web/siteusers?$filter=substringof('" + token + "',Title)&$select=Id,Title&$top=25";
+        var res = await fetch(url, { headers: { Accept: 'application/json;odata=verbose' }, credentials: 'include' });
+        if (res.ok) {
+            var data = await res.json();
+            var rows = data.d.results || [];
+            var norm = name.toLowerCase();
+            var hit = rows.find(function (u) { return String(u.Title || '').toLowerCase() === norm; }) ||
+                rows.find(function (u) { return String(u.Title || '').toLowerCase().indexOf(norm) >= 0; }) ||
+                rows[0];
+            if (hit) return hit.Id;
+        }
+    } catch (e2) {}
+    return null;
+}
+
 async function transferCreateSmRequestFromTsmSe(seRow, newTeam, reason, currentUserId) {
     if (!seRow || !seRow.code) throw new Error('Missing TSM SE account data.');
     var digest = await transferGetDigest();
     var amId = null, adId = null, lmId = null, smId = null;
-    if (typeof getUserId === 'function') {
-        try { amId = seRow.am ? await getUserId(seRow.am) : null; } catch (e) {}
-        try { adId = seRow.ad ? await getUserId(seRow.ad) : null; } catch (e) {}
-        try { lmId = seRow.lm ? await getUserId(seRow.lm) : null; } catch (e) {}
-        try { smId = seRow.sm ? await transferResolveSmId(seRow.sm) : null; } catch (e) {}
+    try { amId = seRow.am ? await transferResolvePersonId(seRow.am) : null; } catch (e) {}
+    try { adId = seRow.ad ? await transferResolvePersonId(seRow.ad) : null; } catch (e) {}
+    try { lmId = seRow.lm ? await transferResolvePersonId(seRow.lm) : null; } catch (e) {}
+    try { smId = seRow.sm ? await transferResolveSmId(seRow.sm) : null; } catch (e) {}
+    if (!smId && seRow.sm) {
+        try { smId = await transferResolvePersonId(seRow.sm); } catch (e) {}
     }
     var parentCode = seRow.parent || seRow.code;
     var payload = Object.assign({
@@ -1324,7 +1361,7 @@ async function transferCreateSmRequestFromTsmSe(seRow, newTeam, reason, currentU
         Team: 'TSM_SE',
         Segment: seRow.segment || '',
         Account_Source: 'TSM_SE',
-        TSM_SE_ITEM_ID: seRow._spId || seRow.tsmSeItemId || null,
+        TSM_SE_ITEM_ID: parseInt(seRow._spId || seRow.tsmSeItemId, 10) || null,
         Dashboard_Active: false,
         Request_x0020_Type: 'Transfer',
         Request_x0020_Status: 'Transfer_Pending',
@@ -1350,7 +1387,39 @@ async function transferCreateSmRequestFromTsmSe(seRow, newTeam, reason, currentU
     });
     if (!res.ok) throw new Error('Could not create transfer request on main list: ' + (await res.text()).slice(0, 220));
     var created = await res.json();
-    return created.d && created.d.ID ? created.d.ID : null;
+    var newId = created.d && created.d.ID ? created.d.ID : null;
+    if (newId && (!amId || !adId)) {
+        var patch = {};
+        if (!amId && seRow.am) {
+            amId = await transferResolvePersonId(seRow.am);
+            if (amId) patch.Account_x0020_ManagerId = amId;
+        }
+        if (!adId && seRow.ad) {
+            adId = await transferResolvePersonId(seRow.ad);
+            if (adId) patch.Account_x0020_DirectorId = adId;
+        }
+        if (Object.keys(patch).length) {
+            patch.__metadata = { type: 'SP.Data.Service_x0020_Manager_x0020_RequestListItem' };
+            await fetch(SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items(" + newId + ")", {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json;odata=verbose',
+                    'Content-Type': 'application/json;odata=verbose',
+                    'X-RequestDigest': digest,
+                    'IF-MATCH': '*',
+                    'X-HTTP-Method': 'MERGE'
+                },
+                credentials: 'include',
+                body: JSON.stringify(patch)
+            });
+        }
+    }
+    return newId;
+}
+
+async function transferDeleteTsmSeByAccountCode(accountCode) {
+    var existing = await transferFindTsmSeItem(accountCode);
+    if (existing && existing.ID) return transferDeleteTsmSeAccountById(existing.ID);
 }
 
 async function transferCleanupSeTransferCopy(itemId) {
@@ -1715,8 +1784,11 @@ ${USER_CONTEXT.userName}`);
                     Proposed_x0020_Team: null,
                     Transfer_x0020_Reason: null
                 }).then(function () {
-                    return transferDeleteTsmSeAccountById(tsmSeItemId);
+                    var seId = parseInt(tsmSeItemId, 10);
+                    if (seId) return transferDeleteTsmSeAccountById(seId);
+                    return transferDeleteTsmSeByAccountCode(accountCode);
                 }).then(function () {
+                    window.TSM_SE_LOADED = false;
                     if (typeof csCloseReviewsOnTransfer === 'function') {
                         return csCloseReviewsOnTransfer(accountCode, 'TSM_SE', finalTeam);
                     }
