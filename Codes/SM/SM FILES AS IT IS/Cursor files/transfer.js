@@ -203,14 +203,14 @@ function inject() {
                     '<div style="font-size:.72rem;color:var(--t3);">' + (a.team || '') + (a.email ? ' · ' + a.email : '') + '</div>';
                 item.addEventListener('mousedown', function (e) {
                     e.preventDefault();
-                    transferSelectMappingPerson(field, a.name, a.userId, a.team);
+                    transferSelectMappingPerson(field, a.name, a.userId, a.team, a.email);
                 });
                 dd.appendChild(item);
             });
             dd.style.display = 'block';
         };
 
-        window.transferSelectMappingPerson = function (field, name, userId, team) {
+        window.transferSelectMappingPerson = function (field, name, userId, team, email) {
             var ids = transferMappingFieldIds(field);
             var hidden = document.getElementById(ids.hidden);
             var inp = document.getElementById(ids.input);
@@ -221,6 +221,7 @@ function inject() {
                     confirmed: true,
                     name: normalized,
                     userId: userId != null ? String(userId).trim() : '',
+                    email: email != null ? String(email).trim() : '',
                     team: team || ''
                 });
             }
@@ -381,13 +382,25 @@ function inject() {
                     var adPick = transferGetSelectedMapping('ad');
                     if (amPick) {
                         seRow.am = amPick.name;
-                        seRow.amUserId = amPick.userId;
+                        seRow.amPick = amPick;
                     }
                     if (adPick) {
                         seRow.ad = adPick.name;
-                        seRow.adUserId = adPick.userId;
+                        seRow.adPick = adPick;
                     }
-                    return transferCreateSmRequestFromTsmSe(seRow, newTeam, reason, userData.d.Id);
+                    return transferResolveFromMappingPick(amPick).then(function (amId) {
+                        if (!amId) {
+                            throw new Error('Could not resolve Account Manager "' + (amPick.name || '') + '" to a SharePoint user. Check Email_ID / User_ID in Account Mapping.');
+                        }
+                        seRow.amUserId = amId;
+                        return transferResolveFromMappingPick(adPick);
+                    }).then(function (adId) {
+                        if (!adId) {
+                            throw new Error('Could not resolve Account Director "' + (adPick.name || '') + '" to a SharePoint user. Check Email_ID / User_ID in Account Mapping.');
+                        }
+                        seRow.adUserId = adId;
+                        return transferCreateSmRequestFromTsmSe(seRow, newTeam, reason, userData.d.Id);
+                    });
                 }).then(function () {
                     document.getElementById('transferSubmitMessage').innerHTML = '<span style="color: var(--success);">Transfer request submitted successfully!</span>';
                     if (typeof logAccountHistory === 'function') {
@@ -1484,6 +1497,42 @@ function transferParseEnsureUserId(json) {
     return null;
 }
 
+async function transferVerifySiteUserId(id) {
+    var n = parseInt(String(id || '').trim(), 10);
+    if (isNaN(n) || n <= 0) return null;
+    try {
+        var res = await fetch(SP_URL + '/_api/web/getuserbyid(' + n + ')', {
+            headers: { Accept: 'application/json;odata=verbose' },
+            credentials: 'include'
+        });
+        if (res.ok) return n;
+    } catch (e) {}
+    return null;
+}
+
+/** Resolve a mapping dropdown pick to SharePoint site user Id (Person field). */
+async function transferResolveFromMappingPick(pick) {
+    if (!pick || !pick.name) return null;
+    var email = String(pick.email || '').trim();
+    if (email.indexOf('@') >= 1) {
+        try {
+            var byEmail = await transferGetUserIdByEmail(email.toLowerCase());
+            if (byEmail) return byEmail;
+        } catch (eEmail) {}
+    }
+    if (pick.userId) {
+        var verified = await transferVerifySiteUserId(pick.userId);
+        if (verified) return verified;
+    }
+    if (typeof window.smResolvePersonId === 'function') {
+        try {
+            var mapped = await window.smResolvePersonId(pick.name);
+            if (mapped) return mapped;
+        } catch (eMap) {}
+    }
+    return transferResolvePersonId(pick.name);
+}
+
 async function transferGetUserIdByEmail(email) {
     var em = String(email || '').trim().toLowerCase();
     if (!em || em.indexOf('@') < 1) return null;
@@ -1525,18 +1574,18 @@ async function transferGetUserIdByEmail(email) {
     return null;
 }
 
-async function transferApplySePeopleToSmItem(itemId, seRow, digest) {
+async function transferApplySePeopleToSmItem(itemId, seRow, digest, knownAmId, knownAdId) {
     if (!itemId || !seRow) return { amId: null, adId: null };
-    var amId = null;
-    var adId = null;
-    if (seRow.amUserId) {
-        var amUid = parseInt(String(seRow.amUserId).trim(), 10);
-        if (!isNaN(amUid) && amUid > 0) amId = amUid;
+    var amId = knownAmId || null;
+    var adId = knownAdId || null;
+    if (!amId && seRow.amUserId) {
+        amId = await transferVerifySiteUserId(seRow.amUserId);
     }
-    if (seRow.adUserId) {
-        var adUid = parseInt(String(seRow.adUserId).trim(), 10);
-        if (!isNaN(adUid) && adUid > 0) adId = adUid;
+    if (!adId && seRow.adUserId) {
+        adId = await transferVerifySiteUserId(seRow.adUserId);
     }
+    if (!amId && seRow.amPick) amId = await transferResolveFromMappingPick(seRow.amPick);
+    if (!adId && seRow.adPick) adId = await transferResolveFromMappingPick(seRow.adPick);
     var amRaw = String(seRow.am || '').trim();
     var adRaw = String(seRow.ad || '').trim();
     if (!amId && amRaw) amId = await transferResolvePersonId(amRaw);
@@ -1547,7 +1596,7 @@ async function transferApplySePeopleToSmItem(itemId, seRow, digest) {
     if (amId) personPatch.Account_x0020_ManagerId = amId;
     if (adId) personPatch.Account_x0020_DirectorId = adId;
     if (amId || adId) {
-        await fetch(SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items(" + itemId + ")", {
+        var patchRes = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items(" + itemId + ")", {
             method: 'POST',
             headers: {
                 Accept: 'application/json;odata=verbose',
@@ -1559,6 +1608,11 @@ async function transferApplySePeopleToSmItem(itemId, seRow, digest) {
             credentials: 'include',
             body: JSON.stringify(personPatch)
         });
+        if (!patchRes.ok) {
+            var patchErr = await patchRes.text();
+            console.error('[Transfer] AM/AD patch failed:', patchErr.slice(0, 400));
+            throw new Error('Transfer row created but Account Manager/Director could not be saved. ' + patchErr.slice(0, 180));
+        }
     }
     return { amId: amId, adId: adId };
 }
@@ -1575,9 +1629,9 @@ async function transferResolvePersonId(displayName) {
     if (typeof fetchAccountMapping === 'function' && (!window.SM_MAPPING_DATA || !window.SM_MAPPING_DATA.length)) {
         try { await fetchAccountMapping(); } catch (e) {}
     }
-    if (typeof smResolvePersonId === 'function') {
+    if (typeof window.smResolvePersonId === 'function') {
         try {
-            var mapped = await smResolvePersonId(name);
+            var mapped = await window.smResolvePersonId(name);
             if (mapped) return mapped;
         } catch (e) {}
     }
@@ -1609,21 +1663,15 @@ async function transferCreateSmRequestFromTsmSe(seRow, newTeam, reason, currentU
     var digest = await transferGetDigest();
     var amId = null, adId = null, lmId = null, smId = null;
     if (seRow.amUserId) {
-        var amUid = parseInt(String(seRow.amUserId).trim(), 10);
-        if (!isNaN(amUid) && amUid > 0) amId = amUid;
+        amId = await transferVerifySiteUserId(seRow.amUserId);
     }
     if (seRow.adUserId) {
-        var adUid = parseInt(String(seRow.adUserId).trim(), 10);
-        if (!isNaN(adUid) && adUid > 0) adId = adUid;
+        adId = await transferVerifySiteUserId(seRow.adUserId);
     }
+    if (!amId && seRow.amPick) amId = await transferResolveFromMappingPick(seRow.amPick);
+    if (!adId && seRow.adPick) adId = await transferResolveFromMappingPick(seRow.adPick);
     try { if (!amId && seRow.am) amId = await transferResolvePersonId(seRow.am); } catch (e) {}
     try { if (!adId && seRow.ad) adId = await transferResolvePersonId(seRow.ad); } catch (e) {}
-    if (!amId && seRow.am && typeof smResolvePersonId === 'function') {
-        try { amId = await smResolvePersonId(seRow.am); } catch (e) {}
-    }
-    if (!adId && seRow.ad && typeof smResolvePersonId === 'function') {
-        try { adId = await smResolvePersonId(seRow.ad); } catch (e) {}
-    }
     try { lmId = seRow.lm ? await transferResolvePersonId(seRow.lm) : null; } catch (e) {}
     try { smId = seRow.sm ? await transferResolveSmId(seRow.sm) : null; } catch (e) {}
     if (!smId && seRow.sm) {
@@ -1668,7 +1716,7 @@ async function transferCreateSmRequestFromTsmSe(seRow, newTeam, reason, currentU
     var created = await res.json();
     var newId = created.d && created.d.ID ? created.d.ID : null;
     if (newId) {
-        await transferApplySePeopleToSmItem(newId, seRow, digest);
+        await transferApplySePeopleToSmItem(newId, seRow, digest, amId, adId);
     }
     return newId;
 }
