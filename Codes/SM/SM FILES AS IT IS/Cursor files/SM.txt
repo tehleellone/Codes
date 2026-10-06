@@ -2964,10 +2964,15 @@
                         <div class="line-managers-section">
                             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;margin-bottom:.85rem;">
                                 <h2 class="section-title" style="margin:0!important;"><i data-lucide="users" style="width:20px;height:20px;display:inline-block;vertical-align:middle;margin-right:8px;"></i>Line Manager Performance</h2>
+                                <div id="tsmSeHeaderActions" style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
+                                <button type="button" id="tsmSeInsightsBtn" class="export-btn" onclick="tsmSeShowAccountsSummary()" title="TSM SE book health" style="display:none;padding:.5rem 1.1rem;font-size:.82rem;">
+                                    <i data-lucide="info" style="width:15px;height:15px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>TSM SE Insights
+                                </button>
                                 <button type="button" id="loadAnalyticsBtn" onclick="loadAnalytics()" class="export-btn" style="padding:.5rem 1.1rem;font-size:.82rem;">
                                     <i data-lucide="bar-chart-2" style="width:15px;height:15px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>
                                     <span id="loadAnalyticsBtnText">Load RNPS &amp; ETA Analytics</span>
                                 </button>
+                                </div>
                             </div>
                             <div class="line-managers-grid" id="lineManagersGrid"></div>
                         </div>
@@ -6648,6 +6653,9 @@ else if (USER_CONTEXT.role === 'Account Manager' || USER_CONTEXT.role === 'Accou
             if (typeof switchDashboardSection === 'function' && USER_CONTEXT.role !== 'Auditor' && !isPsdRole(USER_CONTEXT.role) && !isRcRole(USER_CONTEXT.role)) {
                 switchDashboardSection('dashboard-view');
             }
+            setTimeout(function () {
+                if (typeof window.nlBirthdayCheckAndMaybePopup === 'function') window.nlBirthdayCheckAndMaybePopup();
+            }, 400);
         }
         // ========================================
         // AM/AD VIEW FUNCTIONS
@@ -12626,7 +12634,7 @@ else if (sectionId === 'portalAnalyticsView') {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/events-tt-activity.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/projectManagement.js"></script>
-    <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/newsletter.js?v=nl-bday2"></script>
+    <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/newsletter.js?v=nl-bday3"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/contactus.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/suggestions.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/processdocs.js"></script>
@@ -12635,7 +12643,7 @@ else if (sectionId === 'portalAnalyticsView') {
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/repeated-calls.js?v=1.9.24"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/rnps.js"></script>
   <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/semailbox.js"></script>
-  <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=tsmse6"></script>
+  <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=tsmse7"></script>
     <script>
     </script>
 </body>
