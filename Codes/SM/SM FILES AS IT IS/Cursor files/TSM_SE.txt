@@ -1,7 +1,7 @@
 // ============================================================
 // TSM_SE.JS — TSM Small Enterprise Module
 // Data source: SharePoint list "TSM_SE_Accounts"
-// Upload: Excel → parse → smart/full upload to SP list
+// Upload: Excel → parse → update-only upload to SP list
 // ============================================================
 (function () {
     'use strict';
@@ -87,9 +87,11 @@
 
     // ── Excel column map ──────────────────────────────────────
     const COL_MAP = {
-        code    : ['title','account code','accountcode','account_code','code'],
+        code    : ['title','account code','accountcode','account_code','code','customerlvl1','customerlevel1','customer lvl 1','customer level 1'],
         parent  : ['parentcode','parent code','parent_code','l-10','l10'],
-        customer: ['customername','customer_name','customer name','customer','name'],
+        customer: ['customername','customer_name','customer name','customer','name','column1'],
+        yearMonth: ['yearmonth','year month','year_month','yyyymm'],
+        revenue : ['billedrevenue','billed revenue','revenue','billed_revenue'],
         am      : ['accountmanager','account manager','account_manager','am'],
         ad      : ['accountdirector','account director','account_director','ad'],
         sm      : ['servicemanager','service manager','service_manager','sm'],
@@ -210,6 +212,107 @@
         return rows;
     }
 
+    function yearMonthToRowKey(ym) {
+        var s = String(ym == null ? '' : ym).replace(/\D/g, '');
+        if (s.length !== 6) return null;
+        var mn = parseInt(s.slice(4, 6), 10);
+        if (mn < 1 || mn > 12) return null;
+        var names = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+        return names[mn - 1] + s.slice(2, 4);
+    }
+
+    function parseRevenueExcelRows(arrayBuffer) {
+        var workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        var raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        if (!raw || raw.length < 2) return { format: 'legacy', rows: [] };
+
+        var headerRowIdx = findExcelHeaderRow(raw);
+        var headers = raw[headerRowIdx].map(function (h) { return (h || '').toString(); });
+        var headerMap = buildHeaderMap(headers);
+        var hasYearMonth = false;
+        var hasCode = false;
+        for (var k in headerMap) {
+            if (headerMap[k] === 'yearMonth') hasYearMonth = true;
+            if (headerMap[k] === 'code') hasCode = true;
+        }
+        if (!hasYearMonth || !hasCode) {
+            return { format: 'legacy', rows: [] };
+        }
+
+        var agg = {};
+        for (var r = headerRowIdx + 1; r < raw.length; r++) {
+            var row = raw[r];
+            if (!row || row.every(function (c) { return c === '' || c == null; })) continue;
+            var obj = {};
+            headers.forEach(function (_, i) {
+                var field = headerMap[i];
+                if (field && !String(field).startsWith('__extra__')) obj[field] = row[i] !== undefined ? row[i] : '';
+            });
+            var code = String(obj.code || '').trim();
+            if (!code) continue;
+            var monthKey = yearMonthToRowKey(obj.yearMonth);
+            var revRaw = obj.revenue;
+            var revenue = revRaw === '' || revRaw == null ? null : (typeof revRaw === 'number' ? revRaw : (parseFloat(String(revRaw).replace(/,/g, '')) || 0));
+            if (!agg[code]) {
+                agg[code] = {
+                    code: code,
+                    customer: String(obj.customer || '').trim(),
+                    am: String(obj.am || '').trim(),
+                    ad: String(obj.ad || '').trim(),
+                    months: {}
+                };
+            }
+            if (obj.customer) agg[code].customer = String(obj.customer).trim();
+            if (obj.am) agg[code].am = String(obj.am).trim();
+            if (obj.ad) agg[code].ad = String(obj.ad).trim();
+            if (monthKey && revenue != null) agg[code].months[monthKey] = revenue;
+        }
+        return { format: 'revenue', rows: Object.keys(agg).map(function (k) { return agg[k]; }) };
+    }
+
+    function tsmSeMonthDisplayFromKey(key) {
+        if (!key || key.length < 5) return key;
+        return key.charAt(0).toUpperCase() + key.slice(1, 3) + key.slice(3);
+    }
+
+    function tsmSeBuildRevenueUploadPlan(excelRows, existingMap) {
+        var plan = { updates: [], unchanged: [], unknown: [], newCandidates: [] };
+        excelRows.forEach(function (row) {
+            var code = row.code;
+            var existing = existingMap[code];
+            if (!existing) {
+                plan.unknown.push({
+                    code: code,
+                    customer: row.customer || '',
+                    am: row.am || '',
+                    ad: row.ad || '',
+                    months: row.months || {},
+                    action: 'pending'
+                });
+                return;
+            }
+            var internal = spItemToRow(existing);
+            var changes = [];
+            Object.keys(row.months || {}).forEach(function (mk) {
+                var newVal = row.months[mk];
+                var oldVal = internal[mk] != null ? internal[mk] : 0;
+                if (Number(oldVal) !== Number(newVal)) {
+                    changes.push({ field: mk, label: tsmSeMonthDisplayFromKey(mk) + ' revenue', from: oldVal, to: newVal });
+                }
+            });
+            if (row.am && String(row.am).trim() && String(existing.AccountManager || '').trim() !== String(row.am).trim()) {
+                changes.push({ field: 'am', label: 'Account Manager', from: existing.AccountManager || '', to: row.am });
+            }
+            if (row.ad && String(row.ad).trim() && String(existing.AccountDirector || '').trim() !== String(row.ad).trim()) {
+                changes.push({ field: 'ad', label: 'Account Director', from: existing.AccountDirector || '', to: row.ad });
+            }
+            if (!changes.length) plan.unchanged.push({ code: code });
+            else plan.updates.push({ code: code, id: existing.ID, row: row, changes: changes });
+        });
+        return plan;
+    }
+
     // ── Convert internal row → SP list item ──────────────────
     function rowToSPItem(row) {
         var item = {
@@ -240,11 +343,11 @@
         var row = { _source: 'tsm_se', _spId: item.ID };
         // Map known non-month fields
         var knownFields = ['Title','ParentCode','CustomerName','AccountManager',
-            'AccountDirector','ServiceManager','LineManager','Team','Segment'];
+            'AccountDirector','ServiceManager','LineManager','Team','Segment','Notes'];
         var knownMap = {
             Title:'code', ParentCode:'parent', CustomerName:'customer',
             AccountManager:'am', AccountDirector:'ad', ServiceManager:'sm',
-            LineManager:'lm', Team:'team', Segment:'segment'
+            LineManager:'lm', Team:'team', Segment:'segment', Notes:'notes'
         };
         knownFields.forEach(function(f) {
             row[knownMap[f]] = item[f] !== undefined ? item[f] : '';
@@ -299,7 +402,11 @@
                 var t = byCode[String(acc.code || '').trim()];
                 if (t) {
                     acc.requestType = 'Transfer';
-                    acc.requestStatus = t.Request_x0020_Status || 'Transfer_Pending';
+                    var st = String(t.Request_x0020_Status || '').trim();
+                    if (/^transfer[_-]?pending$/i.test(st.replace(/\s+/g, '_')) || st.toUpperCase() === 'TRANSFER_PENDING') {
+                        st = 'Transfer_Pending';
+                    }
+                    acc.requestStatus = st || 'Transfer_Pending';
                     acc.proposedTeam = t.Proposed_x0020_Team || '';
                     acc.transferDaysPassed = t.Transfer_Request_Date
                         ? Math.floor((new Date() - new Date(t.Transfer_Request_Date)) / 86400000)
@@ -331,7 +438,7 @@
     // ── Load ALL records with progress spinner ───────────────
     var SLIM_SELECT = [
         'ID','Title','ParentCode','CustomerName',
-        'AccountManager','AccountDirector','ServiceManager','LineManager','Team','Segment',
+        'AccountManager','AccountDirector','ServiceManager','LineManager','Team','Segment','Notes',
         'OData__x004a_an26','OData__x0046_eb26','OData__x004d_ar26',
         'OData__x0041_pr26','OData__x004d_ay26','OData__x004a_un26',
         'OData__x004a_ul26','OData__x0041_ug26','OData__x0053_ep26',
@@ -524,31 +631,8 @@
             </div>
             <input type="file" id="tsmSeFileInput" accept=".xlsx" style="display:none;" onchange="tsmSeHandleFileSelect(this)">
 
-            <!-- Upload mode -->
-            <div id="tsmSeUploadModeSection" style="display:none;margin-bottom:1rem;">
-                <div style="font-size:.75rem;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.6rem;">Upload Mode</div>
-                <div style="display:flex;gap:.65rem;">
-                    <label style="flex:1;display:flex;align-items:flex-start;gap:.5rem;padding:.75rem;background:var(--bg-secondary);border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:border-color .2s;"
-                        id="tsmSeModeSmartLabel">
-                        <input type="radio" name="tsmUploadMode" value="smart" checked
-                            onchange="tsmSeSelectMode('smart')"
-                            style="margin-top:2px;accent-color:var(--acc);">
-                        <div>
-                            <div style="font-size:.82rem;font-weight:700;color:var(--t1);">Smart Upload</div>
-                            <div style="font-size:.7rem;color:var(--t3);">Skip unchanged rows, only update/insert changed ones</div>
-                        </div>
-                    </label>
-                    <label style="flex:1;display:flex;align-items:flex-start;gap:.5rem;padding:.75rem;background:var(--bg-secondary);border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:border-color .2s;"
-                        id="tsmSeModeFullLabel">
-                        <input type="radio" name="tsmUploadMode" value="full"
-                            onchange="tsmSeSelectMode('full')"
-                            style="margin-top:2px;accent-color:var(--acc);">
-                        <div>
-                            <div style="font-size:.82rem;font-weight:700;color:var(--t1);">Full Replace</div>
-                            <div style="font-size:.7rem;color:var(--t3);">Delete all existing, insert all rows fresh</div>
-                        </div>
-                    </label>
-                </div>
+            <div style="font-size:.72rem;color:var(--t2);line-height:1.45;margin-bottom:1rem;padding:.65rem .75rem;background:rgba(16,185,129,.08);border-radius:8px;border-left:3px solid #10b981;">
+                <strong>Update only:</strong> revenue file (Year Month + Customer Lvl 1) shows a preview before finalize. Legacy wide Excel updates changed rows only — nothing is deleted from the list.
             </div>
 
             <!-- Progress -->
@@ -576,13 +660,6 @@
         if (typeof lucide !== 'undefined') lucide.createIcons();
     };
 
-    window.tsmSeSelectMode = function(mode) {
-        var smartLabel = document.getElementById('tsmSeModeSmartLabel');
-        var fullLabel  = document.getElementById('tsmSeModeFullLabel');
-        if (smartLabel) smartLabel.style.borderColor = mode === 'smart' ? 'var(--border-s)' : 'var(--border)';
-        if (fullLabel)  fullLabel.style.borderColor  = mode === 'full'  ? 'var(--border-s)' : 'var(--border)';
-    };
-
     window._tsmSeSelectedFile = null;
     window.tsmSeHandleDrop = function(e) { e.preventDefault(); var f=e.dataTransfer.files[0]; if(f) tsmSeSetFile(f); };
     window.tsmSeHandleFileSelect = function(input) { var f=input.files[0]; if(f) tsmSeSetFile(f); };
@@ -592,12 +669,14 @@
         window._tsmSeSelectedFile = file;
         var dz  = document.getElementById('tsmSeDropZone');
         var btn = document.getElementById('tsmSeUploadSubmit');
-        var ms  = document.getElementById('tsmSeUploadModeSection');
         if (dz) dz.innerHTML = '<i data-lucide="file-check" style="width:28px;height:28px;color:#10b981;display:block;margin:0 auto .4rem;"></i>'
             + '<div style="font-size:.85rem;font-weight:700;color:var(--t1);">'+file.name+'</div>'
             + '<div style="font-size:.72rem;color:var(--t3);">'+(file.size/1048576).toFixed(1)+' MB · Ready</div>';
         if (btn) btn.disabled = false;
-        if (ms)  ms.style.display = 'block';
+        window._tsmSeUploadPlan = null;
+        window._tsmSeUploadConfirm = null;
+        var prev = document.getElementById('tsmSeUploadPreview');
+        if (prev) prev.remove();
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
@@ -619,93 +698,200 @@
         if (cnt && count !== undefined) cnt.textContent = count;
     }
 
+    function tsmSeUserCanFinalizeUpload() {
+        var email = ((window.USER_CONTEXT && window.USER_CONTEXT.userEmail) || '').toLowerCase();
+        return ADMIN_EMAILS.indexOf(email) >= 0 || (window.USER_CONTEXT && window.USER_CONTEXT.isAdmin);
+    }
+
+    function tsmSeShowUploadPreview(plan, onConfirm) {
+        var box = document.getElementById('tsmSeUploadPreview');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'tsmSeUploadPreview';
+            box.style.cssText = 'margin-bottom:1rem;max-height:280px;overflow:auto;font-size:.78rem;border:1px solid var(--border);border-radius:10px;padding:.75rem;background:var(--bg-secondary);';
+            var msg = document.getElementById('tsmSeUploadMsg');
+            if (msg && msg.parentNode) msg.parentNode.insertBefore(box, msg);
+        }
+        var html = '<div style="font-weight:800;color:var(--t1);margin-bottom:.5rem;">Preview (update only)</div>';
+        html += '<div><strong>' + plan.updates.length + '</strong> accounts will change · <strong>' + plan.unchanged.length + '</strong> unchanged · <strong>' + plan.unknown.length + '</strong> codes not in list</div>';
+        if (plan.updates.length) {
+            html += '<div style="margin-top:.6rem;font-weight:700;color:var(--acc);">Affected accounts</div><ul style="margin:.35rem 0 0 1rem;padding:0;">';
+            plan.updates.slice(0, 40).forEach(function (u) {
+                html += '<li style="margin-bottom:.35rem;"><strong>' + u.code + '</strong>: ' +
+                    u.changes.map(function (c) { return c.label + ' ' + c.from + ' → ' + c.to; }).join('; ') + '</li>';
+            });
+            if (plan.updates.length > 40) html += '<li>…and ' + (plan.updates.length - 40) + ' more</li>';
+            html += '</ul>';
+        }
+        if (plan.unknown.length) {
+            html += '<div style="margin-top:.6rem;font-weight:700;color:#f97316;">Unknown codes (choose Ignore or Add as new)</div>';
+            plan.unknown.forEach(function (u, idx) {
+                html += '<div style="margin-top:.4rem;padding:.45rem;border:1px dashed var(--border);border-radius:8px;">' +
+                    '<div><strong>' + u.code + '</strong> — ' + (u.customer || 'No name') + '</div>' +
+                    '<label style="margin-right:12px;"><input type="radio" name="tsmUnk_' + idx + '" value="ignore" checked> Ignore</label>' +
+                    '<label><input type="radio" name="tsmUnk_' + idx + '" value="add"> Add as new entry</label></div>';
+            });
+        }
+        box.innerHTML = html;
+        window._tsmSeUploadPlan = plan;
+        window._tsmSeUploadConfirm = onConfirm;
+        var btn = document.getElementById('tsmSeUploadSubmit');
+        if (btn) {
+            btn.disabled = !tsmSeUserCanFinalizeUpload();
+            btn.innerHTML = '<i data-lucide="check" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>Finalize upload';
+            if (!tsmSeUserCanFinalizeUpload()) {
+                tsmSeSetMsg('Only Tehleel / Ubaid (or Admin) can finalize. Preview is ready for review.', '#f97316');
+            }
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    async function tsmSeApplyRevenuePlan(plan, digest) {
+        var done = 0;
+        var total = plan.updates.length + plan.newCandidates.length;
+        for (var i = 0; i < plan.updates.length; i++) {
+            var entry = plan.updates[i];
+            var patch = {
+                __metadata: { type: 'SP.Data.TSM_x005f_SE_x005f_AccountsListItem' }
+            };
+            entry.changes.forEach(function (ch) {
+                if (ch.field === 'am') patch.AccountManager = ch.to;
+                else if (ch.field === 'ad') patch.AccountDirector = ch.to;
+                else {
+                    var m = MONTH_MAP.find(function (mm) { return mm.display.toLowerCase() === ch.field; });
+                    if (m) patch[m.odata] = ch.to;
+                }
+            });
+            await fetch(SP_URL + "/_api/web/lists/getbytitle('" + TSM_LIST + "')/items(" + entry.id + ")", {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json;odata=verbose',
+                    'Content-Type': 'application/json;odata=verbose',
+                    'X-RequestDigest': digest,
+                    'IF-MATCH': '*',
+                    'X-HTTP-Method': 'MERGE'
+                },
+                credentials: 'include',
+                body: JSON.stringify(patch)
+            });
+            done++;
+            tsmSeUpdateProgress('Applying updates…', 30 + Math.round(done / Math.max(total, 1) * 65), done + ' / ' + total);
+        }
+        for (var j = 0; j < plan.newCandidates.length; j++) {
+            var nc = plan.newCandidates[j];
+            var newRow = {
+                code: nc.code,
+                customer: nc.customer || '',
+                am: nc.am || '',
+                ad: nc.ad || '',
+                parent: nc.code,
+                team: 'TSM_SE',
+                segment: '',
+                lm: '',
+                sm: '',
+                _monthsInExcel: {}
+            };
+            Object.keys(nc.months || {}).forEach(function (mk) { newRow[mk] = nc.months[mk]; });
+            var body = rowToSPItem(newRow);
+            await fetch(SP_URL + "/_api/web/lists/getbytitle('" + TSM_LIST + "')/items", {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json;odata=verbose',
+                    'Content-Type': 'application/json;odata=verbose',
+                    'X-RequestDigest': digest
+                },
+                credentials: 'include',
+                body: JSON.stringify(body)
+            });
+            done++;
+        }
+        tsmSeUpdateProgress('Done', 100, done + ' rows applied');
+    }
+
     window.tsmSeStartUpload = async function() {
         var file = window._tsmSeSelectedFile;
         if (!file) return;
 
-        var modeEl = document.querySelector('input[name="tsmUploadMode"]:checked');
-        var mode   = modeEl ? modeEl.value : 'smart';
-        var btn    = document.getElementById('tsmSeUploadSubmit');
+        if (window._tsmSeUploadPlan && window._tsmSeUploadConfirm && tsmSeUserCanFinalizeUpload()) {
+            var btn0 = document.getElementById('tsmSeUploadSubmit');
+            if (btn0) btn0.disabled = true;
+            try {
+                var plan = window._tsmSeUploadPlan;
+                plan.newCandidates = [];
+                (plan.unknown || []).forEach(function (u, idx) {
+                    var pick = document.querySelector('input[name="tsmUnk_' + idx + '"]:checked');
+                    if (pick && pick.value === 'add') plan.newCandidates.push(u);
+                });
+                var digest0 = await getDigest();
+                tsmSeUpdateProgress('Applying…', 15, '');
+                await tsmSeApplyRevenuePlan(plan, digest0);
+                window.TSM_SE_DATA = [];
+                window.TSM_SE_LOADED = false;
+                await loadTSMSEData('Reloading…', true);
+                tsmSeSetMsg('✅ Revenue upload complete.', '#10b981');
+                setTimeout(function () { var m = document.getElementById('tsmSeUploadModal'); if (m) m.remove(); }, 2000);
+            } catch (e) {
+                tsmSeSetMsg('Error: ' + e.message, '#ef4444');
+                if (btn0) btn0.disabled = false;
+            }
+            return;
+        }
+
+        var btn = document.getElementById('tsmSeUploadSubmit');
         if (btn) btn.disabled = true;
 
         try {
-            // Step 1: Parse Excel
             tsmSeUpdateProgress('Parsing Excel file...', 5, '');
             tsmSeSetMsg('');
-            var buf  = await file.arrayBuffer();
+            var buf = await file.arrayBuffer();
+            var parsed = parseRevenueExcelRows(buf);
+            var digest = await getDigest();
+
+            if (parsed.format === 'revenue') {
+                if (!parsed.rows.length) throw new Error('No valid revenue rows. Need Customer Lvl 1 / Code and Year Month columns.');
+                var existingMap = {};
+                var fetchUrl = SP_URL + "/_api/web/lists/getbytitle('" + TSM_LIST + "')/items?$top=5000";
+                while (fetchUrl) {
+                    var res = await fetch(fetchUrl, { headers: { Accept: 'application/json;odata=verbose' }, credentials: 'include' });
+                    if (!res.ok) throw new Error('Failed to load TSM_SE list');
+                    var data = await res.json();
+                    data.d.results.forEach(function (item) { existingMap[item.Title] = item; });
+                    fetchUrl = data.d.__next || null;
+                }
+                var plan = tsmSeBuildRevenueUploadPlan(parsed.rows, existingMap);
+                tsmSeUpdateProgress('Preview ready', 12, parsed.rows.length + ' accounts in file');
+                tsmSeShowUploadPreview(plan);
+                if (btn) btn.disabled = !tsmSeUserCanFinalizeUpload();
+                return;
+            }
+
             var rows = parseExcelToRows(buf);
             if (!rows.length) throw new Error('No valid rows found. Excel must have a Title (account code) column.');
             tsmSeUpdateProgress('Excel parsed', 10, rows.length.toLocaleString() + ' rows found in Excel');
+            await tsmSeSmartUpload(rows, digest);
 
-            // Step 2: Get digest
-            var digest = await getDigest();
-
-            if (mode === 'full') {
-                await tsmSeFullReplace(rows, digest);
-            } else {
-                await tsmSeSmartUpload(rows, digest);
-            }
-
-            // Reload data from list
             tsmSeSetMsg('✅ Upload complete! Reloading data...', '#10b981');
-            window.TSM_SE_DATA    = [];
-            window.TSM_SE_LOADED  = false;
+            window.TSM_SE_DATA = [];
+            window.TSM_SE_LOADED = false;
             window.TSM_SE_LOADING = false;
             var ok = await loadTSMSEData('Reloading TSM SE data...', true);
             if (ok) {
                 var tf = document.getElementById('filterTeam');
                 if (tf && tf.value === 'TSM_SE') { tsmSeRenderTSMSEView(); hideSpinner(); }
             }
-
             tsmSeSetMsg('✅ Done! ' + rows.length.toLocaleString() + ' accounts updated.', '#10b981');
-            setTimeout(function() {
+            setTimeout(function () {
                 var m = document.getElementById('tsmSeUploadModal');
                 if (m) m.remove();
             }, 2000);
-
-        } catch(err) {
+        } catch (err) {
             tsmSeSetMsg('Error: ' + err.message, '#ef4444');
             console.error('[TSM_SE Upload]', err);
             if (btn) btn.disabled = false;
         }
     };
 
-    // ── Full Replace ──────────────────────────────────────────
-    async function tsmSeFullReplace(rows, digest) {
-        tsmSeUpdateProgress('Loading existing items to delete...', 12, '');
-
-        var existingItems = [];
-        var delUrl = SP_URL + "/_api/web/lists/getbytitle('" + TSM_LIST + "')/items?$select=ID&$top=5000";
-        while (delUrl) {
-            var res = await fetch(delUrl, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
-            if (!res.ok) throw new Error('Failed to fetch existing items');
-            var data = await res.json();
-            existingItems = existingItems.concat(data.d.results);
-            delUrl = data.d.__next || null;
-        }
-
-        var total = existingItems.length + rows.length;
-        var done  = 0;
-
-        for (var i = 0; i < existingItems.length; i += 50) {
-            var batch = existingItems.slice(i, i + 50);
-            await Promise.all(batch.map(function(item) {
-                return fetch(SP_URL + "/_api/web/lists/getbytitle('" + TSM_LIST + "')/items(" + item.ID + ")", {
-                    method: 'POST',
-                    headers: { 'Accept': 'application/json;odata=verbose', 'X-RequestDigest': digest, 'IF-MATCH': '*', 'X-HTTP-Method': 'DELETE' },
-                    credentials: 'include'
-                });
-            }));
-            done += batch.length;
-            var pct = 15 + Math.round(done / total * 35);
-            tsmSeUpdateProgress('Deleting existing items...', pct, done.toLocaleString() + ' deleted of ' + existingItems.length.toLocaleString());
-            if (done % 200 === 0) digest = await getDigest();
-        }
-
-        await tsmSeInsertRows(rows, digest, done, total, 50, 'Inserting');
-    }
-
-    // ── Smart Upload ──────────────────────────────────────────
+    // ── Smart Upload (update / insert changed rows only) ─────
     async function tsmSeSmartUpload(rows, digest) {
         tsmSeUpdateProgress('Fetching existing list data...', 12, '');
 
@@ -878,13 +1064,54 @@
         if (!segments.length) { container.style.display = 'none'; return; }
 
         container.style.display = 'block';
-        container.innerHTML = '<div class="filter-group"><label class="filter-label">Segment</label>'
-            + '<select class="filter-select" id="tsmSeSegmentSelect" onchange="tsmSeSetSegment(this.value)">'
-            + '<option value="">All Segments</option>'
-            + segments.map(function(s) {
+        container.innerHTML = '<div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;">' +
+            '<div class="filter-group"><label class="filter-label">Segment</label>' +
+            '<select class="filter-select" id="tsmSeSegmentSelect" onchange="tsmSeSetSegment(this.value)">' +
+            '<option value="">All Segments</option>' +
+            segments.map(function(s) {
                 return '<option value="'+s+'"'+(window.TSM_SE_SEGMENT_FILTER===s?' selected':'')+'>'+s+'</option>';
-            }).join('')
-            + '</select></div>';
+            }).join('') +
+            '</select></div>' +
+            '<button type="button" class="export-btn" title="TSM SE account summary" onclick="tsmSeShowAccountsSummary()" style="padding:.45rem .65rem;min-width:auto;">' +
+            '<i data-lucide="info" style="width:16px;height:16px;"></i></button></div>';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    };
+
+    window.tsmSeShowAccountsSummary = function () {
+        var data = window.TSM_SE_DATA || [];
+        var last3 = typeof getLastThreeCompletedMonths === 'function' ? getLastThreeCompletedMonths() : [];
+        var inactive = data.filter(function (a) {
+            if (!last3.length) return false;
+            return last3.every(function (m) { return !(parseFloat(a[m.key]) > 0); });
+        });
+        var active = data.length - inactive.length;
+        var modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:1rem;';
+        modal.innerHTML = '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.25rem;max-width:520px;width:100%;">' +
+            '<h3 style="margin:0 0 .75rem;font-size:1rem;display:flex;align-items:center;gap:8px;"><i data-lucide="bar-chart-2"></i> TSM SE summary</h3>' +
+            '<p style="font-size:.85rem;color:var(--t2);margin:0 0 .5rem;">Total accounts: <strong>' + data.length + '</strong></p>' +
+            '<p style="font-size:.85rem;color:var(--t2);margin:0 0 .5rem;">Active (revenue in any of last 3 closed months): <strong style="color:#10b981;">' + active + '</strong></p>' +
+            '<p style="font-size:.85rem;color:var(--t2);margin:0 0 1rem;">Inactive / dead (no revenue last 3 months): <strong style="color:#ef4444;">' + inactive.length + '</strong></p>' +
+            '<p style="font-size:.72rem;color:var(--t3);margin:0 0 1rem;">Inactive accounts still assigned to LM/SM but carry no recent revenue load.</p>' +
+            '<button type="button" class="reset-btn" onclick="this.closest(\'div[style*=fixed]\').remove()">Close</button></div>';
+        document.body.appendChild(modal);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    };
+
+    window.tsmSeShowAccountHistory = function (accountCode) {
+        var row = (window.TSM_SE_DATA || []).find(function (r) { return r.code === accountCode; });
+        if (!row || !row.notes) {
+            alert('No transfer history stored for this account.');
+            return;
+        }
+        var modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:1rem;';
+        var esc = String(row.notes).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        modal.innerHTML = '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.25rem;max-width:720px;width:100%;max-height:80vh;overflow:auto;">' +
+            '<h3 style="margin:0 0 .75rem;">Account history — ' + accountCode + '</h3>' +
+            '<pre style="white-space:pre-wrap;font-size:.78rem;line-height:1.45;background:var(--bg-secondary);padding:1rem;border-radius:8px;border:1px solid var(--border);">' + esc + '</pre>' +
+            '<button type="button" class="reset-btn" style="margin-top:.75rem;" onclick="this.closest(\'div[style*=fixed]\').remove()">Close</button></div>';
+        document.body.appendChild(modal);
     };
 
     window.tsmSeSetSegment = function(seg) {
@@ -957,6 +1184,9 @@
                 } else if (canTransfer && (a.isRevDrop || a.isRevUpgrade)) {
                     var dir = a.isRevDrop ? ' (Rev down)' : ' (Rev up)';
                     html += '<button type="button" class="export-btn" style="padding:3px 7px;font-size:10px;width:100%;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;" onclick="tsmSeOpenTransfer(\'' + esc(a.code) + '\')">Transfer' + dir + '</button>';
+                }
+                if (a.notes && String(a.notes).trim()) {
+                    html += '<button type="button" class="reset-btn" style="padding:3px 7px;font-size:10px;width:100%;" onclick="tsmSeShowAccountHistory(\'' + esc(a.code) + '\')">History</button>';
                 }
                 html += '</div>';
                 return html;
