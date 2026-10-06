@@ -1212,10 +1212,14 @@
         var gridDiv = document.getElementById('myGrid');
         if (!gridDiv) return;
 
-        if (window.agGridApi) {
-            try { window.agGridApi.destroy(); } catch(e) {}
-            window.agGridApi = null;
+        if (window.tsmSeGridApi) {
+            try { window.tsmSeGridApi.destroy(); } catch (e) {}
         }
+        if (window.agGridApi && window.agGridApi !== window.tsmSeGridApi) {
+            try { window.agGridApi.destroy(); } catch (e) {}
+        }
+        window.agGridApi = null;
+        window.tsmSeGridApi = null;
         gridDiv.innerHTML = '';
 
         var colDefs = tsmSeGetColumnDefs();
@@ -1237,6 +1241,10 @@
             onGridReady: function(params) {
                 window.agGridApi = params.api;
                 window.tsmSeGridApi = params.api;
+                var q = window._agGridQuickFilterText;
+                if (q) {
+                    try { params.api.setGridOption('quickFilterText', q); } catch (e) {}
+                }
             }
         };
 
