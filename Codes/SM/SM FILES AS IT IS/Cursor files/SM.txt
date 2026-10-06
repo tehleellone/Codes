@@ -12635,7 +12635,7 @@ else if (sectionId === 'portalAnalyticsView') {
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/repeated-calls.js?v=1.9.24"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/rnps.js"></script>
   <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/semailbox.js"></script>
-  <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=tsmse5"></script>
+  <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=tsmse6"></script>
     <script>
     </script>
 </body>
