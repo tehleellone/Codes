@@ -3264,6 +3264,7 @@ async function submitDeclineTransfer() {
             loadAdminTransferRequests();
         }, 2000);
 
+        
     } catch(e) {
         console.error(e);
         alert('Error: ' + e.message);
