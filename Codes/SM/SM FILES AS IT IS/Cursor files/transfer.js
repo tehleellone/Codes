@@ -243,6 +243,16 @@ function inject() {
             if (section) section.style.display = 'none';
         }
 
+        function transferResetTransferSubmitButton() {
+            var view = document.getElementById('transferRequestView');
+            if (!view) return;
+            var btn = view.querySelector('.export-btn');
+            if (!btn) return;
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="send" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>Submit Transfer Request';
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
         async function transferPrepareSeTransferForm(amPrefill, adPrefill) {
             await transferEnsureMappingData();
             var section = document.getElementById('transferSeAmAdSection');
@@ -417,7 +427,6 @@ function inject() {
                             ''
                         );
                     }
-                    window.TSM_SE_LOADED = false;
                     setTimeout(function () {
                         document.getElementById('transferNewTeam').value = '';
                         document.getElementById('transferReason').value = '';
@@ -425,18 +434,28 @@ function inject() {
                         transferResetSeAmAdPickers();
                         TRANSFER_ACCOUNT_DATA = null;
                         document.getElementById('transferAccountInfo').innerHTML = '';
+                        transferResetTransferSubmitButton();
                         backToDashboard();
-                        if (typeof loadTSMSEData === 'function') {
-                            loadTSMSEData(null, true).then(function () {
+                        var refreshChain = Promise.resolve();
+                        if (typeof window.tsmSeRefreshAfterTransfer === 'function') {
+                            refreshChain = window.tsmSeRefreshAfterTransfer();
+                        } else if (typeof loadTSMSEData === 'function') {
+                            window.TSM_SE_LOADED = false;
+                            refreshChain = loadTSMSEData(null, true).then(function () {
                                 if (document.getElementById('filterTeam') && document.getElementById('filterTeam').value === 'TSM_SE' && typeof tsmSeRenderTable === 'function') {
                                     tsmSeRenderTable();
                                 }
+                                if (typeof window.tsmSeHideSpinner === 'function') window.tsmSeHideSpinner();
                             });
                         }
-                        if (USER_CONTEXT.isAdmin || USER_CONTEXT.isLM || USER_CONTEXT.isSM) {
-                            init();
-                        }
-                    }, 2000);
+                        refreshChain.then(function () {
+                            if (typeof window.smRefreshDashboardData === 'function') {
+                                return window.smRefreshDashboardData();
+                            }
+                        }).catch(function (e) {
+                            console.warn('[Transfer] Post-submit refresh:', e);
+                        });
+                    }, 1200);
                 }).catch(function (err) {
                     console.error('[✗] TSM SE transfer error:', err);
                     document.getElementById('transferSubmitMessage').innerHTML = '<span style="color: var(--danger);">Error: ' + err.message + '</span>';
@@ -2124,10 +2143,19 @@ ${USER_CONTEXT.userName}`);
                     ''
                 );
             }
-            setTimeout(() => {
+            setTimeout(function () {
                 CURRENT_TRANSFER_ITEM = null;
                 switchDashboardSection('dashboard-view');
-                init();
+                var chain = Promise.resolve();
+                if (typeof window.tsmSeRefreshAfterTransfer === 'function') {
+                    chain = window.tsmSeRefreshAfterTransfer();
+                }
+                chain.then(function () {
+                    if (typeof window.smRefreshDashboardData === 'function') {
+                        return window.smRefreshDashboardData();
+                    }
+                    if (typeof init === 'function') return init();
+                }).catch(function (e) { console.warn('[Transfer] Finalize refresh:', e); });
             }, 2000);
         })
         .catch(err => {
