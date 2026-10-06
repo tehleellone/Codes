@@ -269,9 +269,23 @@ function nlDisplaySource(item) {
     return src || (item.Author ? item.Author.Title : 'Admin');
 }
 
+function nlStripHtmlToPlain(html) {
+    var s = String(html || '');
+    s = s.replace(/<!--[\s\S]*?-->/g, '');
+    if (typeof document !== 'undefined') {
+        var tmp = document.createElement('div');
+        tmp.innerHTML = s;
+        s = (tmp.textContent || tmp.innerText || '').trim();
+    } else {
+        s = s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+    return s;
+}
+
 function nlDisplayContent(item) {
     var text = String((item && item.Content) || '');
-    return text.replace(/<!--\s*BirthdayAuto[^>]*-->/gi, '').trim();
+    text = text.replace(/<!--\s*BirthdayAuto[^>]*-->/gi, '').trim();
+    return nlStripHtmlToPlain(text);
 }
 
 function nlBirthdayMetaFromItem(item) {
@@ -321,7 +335,26 @@ function nlInjectNewsletterStyles() {
         '.nl-bday-card:hover{transform:translateY(-3px);box-shadow:var(--ch);}' +
         '.nl-bday-card-hero{height:140px;background:linear-gradient(135deg,#ec4899,#f97316);position:relative;}' +
         '.nl-bday-card-hero img{width:100%;height:100%;object-fit:cover;}' +
-        '.nl-bday-card-body{padding:1rem 1.1rem 1.15rem;}';
+        '.nl-bday-card-body{padding:1rem 1.1rem 1.15rem;}' +
+        '.nl-feed-hero{border-radius:20px;overflow:hidden;margin-bottom:1.5rem;box-shadow:var(--ch);cursor:pointer;transition:transform .2s,box-shadow .2s;background:var(--bg-card);border:1px solid var(--border);}' +
+        '.nl-feed-hero:hover{transform:translateY(-2px);box-shadow:0 16px 40px rgba(0,0,0,.12);}' +
+        '.nl-feed-hero-img{width:100%;height:360px;object-fit:cover;display:block;}' +
+        '.nl-feed-hero-img-sm{height:160px;}' +
+        '.nl-feed-hero-body{padding:1.75rem 2rem 2rem;}' +
+        '.nl-feed-meta{display:flex;align-items:center;gap:12px;margin-bottom:.85rem;flex-wrap:wrap;}' +
+        '.nl-feed-badge{font-size:11px;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:.04em;text-transform:uppercase;color:#fff;}' +
+        '.nl-feed-meta-text{font-size:12px;color:var(--t3);display:inline-flex;align-items:center;gap:4px;}' +
+        '.nl-feed-hero-title{font-size:1.55rem;font-weight:800;color:var(--t1);margin:0 0 .85rem;line-height:1.35;}' +
+        '.nl-feed-hero-excerpt{font-size:15px;color:var(--t2);line-height:1.75;margin:0;}' +
+        '.nl-feed-section-title{font-size:.95rem;font-weight:800;color:var(--t1);margin:2rem 0 1rem;display:flex;align-items:center;gap:8px;}' +
+        '.nl-feed-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-bottom:2rem;}' +
+        '.nl-feed-card{border-radius:16px;overflow:hidden;cursor:pointer;transition:transform .2s,box-shadow .2s;background:var(--bg-card);border:1px solid var(--border);}' +
+        '.nl-feed-card:hover{transform:translateY(-3px);box-shadow:var(--ch);}' +
+        '.nl-feed-card-img{width:100%;height:140px;object-fit:cover;display:block;}' +
+        '.nl-feed-card-body{padding:1rem 1.05rem 1.1rem;}' +
+        '.nl-feed-card-title{font-size:.92rem;font-weight:700;color:var(--t1);margin:0 0 .4rem;line-height:1.35;}' +
+        '.nl-feed-card-excerpt{font-size:12px;color:var(--t3);line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin:0;}' +
+        '.nl-feed-readmore{margin-top:.75rem;display:flex;align-items:center;gap:4px;font-size:.75rem;color:var(--acc);font-weight:700;}';
     document.head.appendChild(style);
 }
 
@@ -329,6 +362,7 @@ function nlInjectNewsletterStyles() {
 function nlRenderView() {
     var container = document.getElementById('nlViewContainer');
     if (!container) return;
+    nlInjectNewsletterStyles();
 
     var general = nlItemsExcludingBirthdays(nlAllItems);
     if (general.length === 0) {
@@ -344,15 +378,12 @@ function nlRenderView() {
     var latest = general[0];
     var rest = general.slice(1);
 
-    // Hero card — latest newsletter
     html += nlBuildHeroCard(latest);
 
-    // Older newsletters grid
     if (rest.length > 0) {
-        html += '<h3 style="font-size:.95rem;font-weight:800;color:var(--t1);margin:2rem 0 1rem;display:flex;align-items:center;gap:8px;">' +
-            '<i data-lucide="clock" style="width:16px;height:16px;"></i>Previous Newsletters</h3>';
-        html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-bottom:2rem;">';
-        rest.forEach(function(item) { html += nlBuildCard(item); });
+        html += '<h3 class="nl-feed-section-title"><i data-lucide="clock" style="width:16px;height:16px;"></i>Previous Newsletters</h3>';
+        html += '<div class="nl-feed-grid">';
+        rest.forEach(function (item) { html += nlBuildCard(item); });
         html += '</div>';
     }
 
@@ -363,23 +394,25 @@ function nlRenderView() {
 function nlBuildHeroCard(item) {
     var color = nlCategoryColor(item.Category);
     var imageURL = nlGetImageURL(item);
+    var excerpt = nlDisplayContent(item);
+    if (excerpt.length > 420) excerpt = excerpt.slice(0, 420) + '…';
 
-    return '<div class="table-section" data-nl-id="' + item.ID + '" data-newsletter-id="' + item.ID + '" style="padding:0;overflow:hidden;border-radius:20px;margin-bottom:1.5rem;box-shadow:var(--ch);">' +
+    return '<article class="nl-feed-hero" data-nl-id="' + item.ID + '" onclick="nlOpenCard(' + item.ID + ')" role="button" tabindex="0">' +
         (imageURL ?
-            '<div style="width:100%;max-height:360px;overflow:hidden;">' +
-            '<img src="http://sharedspaces:8086' + imageURL + '"style="width:100%;height:360px;object-fit:cover;display:block;" onerror="this.parentElement.style.display=\'none\'" /></div>' :
-            '<div style="width:100%;height:160px;background:var(--grad);display:flex;align-items:center;justify-content:center;">' +
+            '<img class="nl-feed-hero-img" src="' + NL_SP_HOST + imageURL + '" alt="" onerror="this.classList.add(\'nl-feed-hero-img-sm\');this.src=\'\';" />' :
+            '<div class="nl-feed-hero-img nl-feed-hero-img-sm" style="background:var(--grad);display:flex;align-items:center;justify-content:center;">' +
             '<i data-lucide="newspaper" style="width:64px;height:64px;color:rgba(255,255,255,0.5);"></i></div>'
         ) +
-        '<div style="padding:2rem;">' +
-        '<div style="display:flex;align-items:center;gap:12px;margin-bottom:1rem;flex-wrap:wrap;">' +
-      '<span style="background:' + color + ';color:#fff;font-size:11px;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:1px;text-transform:uppercase;">' + (item.Category || 'General') + ' Announcement</span>' +
-        '<span style="font-size:12px;color:var(--t3);display:flex;align-items:center;gap:4px;"><i data-lucide="calendar" style="width:13px;height:13px;"></i>' + nlFormatDate(item.PublishedDate) + '</span>' +
-       '<span style="font-size:12px;color:var(--t3);display:flex;align-items:center;gap:4px;"><i data-lucide="users" style="width:13px;height:13px;"></i>' + nlEscapeHtml(nlDisplaySource(item)) + '</span>' +
+        '<div class="nl-feed-hero-body">' +
+        '<div class="nl-feed-meta">' +
+        '<span class="nl-feed-badge" style="background:' + color + ';">' + nlEscapeHtml(item.Category || 'General') + '</span>' +
+        '<span class="nl-feed-meta-text"><i data-lucide="calendar" style="width:13px;height:13px;"></i>' + nlFormatDate(item.PublishedDate) + '</span>' +
+        '<span class="nl-feed-meta-text"><i data-lucide="users" style="width:13px;height:13px;"></i>' + nlEscapeHtml(nlDisplaySource(item)) + '</span>' +
         '</div>' +
-        '<h2 style="font-size:1.6rem;font-weight:800;color:var(--t1);margin:0 0 1rem!important;">' + nlEscapeHtml(item.Title) + '</h2>' +
-     '<p style="font-size:14px;color:var(--t2);line-height:1.9;margin:0;white-space:pre-wrap;">' + nlEscapeHtml(nlDisplayContent(item)).replace(/\n/g, '<br>') + '</p>' +
-        '</div></div>';
+        '<h2 class="nl-feed-hero-title">' + nlEscapeHtml(item.Title) + '</h2>' +
+        '<p class="nl-feed-hero-excerpt">' + nlEscapeHtml(excerpt) + '</p>' +
+        '<div class="nl-feed-readmore"><i data-lucide="maximize-2" style="width:13px;height:13px;"></i>Open full article</div>' +
+        '</div></article>';
 }
 
 function nlBuildBirthdayCard(item) {
@@ -392,38 +425,33 @@ function nlBuildBirthdayCard(item) {
         '</div>' +
         '<div class="nl-bday-card-body">' +
         '<div class="nl-bday-countdown-pill">' + nlEscapeHtml(pill) + '</div>' +
-        '<div style="font-size:.95rem;font-weight:800;color:var(--t1);margin-bottom:.35rem;line-height:1.35;">' + nlEscapeHtml(item.Title || '') + '</div>' +
-        '<div style="font-size:12px;color:var(--t3);line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' + nlEscapeHtml(nlDisplayContent(item)) + '</div>' +
+        '<h3 class="nl-feed-card-title">' + nlEscapeHtml(item.Title || '') + '</h3>' +
+        '<p class="nl-feed-card-excerpt">' + nlEscapeHtml(nlDisplayContent(item)) + '</p>' +
         '</div></div>';
 }
 
 function nlBuildCard(item) {
     if (item.Category === 'Birthdays' || nlIsBirthdayAutoItem(item)) {
-        nlInjectNewsletterStyles();
         return nlBuildBirthdayCard(item);
     }
     var color = nlCategoryColor(item.Category);
     var imageURL = nlGetImageURL(item);
 
-    return '<div class="table-section" style="padding:0;overflow:hidden;cursor:pointer;transition:transform .2s,box-shadow .2s;" ' +
-        'onclick="nlOpenCard(' + item.ID + ')" ' +
-        'onmouseover="this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'var(--ch)\'" ' +
-        'onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\'">' +
+    return '<article class="nl-feed-card" onclick="nlOpenCard(' + item.ID + ')" role="button" tabindex="0">' +
         (imageURL ?
-            '<div style="height:140px;overflow:hidden;"><img src="http://sharedspaces:8086' + imageURL + '" style="width:100%;height:140px;object-fit:cover;" onerror="this.parentElement.style.display=\'none\'" /></div>' :
-            '<div style="height:80px;background:var(--grad);display:flex;align-items:center;justify-content:center;">' +
+            '<img class="nl-feed-card-img" src="' + NL_SP_HOST + imageURL + '" alt="" onerror="this.style.display=\'none\'" />' :
+            '<div class="nl-feed-card-img" style="height:80px;background:var(--grad);display:flex;align-items:center;justify-content:center;">' +
             '<i data-lucide="newspaper" style="width:28px;height:28px;color:rgba(255,255,255,0.6);"></i></div>'
         ) +
-        '<div style="padding:1rem;">' +
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem;">' +
-        '<span style="background:' + color + ';color:#fff;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px;text-transform:uppercase;">' + (item.Category || 'General') + ' Announcement</span>' +
-        '<span style="font-size:11px;color:var(--t3);">' + nlFormatDate(item.PublishedDate) + '</span>' +
+        '<div class="nl-feed-card-body">' +
+        '<div class="nl-feed-meta" style="margin-bottom:.45rem;">' +
+        '<span class="nl-feed-badge" style="background:' + color + ';font-size:10px;padding:2px 10px;">' + nlEscapeHtml(item.Category || 'General') + '</span>' +
+        '<span class="nl-feed-meta-text" style="font-size:11px;">' + nlFormatDate(item.PublishedDate) + '</span>' +
         '</div>' +
-        '<div style="font-size:.9rem;font-weight:700;color:var(--t1);margin-bottom:.4rem;line-height:1.3;">' + item.Title + '</div>' +
-        '<div style="font-size:12px;color:var(--t3);line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' + (item.Content || '') + '</div>' +
-        '<div style="margin-top:.75rem;display:flex;align-items:center;gap:4px;font-size:.75rem;color:var(--acc);font-weight:700;">' +
-        '<i data-lucide="eye" style="width:13px;height:13px;"></i>Read more</div>' +
-        '</div></div>';
+        '<h3 class="nl-feed-card-title">' + nlEscapeHtml(item.Title) + '</h3>' +
+        '<p class="nl-feed-card-excerpt">' + nlEscapeHtml(nlDisplayContent(item)) + '</p>' +
+        '<div class="nl-feed-readmore"><i data-lucide="eye" style="width:13px;height:13px;"></i>Read more</div>' +
+        '</div></article>';
 }
 function nlOpenModalShell(opts) {
     nlInjectNewsletterStyles();
@@ -460,12 +488,16 @@ function nlOpenModalShell(opts) {
 window.nlOpenCard = function(itemId) {
     var item = nlAllItems.find(function(i) { return i.ID === itemId; });
     if (!item) return;
+    nlMarkAsSeen(item.ID);
+    nlRemoveNewBadge();
 
     var isBday = item.Category === 'Birthdays' || nlIsBirthdayAutoItem(item);
-    var meta = nlBirthdayMetaFromItem(item);
     var pill = '';
-    if (isBday && meta) {
-        pill = meta.daysUntil === 0 ? 'Happy birthday today 🎉' : (meta.daysUntil === 1 ? '1 day to go' : meta.daysUntil + ' days to go');
+    if (isBday) {
+        var todayYmd = nlUaeYmd(new Date());
+        var meta = nlBirthdayMetaFromItem(item);
+        var isTodayPost = meta && meta.eventYmd === todayYmd && meta.daysUntil === 0;
+        if (isTodayPost) pill = 'Happy birthday today 🎉';
     }
     nlOpenModalShell({
         id: 'nlOverlay',
@@ -477,8 +509,16 @@ window.nlOpenCard = function(itemId) {
         dateLabel: nlFormatDate(item.PublishedDate),
         sourceLabel: nlDisplaySource(item),
         title: item.Title,
-        body: nlDisplayContent(item)
+        body: nlDisplayContent(item),
+        actionsHtml: '<div class="nl-modal-actions"><button type="button" class="reset-btn" id="nlOverlayCloseBtn" style="flex:1;">Close</button></div>'
     });
+    var closeBtn = document.getElementById('nlOverlayCloseBtn');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function () {
+            var ov = document.getElementById('nlOverlay');
+            if (ov) ov.remove();
+        });
+    }
 };
 // ── Manage Tab (Admin) ────────────────────────────────────────
 function nlRenderManage() {
@@ -1000,7 +1040,7 @@ function nlBirthdayMarkPopupShown(todayYmd) {
 }
 
 function nlShowBirthdayDailyPopup(payload) {
-    if (!payload) return;
+    if (!payload || payload.isToday !== true) return;
     var existing = document.getElementById('nlBirthdayPopup');
     if (existing) existing.remove();
     var wishBtn = '';
@@ -1053,6 +1093,38 @@ function nlBirthdayBuildWishMailto(peopleToday) {
     return 'mailto:' + email + '?subject=' + subj + '&body=' + body;
 }
 
+/** True only when month/day of DOB matches today (UAE). Used for dashboard popup — not schedule/upcoming. */
+function nlBirthdayPeopleWithDobToday(people, todayYmd) {
+    var t = nlParseYmd(todayYmd);
+    var list = [];
+    (people || []).forEach(function (p) {
+        if (!p.dob) return;
+        if (p.dob.m === t.m && p.dob.d === t.d) {
+            list.push({ name: p.name, email: p.email || '', team: p.team || '' });
+        }
+    });
+    return list;
+}
+
+/**
+ * Dashboard birthday popup — ONLY when someone has a birthday today.
+ * Wired from: SM.txt switchDashboardSection('dashboard-view') → nlCheckOnDashboard → nlBirthdayMaybeShowPopup
+ */
+function nlBirthdayMaybeShowPopup() {
+    var todayYmd = nlUaeYmd(new Date());
+    if (nlBirthdayPopupShownToday(todayYmd)) return;
+
+    var peoplePromise = nlBirthdayFetchMappingPeople();
+    peoplePromise.then(function (people) {
+        var todayPeople = nlBirthdayPeopleWithDobToday(people, todayYmd);
+        if (!todayPeople.length) return;
+        var popupPayload = nlBirthdayPopupPayloadForToday(todayPeople, todayYmd);
+        if (!popupPayload) return;
+        nlShowBirthdayDailyPopup(popupPayload);
+        nlBirthdayMarkPopupShown(todayYmd);
+    }).catch(function () {});
+}
+
 function nlBirthdayPopupPayloadForToday(todayPeople, todayYmd) {
     if (!todayPeople || !todayPeople.length) return null;
     var names = todayPeople.map(function (p) { return p.name; });
@@ -1072,10 +1144,7 @@ async function nlBirthdayRunDaily() {
     var people = await nlBirthdayFetchMappingPeople();
     var schedule = nlBirthdayBuildSchedule(people, todayYmd);
     nlBirthdayUpcoming = schedule.upcoming;
-    var todayPeople = schedule.upcoming.filter(function (u) { return u.daysUntil === 0; }).map(function (u) {
-        var src = people.find(function (p) { return p.name === u.name; });
-        return { name: u.name, email: src ? src.email : '', team: u.team };
-    });
+    var todayPeople = nlBirthdayPeopleWithDobToday(people, todayYmd);
 
     try {
         var digest = await nlGetDigest();
@@ -1091,13 +1160,6 @@ async function nlBirthdayRunDaily() {
         }
     } catch (e) {
         console.warn('[Newsletter] Birthday sync skipped:', e.message);
-    }
-
-    if (!todayPeople.length || nlBirthdayPopupShownToday(todayYmd)) return;
-    var popupPayload = nlBirthdayPopupPayloadForToday(todayPeople, todayYmd);
-    if (popupPayload) {
-        nlShowBirthdayDailyPopup(popupPayload);
-        nlBirthdayMarkPopupShown(todayYmd);
     }
 }
 
@@ -1155,6 +1217,7 @@ window.nlCheckOnDashboard = async function () {
     } catch (e) {
         console.warn('[Newsletter] Birthday daily run:', e);
     }
+    nlBirthdayMaybeShowPopup();
     try {
         var url = SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items?" +
             "$select=ID,Title,Content,PublishedDate,Category,Source&$filter=IsActive eq 1&$orderby=PublishedDate desc&$top=20";
