@@ -138,6 +138,12 @@ async function nlLoadNewsletter() {
     if (contentEl) contentEl.style.display = 'none';
 
     try {
+        try {
+            await nlBirthdayRefreshUpcoming(null, nlUaeYmd(new Date()));
+        } catch (bErr) {
+            console.warn('[Birthday] Upcoming refresh:', bErr.message);
+        }
+
     var url = SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items?" +
 "$select=ID,Title,Content,Category,IsActive,PublishedDate,Source,Author/Title&" +    "$expand=Author&" +
     "$filter=IsActive eq 1&" +
@@ -775,9 +781,41 @@ function nlDaysBetweenYmd(from, to) {
 
 function nlParseDobField(raw) {
     if (raw == null || raw === '') return null;
-    var m = String(raw).match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (!m) return null;
-    return { y: parseInt(m[1], 10), m: parseInt(m[2], 10), d: parseInt(m[3], 10) };
+    if (typeof raw === 'object' && !(raw instanceof Date)) {
+        if (raw.getMonth && typeof raw.getMonth === 'function') {
+            return { y: raw.getFullYear(), m: raw.getMonth() + 1, d: raw.getDate() };
+        }
+        return nlParseDobField(String(raw));
+    }
+    var s = String(raw).trim();
+    if (!s) return null;
+
+    var spJson = s.match(/\/Date\((-?\d+)\)\//);
+    if (spJson) {
+        var dSp = new Date(parseInt(spJson[1], 10));
+        if (!isNaN(dSp.getTime())) {
+            return { y: dSp.getUTCFullYear(), m: dSp.getUTCMonth() + 1, d: dSp.getUTCDate() };
+        }
+    }
+
+    var iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return { y: parseInt(iso[1], 10), m: parseInt(iso[2], 10), d: parseInt(iso[3], 10) };
+
+    var slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (slash) {
+        var a = parseInt(slash[1], 10);
+        var b = parseInt(slash[2], 10);
+        var y = parseInt(slash[3], 10);
+        if (a > 12) return { y: y, m: b, d: a };
+        if (b > 12) return { y: y, m: a, d: b };
+        return { y: y, m: b, d: a };
+    }
+
+    var parsed = new Date(s);
+    if (!isNaN(parsed.getTime())) {
+        return { y: parsed.getFullYear(), m: parsed.getMonth() + 1, d: parsed.getDate() };
+    }
+    return null;
 }
 
 function nlNameFromEmail(email) {
@@ -829,27 +867,50 @@ async function nlGetDigest() {
     return (await digestRes.json()).d.GetContextWebInformation.FormDigestValue;
 }
 
+function nlBirthdayDisplayName(row) {
+    var email = String(row.Email_ID || row.Email || '').trim();
+    var fromEmail = nlNameFromEmail(email);
+    var sm = String(row.Service_Manager_Name || row.Title || '').trim();
+    if (sm) return sm;
+    return fromEmail;
+}
+
 async function nlBirthdayFetchMappingPeople() {
     var list = (typeof SP_MAPPING_LIST !== 'undefined' && SP_MAPPING_LIST) ? SP_MAPPING_LIST : NL_MAPPING_LIST;
-    var url = SP_URL + "/_api/web/lists/getbytitle('" + list.replace(/'/g, "''") + "')/items?" +
-        "$select=Email_ID,Team,DOB,Status&$top=5000";
-    var res = await fetch(url, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
-    if (!res.ok) return [];
-    var data = await res.json();
     var people = [];
-    (data.d.results || []).forEach(function (row) {
-        var dob = nlParseDobField(row.DOB);
-        if (!dob) return;
-        var email = String(row.Email_ID || '').trim();
-        var name = nlNameFromEmail(email);
-        if (!name) return;
-        people.push({
-            name: name,
-            email: email,
-            team: row.Team || '',
-            dob: dob
+    var url = SP_URL + "/_api/web/lists/getbytitle('" + list.replace(/'/g, "''") + "')/items?" +
+        "$select=Email_ID,Team,DOB,Status,Service_Manager_Name,Title&$top=5000";
+
+    while (url) {
+        var res = await fetch(url, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
+        if (!res.ok) {
+            console.warn('[Birthday] Account Mapping fetch failed:', res.status);
+            break;
+        }
+        var data = await res.json();
+        (data.d.results || []).forEach(function (row) {
+            var status = String(row.Status || '').trim().toLowerCase();
+            if (status === 'inactive' || status === 'no' || status === 'disabled') return;
+
+            var dob = nlParseDobField(row.DOB);
+            if (!dob) return;
+
+            var email = String(row.Email_ID || '').trim();
+            var name = nlBirthdayDisplayName(row);
+            if (!name && !email) return;
+            if (!name) name = nlNameFromEmail(email) || email;
+
+            people.push({
+                name: name,
+                email: email,
+                team: row.Team || '',
+                dob: dob
+            });
         });
-    });
+        url = data.d.__next || null;
+    }
+
+    window.nlBirthdayPeopleCache = people;
     return people;
 }
 
@@ -1110,19 +1171,19 @@ function nlBirthdayPeopleWithDobToday(people, todayYmd) {
  * Dashboard birthday popup — ONLY when someone has a birthday today.
  * Wired from: SM.txt switchDashboardSection('dashboard-view') → nlCheckOnDashboard → nlBirthdayMaybeShowPopup
  */
-function nlBirthdayMaybeShowPopup() {
-    var todayYmd = nlUaeYmd(new Date());
+function nlBirthdayMaybeShowPopupFromPeople(people, todayYmd) {
+    todayYmd = todayYmd || nlUaeYmd(new Date());
     if (nlBirthdayPopupShownToday(todayYmd)) return;
 
-    var peoplePromise = nlBirthdayFetchMappingPeople();
-    peoplePromise.then(function (people) {
-        var todayPeople = nlBirthdayPeopleWithDobToday(people, todayYmd);
-        if (!todayPeople.length) return;
-        var popupPayload = nlBirthdayPopupPayloadForToday(todayPeople, todayYmd);
-        if (!popupPayload) return;
-        nlShowBirthdayDailyPopup(popupPayload);
-        nlBirthdayMarkPopupShown(todayYmd);
-    }).catch(function () {});
+    var todayPeople = nlBirthdayPeopleWithDobToday(people, todayYmd);
+    if (!todayPeople.length) {
+        console.log('[Birthday] No birthdays today (UAE). Parsed mapping rows with DOB:', (people || []).length);
+        return;
+    }
+    var popupPayload = nlBirthdayPopupPayloadForToday(todayPeople, todayYmd);
+    if (!popupPayload) return;
+    nlShowBirthdayDailyPopup(popupPayload);
+    nlBirthdayMarkPopupShown(todayYmd);
 }
 
 function nlBirthdayPopupPayloadForToday(todayPeople, todayYmd) {
@@ -1139,11 +1200,17 @@ function nlBirthdayPopupPayloadForToday(todayPeople, todayYmd) {
     };
 }
 
-async function nlBirthdayRunDaily() {
+async function nlBirthdayRefreshUpcoming(people, todayYmd) {
+    todayYmd = todayYmd || nlUaeYmd(new Date());
+    if (!people) people = await nlBirthdayFetchMappingPeople();
+    nlBirthdayUpcoming = nlBirthdayBuildSchedule(people, todayYmd).upcoming;
+    return nlBirthdayUpcoming;
+}
+
+async function nlBirthdayRunDaily(peopleOptional) {
     var todayYmd = nlUaeYmd(new Date());
-    var people = await nlBirthdayFetchMappingPeople();
-    var schedule = nlBirthdayBuildSchedule(people, todayYmd);
-    nlBirthdayUpcoming = schedule.upcoming;
+    var people = peopleOptional || await nlBirthdayFetchMappingPeople();
+    await nlBirthdayRefreshUpcoming(people, todayYmd);
     var todayPeople = nlBirthdayPeopleWithDobToday(people, todayYmd);
 
     try {
@@ -1158,9 +1225,23 @@ async function nlBirthdayRunDaily() {
             };
             await nlBirthdayUpsertPost(digest, bucket);
         }
+        if (todayPeople.length) {
+            console.log('[Birthday] Newsletter post(s) synced for today:', todayPeople.map(function (p) { return p.name; }).join(', '));
+        }
     } catch (e) {
         console.warn('[Newsletter] Birthday sync skipped:', e.message);
     }
+    return { people: people, todayYmd: todayYmd, todayPeople: todayPeople };
+}
+
+async function nlRefreshBirthdayPostsInCache() {
+    var url = SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items?" +
+        "$select=ID,Title,Content,Category,IsActive,PublishedDate,Source&$filter=IsActive eq 1 and Category eq 'Birthdays'&$orderby=PublishedDate desc&$top=30";
+    var res = await fetch(url, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
+    if (!res.ok) return;
+    var rows = (await res.json()).d.results || [];
+    var rest = (nlAllItems || []).filter(function (i) { return i.Category !== 'Birthdays' && !nlIsBirthdayAutoItem(i); });
+    nlAllItems = rows.concat(rest);
 }
 
 async function nlRenderBirthdaysTab() {
@@ -1168,9 +1249,13 @@ async function nlRenderBirthdaysTab() {
     if (!container) return;
     container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--t2);">Loading birthdays...</div>';
     var todayYmd = nlUaeYmd(new Date());
-    if (!nlBirthdayUpcoming.length) {
-        var people = await nlBirthdayFetchMappingPeople();
-        nlBirthdayUpcoming = nlBirthdayBuildSchedule(people, todayYmd).upcoming;
+    var people = await nlBirthdayFetchMappingPeople();
+    nlBirthdayUpcoming = nlBirthdayBuildSchedule(people, todayYmd).upcoming;
+    try {
+        await nlBirthdayRunDaily(people);
+        await nlRefreshBirthdayPostsInCache();
+    } catch (e) {
+        console.warn('[Birthday] Tab sync:', e.message);
     }
     var posts = nlBirthdayItems(nlAllItems);
     var html = '<div class="table-section" style="margin-bottom:1.5rem;">' +
@@ -1213,11 +1298,13 @@ async function nlRenderBirthdaysTab() {
 // ── Dashboard-only popups (not landing page) ───────────────────
 window.nlCheckOnDashboard = async function () {
     try {
-        await nlBirthdayRunDaily();
+        var result = await nlBirthdayRunDaily();
+        if (result && result.people) {
+            nlBirthdayMaybeShowPopupFromPeople(result.people, result.todayYmd);
+        }
     } catch (e) {
         console.warn('[Newsletter] Birthday daily run:', e);
     }
-    nlBirthdayMaybeShowPopup();
     try {
         var url = SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items?" +
             "$select=ID,Title,Content,PublishedDate,Category,Source&$filter=IsActive eq 1&$orderby=PublishedDate desc&$top=20";
