@@ -6654,7 +6654,8 @@ else if (USER_CONTEXT.role === 'Account Manager' || USER_CONTEXT.role === 'Accou
                 switchDashboardSection('dashboard-view');
             }
             setTimeout(function () {
-                if (typeof window.nlBirthdayCheckAndMaybePopup === 'function') window.nlBirthdayCheckAndMaybePopup();
+                if (typeof nlCheckOnDashboard === 'function') nlCheckOnDashboard();
+                else if (typeof window.nlBirthdayCheckAndMaybePopup === 'function') window.nlBirthdayCheckAndMaybePopup();
             }, 400);
         }
         // ========================================
@@ -12634,7 +12635,7 @@ else if (sectionId === 'portalAnalyticsView') {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/events-tt-activity.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/projectManagement.js"></script>
-    <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/newsletter.js?v=nl-bday4"></script>
+    <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/newsletter.js?v=nl-bday6"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/contactus.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/suggestions.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/processdocs.js"></script>
