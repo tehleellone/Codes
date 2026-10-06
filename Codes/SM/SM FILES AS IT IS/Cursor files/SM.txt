@@ -12628,13 +12628,13 @@ else if (sectionId === 'portalAnalyticsView') {
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-pending-escalation.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/pending.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/am-ad.js"></script>
-<script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/transfer.js?v=tsmse10"></script>
+<script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/transfer.js?v=tsmse14"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/customerservice.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/analytics.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/events-tt-activity.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/projectManagement.js"></script>
-    <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/newsletter.js?v=nl-bday3"></script>
+    <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/newsletter.js?v=nl-bday4"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/contactus.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/suggestions.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/processdocs.js"></script>
@@ -12643,7 +12643,7 @@ else if (sectionId === 'portalAnalyticsView') {
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/repeated-calls.js?v=1.9.24"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/rnps.js"></script>
   <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/semailbox.js"></script>
-  <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=tsmse8"></script>
+  <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=tsmse10"></script>
     <script>
     </script>
 </body>
