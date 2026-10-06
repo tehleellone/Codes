@@ -149,7 +149,22 @@ function inject() {
         }
 
         function transferMappingPool() {
-            return TRANSFER_MAPPING_CACHE || window.SM_MAPPING_DATA || [];
+            var seen = {};
+            var pool = [];
+            (window.ALL_DATA || []).forEach(function (a) {
+                [{ n: a.am, team: a.team }, { n: a.ad, team: a.team }].forEach(function (x) {
+                    var name = transferNormalizePersonName(x.n);
+                    if (!name || seen[name]) return;
+                    seen[name] = true;
+                    pool.push({
+                        name: name,
+                        team: x.team || '',
+                        email: '',
+                        userId: ''
+                    });
+                });
+            });
+            return pool.sort(function (a, b) { return a.name.localeCompare(b.name); });
         }
 
         function transferMappingFieldIds(field) {
@@ -192,7 +207,7 @@ function inject() {
 
             dd.innerHTML = '';
             if (!results.length) {
-                dd.innerHTML = '<div class="sm-person-item" style="color:var(--t3);font-size:.82rem;">No matches in Account Mapping</div>';
+                dd.innerHTML = '<div class="sm-person-item" style="color:var(--t3);font-size:.82rem;">No matches in Service Manager Request accounts</div>';
                 dd.style.display = 'block';
                 return;
             }
@@ -355,11 +370,11 @@ function inject() {
 
             if (tDataEarly.fromTsmSe) {
                 if (!transferGetSelectedMapping('am')) {
-                    alert('Please select Account Manager from the account mapping list.');
+                    alert('Please select Account Manager from the Service Manager Request list.');
                     return;
                 }
                 if (!transferGetSelectedMapping('ad')) {
-                    alert('Please select Account Director from the account mapping list.');
+                    alert('Please select Account Director from the Service Manager Request list.');
                     return;
                 }
             }
@@ -1182,10 +1197,38 @@ async function loadAdminTransferRequests() {
     }
 }
 
+function transferNormalizeRequestStatus(status) {
+    var s = String(status || '').trim();
+    if (!s) return '';
+    var u = s.replace(/\s+/g, '_');
+    if (/^transfer[_-]?pending$/i.test(u) || u.toUpperCase() === 'TRANSFER_PENDING') return 'Transfer_Pending';
+    if (/^not[_-]?onboarded$/i.test(u)) return 'Not Onboarded';
+    if (/^am[_-]?approved$/i.test(u)) return 'AM_Approved';
+    if (/^onboarded$/i.test(u)) return 'OnBoarded';
+    return s;
+}
+
+function transferStatusDisplayLabel(status) {
+    var n = transferNormalizeRequestStatus(status);
+    if (n === 'Transfer_Pending' || n === 'Not Onboarded') return 'Pending AM Approval';
+    if (n === 'AM_Approved') return 'AM Approved';
+    if (n === 'OnBoarded') return 'OnBoarded';
+    if (n === 'Rejected') return 'Rejected';
+    return status || '—';
+}
+
 function renderTransferGridFiltered() {
     var all = window._ALL_TRANSFER_REQUESTS || [];
     var filterVal = document.getElementById('transferStatusFilter') ? document.getElementById('transferStatusFilter').value : 'AM_Approved';
-    var filtered = filterVal ? all.filter(function(r) { return r.Request_x0020_Status === filterVal; }) : all;
+    var filtered = filterVal
+        ? all.filter(function (r) {
+            var st = transferNormalizeRequestStatus(r.Request_x0020_Status);
+            if (filterVal === 'Transfer_Pending') {
+                return st === 'Transfer_Pending' || st === 'Not Onboarded';
+            }
+            return st === filterVal;
+        })
+        : all;
 
     var rowData = filtered.map(function(r) {
         var reqDate = r.Transfer_Request_Date ? new Date(r.Transfer_Request_Date) : null;
@@ -1196,7 +1239,8 @@ function renderTransferGridFiltered() {
             customer:    r.Customer_x0020_Name || '',
             currentTeam: r.Team || '',
             proposedTeam:r.Proposed_x0020_Team || '',
-            status:      r.Request_x0020_Status || '',
+            status:      transferNormalizeRequestStatus(r.Request_x0020_Status || ''),
+            statusLabel: transferStatusDisplayLabel(r.Request_x0020_Status || ''),
             requestDate: reqDate,
             daysPassed:  daysPassed,
             am:          transferDisplayAm(r),
@@ -1271,13 +1315,14 @@ function renderTransferGrid(rowData) {
             headerName: 'Status',
             width: 160,
             cellRenderer: function(p) {
-                var s = p.value || '';
+                var s = p.data.status || p.value || '';
+                var label = p.data.statusLabel || transferStatusDisplayLabel(s);
                 var cls = 'badge-warning';
                 if (s === 'AM_Approved') cls = 'badge-success';
                 else if (s === 'OnBoarded') cls = 'badge-info';
                 else if (s === 'Rejected') cls = 'badge-danger';
                 else if (s === 'Transfer_Pending' || s === 'Not Onboarded') cls = 'badge-warning';
-                return '<span class="status-badge ' + cls + '">' + s + '</span>';
+                return '<span class="status-badge ' + cls + '">' + label + '</span>';
             }
         },
         {
@@ -1893,7 +1938,7 @@ async function transferResolveSmId(smName) {
 async function transferFindTsmSeItem(accountCode) {
     var safeCode = String(accountCode || '').trim().replace(/'/g, "''");
     var url = SP_URL + "/_api/web/lists/getbytitle('" + TRANSFER_TSM_SE_LIST + "')/items?" +
-        "$select=ID,Title&$filter=Title eq '" + safeCode + "'&$top=1";
+        "$select=ID,Title,Notes&$filter=Title eq '" + safeCode + "'&$top=1";
     var res = await fetch(url, {
         headers: { Accept: 'application/json;odata=verbose' },
         credentials: 'include'
@@ -1903,6 +1948,87 @@ async function transferFindTsmSeItem(accountCode) {
     return data.d.results && data.d.results.length ? data.d.results[0] : null;
 }
 
+function transferBuildTsmSeTransferNotes(item, src, lmName, smName) {
+    var lines = [];
+    var stamp = new Date().toISOString();
+    lines.push('=== Transfer snapshot from Service Manager Request ===');
+    lines.push('Captured: ' + stamp);
+    lines.push('');
+    lines.push('Account Information');
+    lines.push('Account Code: ' + (item.Title || src.code || ''));
+    lines.push('Customer Name: ' + (item.Customer_x0020_Name || src.customer || ''));
+    lines.push('Team (previous): ' + (item.Team || src.team || ''));
+    lines.push('Segment: ' + (src.segment || ''));
+    lines.push('Account Type: ' + (src.accountType || ''));
+    lines.push('Line Manager: ' + (src.lm || (item.Line_x0020_Manager && item.Line_x0020_Manager.Title) || ''));
+    lines.push('Service Manager: ' + (src.sm || (item.Service_x0020_Manager && item.Service_x0020_Manager.Title) || ''));
+    lines.push('Account Manager: ' + ((item.Account_x0020_Manager && item.Account_x0020_Manager.Title) || src.am || ''));
+    lines.push('Account Director: ' + ((item.Account_x0020_Director && item.Account_x0020_Director.Title) || src.ad || ''));
+    lines.push('New Line Manager (TSM SE): ' + (lmName || ''));
+    lines.push('New Service Manager (TSM SE): ' + (smName || ''));
+    lines.push('');
+    lines.push('RNPS');
+    lines.push('RNPS Eligibility: ' + (src.rnpsEligibility || ''));
+    lines.push('RNPS POC: ' + (src.rnpsPoc || ''));
+    if (src.rnpsNotEligibleReason) lines.push('RNPS Not Eligible Reason: ' + src.rnpsNotEligibleReason);
+    lines.push('');
+    lines.push('Primary POC Details');
+    lines.push('Primary POC Name: ' + (src.pocName || ''));
+    lines.push('Primary POC email: ' + (src.pocEmail || ''));
+    lines.push('Primary POC Contact: ' + (src.pocPhone || ''));
+    lines.push('');
+    lines.push('Secondary POC Details');
+    lines.push('Secondary POC Name: ' + (src.secondaryPocName || ''));
+    lines.push('Secondary POC email: ' + (src.secondaryPocEmail || ''));
+    lines.push('Secondary POC Contact: ' + (src.secondaryPocPhone || ''));
+    lines.push('');
+    lines.push('Technical POC Details');
+    lines.push('Technical POC Name: ' + (src.technicalPocName || ''));
+    lines.push('Technical POC email: ' + (src.technicalPocEmail || ''));
+    lines.push('Technical POC Contact: ' + (src.technicalPocPhone || ''));
+    lines.push('');
+    lines.push('Transfer');
+    lines.push('Proposed Team: ' + (item.Proposed_x0020_Team || src.proposedTeam || 'TSM_SE'));
+    var reason = item.Transfer_x0020_Reason || '';
+    if (reason) {
+        reason = String(reason).replace(/<[^>]*>/g, '').trim();
+        lines.push('Transfer Reason: ' + reason);
+    }
+    return lines.join('\n');
+}
+
+async function transferResolvePersonEmail(displayName) {
+    var name = transferNormalizePersonName(displayName);
+    if (!name) return '';
+    if (name === TRANSFER_TSM_SE_POOL_SM && TRANSFER_TSM_SE_POOL_EMAIL) return TRANSFER_TSM_SE_POOL_EMAIL;
+    var i, row, data = window.ALL_DATA || [];
+    for (i = 0; i < data.length; i++) {
+        row = data[i];
+        if (row.lm === name && row.lmEmail) return row.lmEmail;
+        if (row.sm === name && row.smEmail) return row.smEmail;
+        if (row.am === name && row.amEmail) return row.amEmail;
+        if (row.ad === name && row.adEmail) return row.adEmail;
+    }
+    if (typeof getUserEmail === 'function') {
+        try {
+            var safe = name.replace(/'/g, "''");
+            var res = await fetch(SP_URL + "/_api/web/siteusers?$filter=Title eq '" + safe + "'&$select=EMail,Email&$top=1", {
+                headers: { Accept: 'application/json;odata=verbose' },
+                credentials: 'include'
+            });
+            if (res.ok) {
+                var d = await res.json();
+                if (d.d.results && d.d.results[0]) {
+                    return d.d.results[0].EMail || d.d.results[0].Email || '';
+                }
+            }
+            var fallback = await getUserEmail(name);
+            if (fallback) return fallback;
+        } catch (e) {}
+    }
+    return '';
+}
+
 async function transferCopyToTsmSeList(item, lmName, smName) {
     var accountCode = String(item.Title || '').trim();
     if (!accountCode) throw new Error('Cannot move to TSM_SE_Accounts: missing account code.');
@@ -1910,6 +2036,7 @@ async function transferCopyToTsmSeList(item, lmName, smName) {
         return String(a.code || '').trim() === accountCode;
     }) || {};
     var digest = await transferGetDigest();
+    var historyNotes = transferBuildTsmSeTransferNotes(item, src, lmName, smName);
     var payload = {
         __metadata: { type: TRANSFER_TSM_SE_ENTITY },
         Title: accountCode,
@@ -1920,7 +2047,8 @@ async function transferCopyToTsmSeList(item, lmName, smName) {
         ServiceManager: smName,
         LineManager: lmName,
         Team: 'TSM_SE',
-        Segment: src.segment || ''
+        Segment: src.segment || '',
+        Notes: historyNotes
     };
 
     TRANSFER_TSM_SE_MONTH_FIELDS.forEach(function (m) {
@@ -1939,6 +2067,9 @@ async function transferCopyToTsmSeList(item, lmName, smName) {
     });
 
     var existing = await transferFindTsmSeItem(accountCode);
+    if (existing && existing.Notes) {
+        payload.Notes = String(existing.Notes).trim() + '\n\n' + historyNotes;
+    }
     var url = existing
         ? SP_URL + "/_api/web/lists/getbytitle('" + TRANSFER_TSM_SE_LIST + "')/items(" + existing.ID + ")"
         : SP_URL + "/_api/web/lists/getbytitle('" + TRANSFER_TSM_SE_LIST + "')/items";
@@ -2011,12 +2142,10 @@ async function finalizeTransfer() {
     const _adEmail = CURRENT_TRANSFER_ITEM.Account_x0020_Director?.EMail || '';
     const _oldSmEmail = CURRENT_TRANSFER_ITEM.Service_x0020_Manager?.EMail || '';
     const _oldLmEmail = CURRENT_TRANSFER_ITEM.Line_x0020_Manager?.EMail || '';
-    const _newLmEmail = await getUserEmail(lmName);
-    const _newSmEmail = (smName === TRANSFER_TSM_SE_POOL_SM)
-        ? TRANSFER_TSM_SE_POOL_EMAIL
-        : await getUserEmail(smName);
+    const _newLmEmail = await transferResolvePersonEmail(lmName);
+    const _newSmEmail = await transferResolvePersonEmail(smName);
 
-    const _to = [_amEmail, _adEmail, _newLmEmail, _newSmEmail].filter(Boolean).join(';');
+    const _to = [_amEmail, _adEmail].filter(Boolean).join(';');
     const _subj = encodeURIComponent(`[Transfer Completed] ACC# ${CURRENT_TRANSFER_ITEM.Title} - ${CURRENT_TRANSFER_ITEM.Customer_x0020_Name}`);
     const _bdy = encodeURIComponent(
         `Dear ${_amName} / ${_adName},
@@ -2038,7 +2167,10 @@ Note to ${_oldSm}: Please begin the handover process to ${smName} at your earlie
 Best regards,
 ${USER_CONTEXT.userName}`);
 
-    const _cc = [_newLmEmail, _newSmEmail, _oldLmEmail, _oldSmEmail, USER_CONTEXT.userEmail].filter(Boolean).join(';');
+    const _cc = [_newLmEmail, _newSmEmail, _oldLmEmail, _oldSmEmail, USER_CONTEXT.userEmail]
+        .filter(Boolean)
+        .filter(function (v, idx, arr) { return arr.indexOf(v) === idx; })
+        .join(';');
     const transferMailHref = `mailto:${_to}?subject=${_subj}&body=${_bdy}&cc=${_cc}`;
     let completedTsmSeItemId = null;
 
