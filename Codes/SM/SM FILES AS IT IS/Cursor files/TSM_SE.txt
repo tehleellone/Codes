@@ -438,7 +438,7 @@
     // ── Load ALL records with progress spinner ───────────────
     var SLIM_SELECT = [
         'ID','Title','ParentCode','CustomerName',
-        'AccountManager','AccountDirector','ServiceManager','LineManager','Team','Segment','Notes',
+        'AccountManager','AccountDirector','ServiceManager','LineManager','Team','Segment',
         'OData__x004a_an26','OData__x0046_eb26','OData__x004d_ar26',
         'OData__x0041_pr26','OData__x004d_ay26','OData__x004a_un26',
         'OData__x004a_ul26','OData__x0041_ug26','OData__x0053_ep26',
@@ -1521,15 +1521,29 @@
         if (typeof lucide !== 'undefined') lucide.createIcons();
     };
 
-    window.tsmSeShowAccountHistory = function (accountCode) {
+    window.tsmSeShowAccountHistory = async function (accountCode) {
         var row = (window.TSM_SE_DATA || []).find(function (r) { return r.code === accountCode; });
-        if (!row || !row.notes) {
+        var notes = row && row.notes;
+        if (!notes && row && row._spId) {
+            try {
+                var res = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + TSM_LIST.replace(/'/g, "''") + "')/items(" + row._spId + ")?$select=Notes", {
+                    headers: { Accept: 'application/json;odata=verbose' },
+                    credentials: 'include'
+                });
+                if (res.ok) {
+                    var data = await res.json();
+                    notes = data && data.d ? data.d.Notes : '';
+                    if (notes) row.notes = notes;
+                }
+            } catch (e) {}
+        }
+        if (!notes) {
             alert('No transfer history stored for this account.');
             return;
         }
         var modal = document.createElement('div');
         modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:1rem;';
-        var esc = String(row.notes).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        var esc = String(notes).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         modal.innerHTML = '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:1.25rem;max-width:720px;width:100%;max-height:80vh;overflow:auto;">' +
             '<h3 style="margin:0 0 .75rem;">Account history — ' + accountCode + '</h3>' +
             '<pre style="white-space:pre-wrap;font-size:.78rem;line-height:1.45;background:var(--bg-secondary);padding:1rem;border-radius:8px;border:1px solid var(--border);">' + esc + '</pre>' +
