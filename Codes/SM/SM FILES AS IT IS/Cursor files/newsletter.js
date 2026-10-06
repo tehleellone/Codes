@@ -3,8 +3,14 @@
 // ============================================================
 
 var NL_LIST = 'Newsletter';
+var NL_MAPPING_LIST = 'Account Mapping';
+var NL_BDAY_TZ = 'Asia/Dubai';
+var NL_BDAY_SOURCE_PREFIX = 'BirthdayAuto|';
+var NL_BDAY_IMAGE_TODAY = '/sites/SM/Shared Documents/birthday-happy.jpg';
+var NL_BDAY_IMAGE_COUNTDOWN = '/sites/SM/Shared Documents/birthday-countdown.jpg';
 var nlCurrentTab = 'view';
 var nlAllItems = [];
+var nlBirthdayUpcoming = [];
 
 // ── Show / Hide ───────────────────────────────────────────────
 window.showNewsletterView = function() {
@@ -180,19 +186,23 @@ window.nlSetTab = function(tab) {
     nlCurrentTab = tab;
 
     var tabView = document.getElementById('nlTabView');
+    var tabBirthdays = document.getElementById('nlTabBirthdays');
     var tabManage = document.getElementById('nlTabManage');
 
-    if (tabView) {
-        tabView.style.background = tab === 'view' ? 'var(--grad)' : 'var(--bg-input)';
-        tabView.style.color = tab === 'view' ? '#fff' : 'var(--t1)';
-        tabView.style.border = tab === 'view' ? 'none' : '1px solid var(--border)';
+    function styleTab(el, active) {
+        if (!el) return;
+        el.style.background = active ? 'var(--grad)' : 'var(--bg-input)';
+        el.style.color = active ? '#fff' : 'var(--t1)';
+        el.style.border = active ? 'none' : '1px solid var(--border)';
     }
-    if (tabManage) {
-        tabManage.style.background = tab === 'manage' ? 'var(--grad)' : 'var(--bg-input)';
-        tabManage.style.color = tab === 'manage' ? '#fff' : 'var(--t1)';
-        tabManage.style.border = tab === 'manage' ? 'none' : '1px solid var(--border)';
-    }
+    styleTab(tabView, tab === 'view');
+    styleTab(tabBirthdays, tab === 'birthdays');
+    styleTab(tabManage, tab === 'manage');
 
+    if (tab === 'birthdays') {
+        nlRenderBirthdaysTab();
+        return;
+    }
     nlRender();
 };
 
@@ -202,7 +212,9 @@ function nlRender() {
     var manageTab = document.getElementById('nlTabManage');
     if (manageTab) manageTab.style.display = isAdmin ? 'inline-flex' : 'none';
 
-    if (nlCurrentTab === 'manage' && isAdmin) {
+    if (nlCurrentTab === 'birthdays') {
+        nlRenderBirthdaysTab();
+    } else if (nlCurrentTab === 'manage' && isAdmin) {
         nlRenderManage();
     } else {
         nlRenderView();
@@ -211,8 +223,20 @@ function nlRender() {
 
 // ── Helpers ───────────────────────────────────────────────────
 function nlCategoryColor(cat) {
-    var map = { 'Announcement': '#f97316', 'Update': '#3b82f6', 'Holiday': '#10b981', 'General': '#8b5cf6' };
+    var map = { 'Announcement': '#f97316', 'Update': '#3b82f6', 'Holiday': '#10b981', 'General': '#8b5cf6', 'Birthdays': '#ec4899' };
     return map[cat] || '#8b5cf6';
+}
+
+function nlIsBirthdayAutoItem(item) {
+    return item && String(item.Source || '').indexOf(NL_BDAY_SOURCE_PREFIX) === 0;
+}
+
+function nlItemsExcludingBirthdays(items) {
+    return (items || []).filter(function (i) { return i.Category !== 'Birthdays' && !nlIsBirthdayAutoItem(i); });
+}
+
+function nlBirthdayItems(items) {
+    return (items || []).filter(function (i) { return i.Category === 'Birthdays' || nlIsBirthdayAutoItem(i); });
 }
 
 function nlFormatDate(dateStr) {
@@ -229,18 +253,19 @@ function nlRenderView() {
     var container = document.getElementById('nlViewContainer');
     if (!container) return;
 
-    if (nlAllItems.length === 0) {
+    var general = nlItemsExcludingBirthdays(nlAllItems);
+    if (general.length === 0) {
         container.innerHTML = '<div style="text-align:center;padding:80px;color:var(--t3);">' +
             '<div style="font-size:56px;margin-bottom:16px;">📰</div>' +
             '<div style="font-size:18px;font-weight:600;margin-bottom:8px;">No newsletters yet</div>' +
-            '<div style="font-size:13px;">Check back soon for updates</div>' +
+            '<div style="font-size:13px;">Birthday announcements are under the <strong>Birthdays</strong> tab.</div>' +
             '</div>';
         return;
     }
 
     var html = '';
-    var latest = nlAllItems[0];
-    var rest = nlAllItems.slice(1);
+    var latest = general[0];
+    var rest = general.slice(1);
 
     // Hero card — latest newsletter
     html += nlBuildHeroCard(latest);
@@ -372,6 +397,7 @@ function nlRenderManage() {
         '<option value="Update">Update</option>' +
         '<option value="Holiday">Holiday</option>' +
         '<option value="General">General</option>' +
+        '<option value="Birthdays">Birthdays</option>' +
         '</select></div>' +
 
         '<div class="filter-group">' +
@@ -572,21 +598,431 @@ window.nlToggleActive = async function(itemId, currentState) {
     }
 };
 
+// ── Birthdays (Account Mapping DOB → auto newsletter + daily popup) ──
+function nlUaeYmd(dateObj) {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: NL_BDAY_TZ,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(dateObj || new Date());
+}
+
+function nlParseYmd(ymd) {
+    var p = String(ymd || '').split('-');
+    return { y: parseInt(p[0], 10), m: parseInt(p[1], 10), d: parseInt(p[2], 10) };
+}
+
+function nlFormatYmdObj(o) {
+    return o.y + '-' + String(o.m).padStart(2, '0') + '-' + String(o.d).padStart(2, '0');
+}
+
+function nlIsLeapYear(y) {
+    return (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+}
+
+function nlDaysBetweenYmd(from, to) {
+    var a = Date.UTC(from.y, from.m - 1, from.d);
+    var b = Date.UTC(to.y, to.m - 1, to.d);
+    return Math.round((b - a) / 86400000);
+}
+
+function nlParseDobField(raw) {
+    if (raw == null || raw === '') return null;
+    var m = String(raw).match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    return { y: parseInt(m[1], 10), m: parseInt(m[2], 10), d: parseInt(m[3], 10) };
+}
+
+function nlNameFromEmail(email) {
+    var em = String(email || '').trim().toLowerCase();
+    if (em.indexOf('@') < 1) return '';
+    return em.split('@')[0].split(/[._-]+/).filter(Boolean).map(function (w) {
+        return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(' ');
+}
+
+function nlNextBirthdayYmd(dob, todayYmd) {
+    var t = nlParseYmd(todayYmd);
+    var month = dob.m;
+    var day = dob.d;
+    var cand = { y: t.y, m: month, d: day };
+    if (month === 2 && day === 29 && !nlIsLeapYear(cand.y)) cand.d = 28;
+    if (nlDaysBetweenYmd(t, cand) < 0) {
+        cand.y = t.y + 1;
+        if (month === 2 && day === 29 && !nlIsLeapYear(cand.y)) cand.d = 28;
+    }
+    return nlFormatYmdObj(cand);
+}
+
+function nlFormatBirthdayLabel(ymd) {
+    var o = nlParseYmd(ymd);
+    var dt = new Date(Date.UTC(o.y, o.m - 1, o.d));
+    return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
+function nlBirthdaySourceKey(eventYmd, daysUntil) {
+    return NL_BDAY_SOURCE_PREFIX + 'event=' + eventYmd + '|days=' + daysUntil;
+}
+
+function nlParseBirthdaySource(source) {
+    if (!source || String(source).indexOf(NL_BDAY_SOURCE_PREFIX) !== 0) return null;
+    var ev = source.match(/event=(\d{4}-\d{2}-\d{2})/);
+    var dy = source.match(/days=(\d+)/);
+    if (!ev) return null;
+    return { eventYmd: ev[1], daysUntil: dy ? parseInt(dy[1], 10) : 0 };
+}
+
+async function nlGetDigest() {
+    var digestRes = await fetch(SP_URL + '/_api/contextinfo', {
+        method: 'POST',
+        headers: { 'Accept': 'application/json;odata=verbose' },
+        credentials: 'include'
+    });
+    if (!digestRes.ok) throw new Error('Failed to get digest');
+    return (await digestRes.json()).d.GetContextWebInformation.FormDigestValue;
+}
+
+async function nlBirthdayFetchMappingPeople() {
+    var list = (typeof SP_MAPPING_LIST !== 'undefined' && SP_MAPPING_LIST) ? SP_MAPPING_LIST : NL_MAPPING_LIST;
+    var url = SP_URL + "/_api/web/lists/getbytitle('" + list.replace(/'/g, "''") + "')/items?" +
+        "$select=Email_ID,Team,DOB,Status&$top=5000";
+    var res = await fetch(url, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
+    if (!res.ok) return [];
+    var data = await res.json();
+    var people = [];
+    (data.d.results || []).forEach(function (row) {
+        var dob = nlParseDobField(row.DOB);
+        if (!dob) return;
+        var email = String(row.Email_ID || '').trim();
+        var name = nlNameFromEmail(email);
+        if (!name) return;
+        people.push({
+            name: name,
+            email: email,
+            team: row.Team || '',
+            dob: dob
+        });
+    });
+    return people;
+}
+
+function nlBirthdayBuildSchedule(people, todayYmd) {
+    var buckets = {};
+    var upcoming = [];
+    people.forEach(function (p) {
+        var eventYmd = nlNextBirthdayYmd(p.dob, todayYmd);
+        var daysUntil = nlDaysBetweenYmd(nlParseYmd(todayYmd), nlParseYmd(eventYmd));
+        if (daysUntil < 0 || daysUntil > 30) return;
+        upcoming.push({
+            name: p.name,
+            team: p.team,
+            eventYmd: eventYmd,
+            daysUntil: daysUntil,
+            label: nlFormatBirthdayLabel(eventYmd)
+        });
+        if (daysUntil >= 0 && daysUntil <= 3) {
+            var key = eventYmd + '|' + daysUntil;
+            if (!buckets[key]) {
+                buckets[key] = { eventYmd: eventYmd, daysUntil: daysUntil, names: [], teams: [] };
+            }
+            buckets[key].names.push(p.name);
+            if (p.team) buckets[key].teams.push(p.team);
+        }
+    });
+    upcoming.sort(function (a, b) { return a.daysUntil - b.daysUntil || a.name.localeCompare(b.name); });
+    return { buckets: buckets, upcoming: upcoming };
+}
+
+function nlBirthdayNamesList(names) {
+    var n = (names || []).slice();
+    if (n.length === 0) return '';
+    if (n.length === 1) return n[0];
+    if (n.length === 2) return n[0] + ' & ' + n[1];
+    return n.slice(0, -1).join(', ') + ' & ' + n[n.length - 1];
+}
+
+function nlBirthdayPostCopy(bucket) {
+    var names = nlBirthdayNamesList(bucket.names);
+    var when = nlFormatBirthdayLabel(bucket.eventYmd);
+    if (bucket.daysUntil === 0) {
+        return {
+            title: '🎉 Happy Birthday — ' + names,
+            content: 'Happy Birthday to ' + names + '!\n\nWishing you a wonderful day filled with joy and success. — Service Management Portal',
+            imagePath: NL_BDAY_IMAGE_TODAY
+        };
+    }
+    var dayWord = bucket.daysUntil === 1 ? '1 day' : bucket.daysUntil + ' days';
+    return {
+        title: '🎂 Birthday in ' + dayWord + ' — ' + names + ' (' + when + ')',
+        content: 'Upcoming birthday alert: ' + names + (bucket.names.length > 1 ? ' celebrate' : ' celebrates') + ' on ' + when + ' (' + dayWord + ' to go).\n\nJoin us in wishing them an early happy birthday!',
+        imagePath: NL_BDAY_IMAGE_COUNTDOWN
+    };
+}
+
+async function nlBirthdayAttachImage(itemId, digest, serverRelativePath, fileName) {
+    try {
+        var fetchUrl = 'http://sharedspaces:8086' + serverRelativePath.replace(/ /g, '%20');
+        var imgRes = await fetch(fetchUrl, { credentials: 'include' });
+        if (!imgRes.ok) return;
+        var buf = await imgRes.arrayBuffer();
+        await fetch(
+            SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items(" + itemId + ")/AttachmentFiles/add(FileName='" + fileName.replace(/'/g, "''") + "')",
+            {
+                method: 'POST',
+                headers: { 'Accept': 'application/json;odata=verbose', 'X-RequestDigest': digest },
+                credentials: 'include',
+                body: buf
+            }
+        );
+    } catch (e) {
+        console.warn('[Newsletter] Birthday image attach skipped:', e.message);
+    }
+}
+
+async function nlBirthdayFindAutoItem(sourceKey) {
+    var safe = sourceKey.replace(/'/g, "''");
+    var url = SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items?" +
+        "$select=ID,Title,Source,Category&$filter=Source eq '" + safe + "'&$top=1";
+    var res = await fetch(url, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
+    if (!res.ok) return null;
+    var data = await res.json();
+    return (data.d.results && data.d.results[0]) ? data.d.results[0] : null;
+}
+
+async function nlBirthdayUpsertPost(digest, bucket) {
+    var sourceKey = nlBirthdaySourceKey(bucket.eventYmd, bucket.daysUntil);
+    var copy = nlBirthdayPostCopy(bucket);
+    var existing = await nlBirthdayFindAutoItem(sourceKey);
+    var body = {
+        __metadata: { type: 'SP.Data.NewsletterListItem' },
+        Title: copy.title,
+        Content: copy.content,
+        Category: 'Birthdays',
+        Source: sourceKey,
+        IsActive: true,
+        PublishedDate: new Date().toISOString()
+    };
+    if (existing && existing.ID) {
+        await fetch(SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items(" + existing.ID + ")", {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json;odata=verbose',
+                'Content-Type': 'application/json;odata=verbose',
+                'X-RequestDigest': digest,
+                'IF-MATCH': '*',
+                'X-HTTP-Method': 'MERGE'
+            },
+            credentials: 'include',
+            body: JSON.stringify(body)
+        });
+        return existing.ID;
+    }
+    var createRes = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items", {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json;odata=verbose',
+            'Content-Type': 'application/json;odata=verbose',
+            'X-RequestDigest': digest
+        },
+        credentials: 'include',
+        body: JSON.stringify(body)
+    });
+    if (!createRes.ok) {
+        console.warn('[Newsletter] Birthday post failed:', (await createRes.text()).slice(0, 200));
+        return null;
+    }
+    var created = await createRes.json();
+    var newId = created.d && created.d.ID;
+    if (newId && copy.imagePath) {
+        var fname = bucket.daysUntil === 0 ? 'birthday-happy.jpg' : 'birthday-countdown.jpg';
+        await nlBirthdayAttachImage(newId, digest, copy.imagePath, fname);
+    }
+    return newId;
+}
+
+async function nlBirthdayDeleteItem(itemId, digest) {
+    await fetch(SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items(" + itemId + ")", {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json;odata=verbose',
+            'X-RequestDigest': digest,
+            'IF-MATCH': '*',
+            'X-HTTP-Method': 'DELETE'
+        },
+        credentials: 'include'
+    });
+}
+
+async function nlBirthdayCleanupExpired(digest, todayYmd) {
+    var url = SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items?" +
+        "$select=ID,Source,Category&$filter=Category eq 'Birthdays'&$top=500";
+    var res = await fetch(url, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
+    if (!res.ok) return;
+    var rows = (await res.json()).d.results || [];
+    var today = nlParseYmd(todayYmd);
+    for (var i = 0; i < rows.length; i++) {
+        var meta = nlParseBirthdaySource(rows[i].Source);
+        if (!meta) continue;
+        var ev = nlParseYmd(meta.eventYmd);
+        if (nlDaysBetweenYmd(ev, today) >= 1) {
+            try { await nlBirthdayDeleteItem(rows[i].ID, digest); } catch (e) {}
+        }
+    }
+}
+
+function nlBirthdayPopupShownToday(todayYmd) {
+    try { return localStorage.getItem('sm_nl_bday_popup_' + todayYmd) === '1'; } catch (e) { return false; }
+}
+
+function nlBirthdayMarkPopupShown(todayYmd) {
+    try { localStorage.setItem('sm_nl_bday_popup_' + todayYmd, '1'); } catch (e) {}
+}
+
+function nlShowBirthdayDailyPopup(payload) {
+    if (!payload) return;
+    var existing = document.getElementById('nlBirthdayPopup');
+    if (existing) existing.remove();
+    var title = payload.title.replace(/</g, '&lt;');
+    var message = payload.message.replace(/</g, '&lt;').replace(/\n/g, '<br>');
+    var overlay = document.createElement('div');
+    overlay.id = 'nlBirthdayPopup';
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:12001;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:1rem;';
+    overlay.innerHTML =
+        '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;max-width:480px;width:100%;padding:1.5rem;box-shadow:var(--ch);position:relative;">' +
+        '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(135deg,#ec4899,#f97316);border-radius:16px 16px 0 0;"></div>' +
+        '<div style="font-size:2rem;text-align:center;margin-bottom:8px;">' + (payload.emoji || '🎂') + '</div>' +
+        '<h3 style="margin:0 0 10px;font-size:1.15rem;font-weight:800;color:var(--t1);text-align:center;">' + title + '</h3>' +
+        '<p style="margin:0 0 1.25rem;font-size:13px;color:var(--t2);line-height:1.55;text-align:center;">' + message + '</p>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+        '<button type="button" id="nlBdayPopupViewBtn" class="export-btn" style="flex:1;min-width:140px;">Open Birthdays</button>' +
+        '<button type="button" id="nlBdayPopupOkBtn" class="reset-btn" style="flex:1;min-width:100px;">OK</button>' +
+        '</div></div>';
+    document.body.appendChild(overlay);
+    document.getElementById('nlBdayPopupViewBtn').addEventListener('click', function () {
+        overlay.remove();
+        nlSetTab('birthdays');
+        if (typeof switchDashboardSection === 'function') switchDashboardSection('newsletterView');
+        else if (typeof showNewsletterView === 'function') showNewsletterView();
+    });
+    document.getElementById('nlBdayPopupOkBtn').addEventListener('click', function () { overlay.remove(); });
+}
+
+function nlBirthdayPopupPayloadFromBuckets(buckets, todayYmd) {
+    var list = Object.keys(buckets).map(function (k) { return buckets[k]; });
+    if (!list.length) return null;
+    var todayBuckets = list.filter(function (b) { return b.daysUntil === 0; });
+    if (todayBuckets.length) {
+        var names = [];
+        todayBuckets.forEach(function (b) { names = names.concat(b.names); });
+        return {
+            emoji: '🎉',
+            title: 'Happy Birthday!',
+            message: 'Today we celebrate ' + nlBirthdayNamesList(names) + '!\n\nSee the Birthdays section in Newsletter for the full announcement.'
+        };
+    }
+    list.sort(function (a, b) { return a.daysUntil - b.daysUntil; });
+    var pick = list[0];
+    var namesStr = nlBirthdayNamesList(pick.names);
+    var when = nlFormatBirthdayLabel(pick.eventYmd);
+    var dayWord = pick.daysUntil === 1 ? '1 day' : pick.daysUntil + ' days';
+    return {
+        emoji: '🎂',
+        title: 'Birthday coming up',
+        message: namesStr + ' — birthday on ' + when + ' (' + dayWord + ' to go).'
+    };
+}
+
+async function nlBirthdayRunDaily() {
+    var todayYmd = nlUaeYmd(new Date());
+    var people = await nlBirthdayFetchMappingPeople();
+    nlBirthdayUpcoming = nlBirthdayBuildSchedule(people, todayYmd).upcoming;
+    var buckets = nlBirthdayBuildSchedule(people, todayYmd).buckets;
+    var bucketList = Object.keys(buckets).map(function (k) { return buckets[k]; });
+
+    try {
+        var digest = await nlGetDigest();
+        await nlBirthdayCleanupExpired(digest, todayYmd);
+        for (var i = 0; i < bucketList.length; i++) {
+            await nlBirthdayUpsertPost(digest, bucketList[i]);
+        }
+    } catch (e) {
+        console.warn('[Newsletter] Birthday sync skipped:', e.message);
+    }
+
+    if (!bucketList.length || nlBirthdayPopupShownToday(todayYmd)) return;
+    var popupPayload = nlBirthdayPopupPayloadFromBuckets(buckets, todayYmd);
+    if (popupPayload) {
+        nlShowBirthdayDailyPopup(popupPayload);
+        nlBirthdayMarkPopupShown(todayYmd);
+    }
+}
+
+async function nlRenderBirthdaysTab() {
+    var container = document.getElementById('nlViewContainer');
+    if (!container) return;
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--t2);">Loading birthdays...</div>';
+    var todayYmd = nlUaeYmd(new Date());
+    if (!nlBirthdayUpcoming.length) {
+        var people = await nlBirthdayFetchMappingPeople();
+        nlBirthdayUpcoming = nlBirthdayBuildSchedule(people, todayYmd).upcoming;
+    }
+    var posts = nlBirthdayItems(nlAllItems);
+    var html = '<div class="table-section" style="margin-bottom:1.5rem;">' +
+        '<h3 class="table-title" style="margin-bottom:1rem;display:flex;align-items:center;gap:8px;">' +
+        '<i data-lucide="cake" style="width:18px;height:18px;"></i>Upcoming birthdays <span style="font-size:12px;font-weight:600;color:var(--t3);">(UAE time)</span></h3>';
+    var soon = nlBirthdayUpcoming.filter(function (u) { return u.daysUntil <= 14; });
+    if (!soon.length) {
+        html += '<p style="color:var(--t3);font-size:13px;margin:0;">No upcoming birthdays in the next 14 days (with DOB in Account Mapping).</p>';
+    } else {
+        html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr>' +
+            '<th style="text-align:left;padding:.5rem .75rem;font-size:.7rem;text-transform:uppercase;color:var(--t3);">Name</th>' +
+            '<th style="text-align:left;padding:.5rem .75rem;font-size:.7rem;text-transform:uppercase;color:var(--t3);">Team</th>' +
+            '<th style="text-align:left;padding:.5rem .75rem;font-size:.7rem;text-transform:uppercase;color:var(--t3);">Date</th>' +
+            '<th style="text-align:left;padding:.5rem .75rem;font-size:.7rem;text-transform:uppercase;color:var(--t3);">In</th></tr></thead><tbody>';
+        soon.forEach(function (u) {
+            var inLabel = u.daysUntil === 0 ? 'Today 🎉' : (u.daysUntil === 1 ? '1 day' : u.daysUntil + ' days');
+            html += '<tr><td style="padding:.55rem .75rem;border-bottom:1px solid var(--border);font-weight:600;color:var(--t1);">' + u.name + '</td>' +
+                '<td style="padding:.55rem .75rem;border-bottom:1px solid var(--border);color:var(--t3);">' + (u.team || '—') + '</td>' +
+                '<td style="padding:.55rem .75rem;border-bottom:1px solid var(--border);color:var(--t3);">' + u.label + '</td>' +
+                '<td style="padding:.55rem .75rem;border-bottom:1px solid var(--border);color:var(--acc);font-weight:700;">' + inLabel + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+    }
+    html += '</div>';
+
+    html += '<h3 style="font-size:.95rem;font-weight:800;color:var(--t1);margin:0 0 1rem;display:flex;align-items:center;gap:8px;">' +
+        '<i data-lucide="party-popper" style="width:16px;height:16px;"></i>Birthday announcements</h3>';
+    if (!posts.length) {
+        html += '<p style="color:var(--t3);font-size:13px;">No active birthday posts yet. Posts are created automatically 3, 2, and 1 day before, and on the birthday.</p>';
+    } else {
+        posts.forEach(function (item) { html += nlBuildCard(item); });
+    }
+    container.innerHTML = html;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
 // ── Check on page load ────────────────────────────────────────
 window.nlCheckOnLoad = async function() {
     try {
+        await nlBirthdayRunDaily();
+    } catch (e) {
+        console.warn('[Newsletter] Birthday daily run:', e);
+    }
+    try {
         var url = SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items?" +
-            "$select=ID,Title,Content,PublishedDate&$filter=IsActive eq 1&$orderby=PublishedDate desc&$top=1";
+            "$select=ID,Title,Content,PublishedDate,Category,Source&$filter=IsActive eq 1&$orderby=PublishedDate desc&$top=20";
         var res = await fetch(url, {
             headers: { 'Accept': 'application/json;odata=verbose' },
             credentials: 'include'
         });
         if (!res.ok) return;
         var data = await res.json();
-        var items = data.d.results;
-        if (items.length > 0) {
-            var isNew = nlCheckNewBadge(items);
-            if (isNew) nlShowNewItemPopup(items[0]);
+        var items = data.d.results || [];
+        var general = nlItemsExcludingBirthdays(items);
+        if (general.length > 0) {
+            var isNew = nlCheckNewBadge(general);
+            if (isNew) nlShowNewItemPopup(general[0]);
         }
-    } catch(e) {}
+    } catch (e) {}
 };
