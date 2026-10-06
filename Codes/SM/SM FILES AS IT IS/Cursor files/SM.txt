@@ -3666,6 +3666,10 @@
         }
         .sm-person-item:last-child { border-bottom: none; }
         .sm-person-item:hover { background: var(--bg-hover); }
+        .nav-item.nl-has-new {
+            box-shadow: inset 3px 0 0 #ef4444;
+            background: rgba(239, 68, 68, 0.08);
+        }
         .tab-refresh-btn.refreshing i { animation: spin 1s linear infinite; }
 
         /* version history modal */
@@ -6688,6 +6692,15 @@ else if (USER_CONTEXT.role === 'Account Manager' || USER_CONTEXT.role === 'Accou
                 console.error('RC shell init error:', err);
             }
         }
+
+        window.smRefreshDashboardData = async function () {
+            ALL_DATA = await fetchData();
+            window.ALL_DATA = ALL_DATA;
+            if (typeof recalculateRevFlags === 'function') recalculateRevFlags();
+            if (typeof populateFilters === 'function') populateFilters({ preserve: true });
+            if (typeof updateServiceManagerFilter === 'function') updateServiceManagerFilter();
+            if (typeof applyFilters === 'function') applyFilters();
+        };
 
         async function init() {
             try {
@@ -9800,8 +9813,6 @@ else if (sectionId === 'rcView') {
 }
 else if (sectionId === 'newsletterView') {
     if (typeof nlLoadNewsletter === 'function') nlLoadNewsletter();
-    if (typeof nlMarkAsSeen === 'function') nlMarkAsSeen();
-    if (typeof nlRemoveNewBadge === 'function') nlRemoveNewBadge();
 }
 else if (sectionId === 'portalAnalyticsView') {
     if (typeof smEmbedPortalAnalytics === 'function') smEmbedPortalAnalytics();
@@ -11972,12 +11983,13 @@ else if (sectionId === 'portalAnalyticsView') {
                     "Line_x0020_Manager/Title,Service_x0020_Manager/Title," +
                     "Secondary_x0020_Service_x0020_Ma/Title," +
                     "Account_x0020_Manager/Title,Account_x0020_Director/Title," +
-                    "Service_x0020_Director/Title," + smLastThreeMonthSelectCsv() + pocFields + "&" +
+                    "Service_x0020_Director/Title,Request_x0020_Status,Dashboard_Active,Account_Source," +
+                    smLastThreeMonthSelectCsv() + pocFields + "&" +
                     "$expand=Line_x0020_Manager,Service_x0020_Manager," +
                     "Secondary_x0020_Service_x0020_Ma,Account_x0020_Manager," +
                     "Account_x0020_Director,Service_x0020_Director&" +
                     "$filter=Title eq '" + accountCode.replace(/'/g, "''") + "'&" +
-                    "$top=1";
+                    "$top=25";
 
                 const res = await fetch(url, {
                     headers: {
@@ -11989,7 +12001,26 @@ else if (sectionId === 'portalAnalyticsView') {
                 if (!res.ok) throw new Error('Failed to search account');
 
                 const data = await res.json();
-                let account = (data.d && data.d.results && data.d.results.length) ? data.d.results[0] : null;
+                let hits = (data.d && data.d.results) ? data.d.results : [];
+                function smSearchPickActiveRow(spItems) {
+                    if (!spItems || !spItems.length) return null;
+                    var active = spItems.filter(function (item) {
+                        var v = item.Dashboard_Active;
+                        if (v === false || v === 0 || v === '0') return false;
+                        if (String(v || '').toLowerCase() === 'no' || String(v || '').toLowerCase() === 'false') return false;
+                        return true;
+                    });
+                    var pool = active.length ? active : spItems;
+                    var onboarded = pool.find(function (item) {
+                        return item.Request_x0020_Status === 'OnBoarded' || item.Request_x0020_Status === 'AM_Approved';
+                    });
+                    if (onboarded) return onboarded;
+                    var notTsmSeCopy = pool.find(function (item) {
+                        return String(item.Account_Source || '').trim().toUpperCase() !== 'TSM_SE';
+                    });
+                    return notTsmSeCopy || pool[0];
+                }
+                let account = smSearchPickActiveRow(hits);
 
                 if (!account) {
                     account = await smSearchTsmSeAccount(accountCode);
@@ -12470,7 +12501,7 @@ else if (sectionId === 'portalAnalyticsView') {
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-pending-escalation.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/pending.js"></script>
 <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/am-ad.js"></script>
-<script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/transfer.js?v=tsmse8"></script>
+<script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/transfer.js?v=tsmse9"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/customerservice.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/analytics.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -12485,7 +12516,7 @@ else if (sectionId === 'portalAnalyticsView') {
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/repeated-calls.js?v=1.9.24"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/rnps.js"></script>
   <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/semailbox.js"></script>
-  <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=tsmse4"></script>
+  <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/tsm-se.js?v=tsmse5"></script>
     <script>
     </script>
 </body>
