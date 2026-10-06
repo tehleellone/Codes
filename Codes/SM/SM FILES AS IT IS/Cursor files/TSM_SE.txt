@@ -457,11 +457,24 @@
             return true;
         } catch(err) {
             window.TSM_SE_LOADING = false;
-            if (!skipSpinner) hideSpinner();
             console.error('[TSM_SE] Load failed:', err.message);
             return false;
+        } finally {
+            hideSpinner();
         }
     }
+
+    window.tsmSeHideSpinner = hideSpinner;
+
+    window.tsmSeRefreshAfterTransfer = async function () {
+        window.TSM_SE_LOADED = false;
+        var ok = await loadTSMSEData('Refreshing TSM SE...', true);
+        if (document.getElementById('filterTeam') && document.getElementById('filterTeam').value === 'TSM_SE') {
+            if (typeof tsmSeRenderTSMSEView === 'function') tsmSeRenderTSMSEView();
+        }
+        hideSpinner();
+        return ok;
+    };
 
     // ============================================================
     // UPLOAD MODAL
