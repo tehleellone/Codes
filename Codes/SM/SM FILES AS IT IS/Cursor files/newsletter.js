@@ -781,43 +781,111 @@ function nlDaysBetweenYmd(from, to) {
 
 function nlParseDobField(raw) {
     if (raw == null || raw === '') return null;
-    if (typeof raw === 'object' && !(raw instanceof Date)) {
-        if (raw.getMonth && typeof raw.getMonth === 'function') {
-            return { y: raw.getFullYear(), m: raw.getMonth() + 1, d: raw.getDate() };
+    if (typeof raw === 'number' && isFinite(raw)) {
+        if (raw > 20000 && raw < 80000) {
+            var excel = new Date(Date.UTC(1899, 11, 30) + raw * 86400000);
+            return nlDobFromDate(excel);
         }
+        if (raw > 1e11) return nlDobFromDate(new Date(raw));
+        return null;
+    }
+    if (typeof raw === 'object') {
+        if (raw.getMonth && typeof raw.getMonth === 'function') return nlDobFromDate(raw);
+        if (raw.Year && raw.Month && raw.Day) {
+            return { y: raw.Year, m: raw.Month, d: raw.Day, mUtc: raw.Month, dUtc: raw.Day };
+        }
+        if (raw.EMail || raw.Title) return null;
         return nlParseDobField(String(raw));
     }
     var s = String(raw).trim();
     if (!s) return null;
 
-    var spJson = s.match(/\/Date\((-?\d+)\)\//);
+    var spJson = s.match(/\/Date\((-?\d+)(?:[+-]\d{4})?\)\//);
     if (spJson) {
         var dSp = new Date(parseInt(spJson[1], 10));
-        if (!isNaN(dSp.getTime())) {
-            var uaeYmd = nlUaeYmd(dSp);
-            return nlParseYmd(uaeYmd);
-        }
+        if (!isNaN(dSp.getTime())) return nlDobFromDate(dSp);
     }
 
-    var iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (iso) return { y: parseInt(iso[1], 10), m: parseInt(iso[2], 10), d: parseInt(iso[3], 10) };
+    var isoDateOnly = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoDateOnly) {
+        return {
+            y: parseInt(isoDateOnly[1], 10),
+            m: parseInt(isoDateOnly[2], 10),
+            d: parseInt(isoDateOnly[3], 10),
+            mUtc: parseInt(isoDateOnly[2], 10),
+            dUtc: parseInt(isoDateOnly[3], 10)
+        };
+    }
 
-    var slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s) || /Z$/i.test(s) || /[+-]\d{2}:\d{2}$/.test(s)) {
+        var dIso = new Date(s);
+        if (!isNaN(dIso.getTime())) return nlDobFromDate(dIso);
+    }
+
+    var slash = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
     if (slash) {
         var a = parseInt(slash[1], 10);
         var b = parseInt(slash[2], 10);
         var y = parseInt(slash[3], 10);
-        if (a > 12) return { y: y, m: b, d: a };
-        if (b > 12) return { y: y, m: a, d: b };
-        return { y: y, m: b, d: a };
+        if (y < 100) y += 1900;
+        if (y < 1920) y += 100;
+        var day = a > 12 ? a : a;
+        var month = a > 12 ? b : (b > 12 ? a : b);
+        if (a <= 12 && b <= 12) { day = a; month = b; }
+        return { y: y, m: month, d: day, mUtc: month, dUtc: day };
     }
 
     var parsed = new Date(s);
-    if (!isNaN(parsed.getTime())) {
-        var uaeParts = nlUaeYmd(parsed);
-        return nlParseYmd(uaeParts);
+    if (!isNaN(parsed.getTime())) return nlDobFromDate(parsed);
+    return null;
+}
+
+function nlDobFromDate(d) {
+    if (!d || isNaN(d.getTime())) return null;
+    var uae = nlParseYmd(nlUaeYmd(d));
+    if (!uae.y || uae.y < 1920 || uae.y > 2100) return null;
+    return {
+        y: uae.y,
+        m: uae.m,
+        d: uae.d,
+        mUtc: d.getUTCMonth() + 1,
+        dUtc: d.getUTCDate()
+    };
+}
+
+function nlRowDobRaw(row) {
+    if (!row) return null;
+    var preferred = ['DOB', 'Dob', 'DoB', 'Date_of_Birth', 'DateOfBirth', 'Date_x0020_of_x0020_Birth',
+        'BirthDate', 'Birth_Date', 'Birthday', 'DateOfBirth0'];
+    var i, k, kl, val;
+    for (i = 0; i < preferred.length; i++) {
+        val = row[preferred[i]];
+        if (val != null && val !== '') return val;
+    }
+    for (k in row) {
+        if (!Object.prototype.hasOwnProperty.call(row, k) || k === '__metadata') continue;
+        kl = String(k).toLowerCase().replace(/_x0020_/g, '').replace(/_/g, '');
+        if (kl === 'dob' || kl.indexOf('birth') >= 0 || kl.indexOf('dateofb') >= 0) {
+            val = row[k];
+            if (val != null && val !== '' && typeof val !== 'object') return val;
+            if (val && (typeof val === 'string' || typeof val === 'number')) return val;
+        }
     }
     return null;
+}
+
+function nlMappingRowEmail(row) {
+    if (!row) return '';
+    if (typeof row.Email_ID === 'object' && row.Email_ID) {
+        return String(row.Email_ID.EMail || row.Email_ID.Email || '').trim();
+    }
+    return String(row.Email_ID || row.Email || '').trim();
+}
+
+function nlMappingRowName(row) {
+    var sm = String((row && (row.Service_Manager_Name || row.Title)) || '').trim();
+    if (sm) return sm;
+    return nlNameFromEmail(nlMappingRowEmail(row));
 }
 
 function nlBirthdayPersonKey(p) {
@@ -925,35 +993,65 @@ async function nlGetDigest() {
 }
 
 function nlBirthdayDisplayName(row) {
-    var email = String(row.Email_ID || row.Email || '').trim();
-    var fromEmail = nlNameFromEmail(email);
-    var sm = String(row.Service_Manager_Name || row.Title || '').trim();
-    if (sm) return sm;
-    return fromEmail;
+    return nlMappingRowName(row);
 }
 
 async function nlBirthdayFetchMappingPeople() {
     var list = (typeof SP_MAPPING_LIST !== 'undefined' && SP_MAPPING_LIST) ? SP_MAPPING_LIST : NL_MAPPING_LIST;
     var people = [];
-    var url = SP_URL + "/_api/web/lists/getbytitle('" + list.replace(/'/g, "''") + "')/items?" +
-        "$select=Email_ID,Team,DOB,Status,Service_Manager_Name,Title&$top=5000";
+    var skippedNoDob = 0;
+    var skippedStatus = 0;
+    var parseFail = 0;
+    var urls = [
+        SP_URL + "/_api/web/lists/getbytitle('" + list.replace(/'/g, "''") + "')/items?" +
+            "$select=Email_ID,Team,DOB,Status,Service_Manager_Name,Title&$top=5000",
+        SP_URL + "/_api/web/lists/getbytitle('" + list.replace(/'/g, "''") + "')/items?$top=5000"
+    ];
+    var url = urls[0];
+    var usedFallback = false;
+    var sampleRaw = [];
 
     while (url) {
         var res = await fetch(url, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
         if (!res.ok) {
-            console.warn('[Birthday] Account Mapping fetch failed:', res.status);
+            var errTxt = '';
+            try { errTxt = (await res.text()).slice(0, 180); } catch (e) {}
+            console.warn('[Birthday] Account Mapping fetch failed:', res.status, errTxt);
+            if (!usedFallback && urls[1]) {
+                usedFallback = true;
+                url = urls[1];
+                people = [];
+                skippedNoDob = 0;
+                skippedStatus = 0;
+                parseFail = 0;
+                continue;
+            }
             break;
         }
         var data = await res.json();
         (data.d.results || []).forEach(function (row) {
             var status = String(row.Status || '').trim().toLowerCase();
-            if (status === 'inactive' || status === 'no' || status === 'disabled') return;
+            if (status === 'inactive' || status === 'disabled') {
+                skippedStatus++;
+                return;
+            }
 
-            var dob = nlParseDobField(row.DOB);
-            if (!dob) return;
+            var rawDob = nlRowDobRaw(row);
+            if (rawDob == null || rawDob === '') {
+                skippedNoDob++;
+                return;
+            }
+            if (sampleRaw.length < 8) {
+                sampleRaw.push({ name: nlMappingRowName(row), raw: String(rawDob).slice(0, 48) });
+            }
+            var dob = nlParseDobField(rawDob);
+            if (!dob) {
+                parseFail++;
+                return;
+            }
 
-            var email = String(row.Email_ID || '').trim();
-            var name = nlBirthdayDisplayName(row);
+            var email = nlMappingRowEmail(row);
+            var name = nlMappingRowName(row);
             if (!name && !email) return;
             if (!name) name = nlNameFromEmail(email) || email;
 
@@ -969,6 +1067,18 @@ async function nlBirthdayFetchMappingPeople() {
 
     people = nlBirthdayDedupePeople(people);
     window.nlBirthdayPeopleCache = people;
+    var todayYmd = nlUaeYmd(new Date());
+    var todayHits = nlBirthdayPeopleWithDobToday(people, todayYmd);
+    console.log('[Birthday] Mapping loaded', people.length, 'with DOB | skipped empty', skippedNoDob,
+        '| parse fail', parseFail, '| inactive skipped', skippedStatus,
+        '| UAE today', todayYmd, '| matches today', todayHits.length,
+        todayHits.map(function (p) { return p.name; }));
+    if (!todayHits.length && sampleRaw.length) {
+        console.log('[Birthday] Sample raw DOB values:', sampleRaw);
+        console.log('[Birthday] Sample parsed:', people.slice(0, 8).map(function (p) {
+            return p.name + ' → ' + p.dob.m + '/' + p.dob.d;
+        }));
+    }
     return people;
 }
 
@@ -1040,6 +1150,23 @@ async function nlBirthdayAttachImage(itemId, digest, serverRelativePath, fileNam
     }
 }
 
+var _nlListItemType = '';
+async function nlNewsletterEntityType() {
+    if (_nlListItemType) return _nlListItemType;
+    try {
+        var res = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')?$select=ListItemEntityTypeFullName", {
+            headers: { Accept: 'application/json;odata=verbose' },
+            credentials: 'include'
+        });
+        if (res.ok) {
+            var d = await res.json();
+            _nlListItemType = d.d && d.d.ListItemEntityTypeFullName;
+        }
+    } catch (e) {}
+    if (!_nlListItemType) _nlListItemType = 'SP.Data.NewsletterListItem';
+    return _nlListItemType;
+}
+
 async function nlBirthdayFindAutoItem(sourceKey) {
     var safe = sourceKey.replace(/'/g, "''");
     var url = SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items?" +
@@ -1067,16 +1194,16 @@ async function nlBirthdayUpsertPost(digest, bucket) {
     var copy = nlBirthdayPostCopy(bucket);
     var existing = await nlBirthdayFindAutoItem(sourceKey);
     var body = {
-        __metadata: { type: 'SP.Data.NewsletterListItem' },
+        __metadata: { type: await nlNewsletterEntityType() },
         Title: copy.title,
         Content: copy.content,
         Category: 'Birthdays',
-        Source: NL_BDAY_DISPLAY_SOURCE,
+        Source: sourceKey,
         IsActive: true,
         PublishedDate: new Date().toISOString()
     };
     if (existing && existing.ID) {
-        await fetch(SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items(" + existing.ID + ")", {
+        var mergeRes = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items(" + existing.ID + ")", {
             method: 'POST',
             headers: {
                 'Accept': 'application/json;odata=verbose',
@@ -1088,6 +1215,7 @@ async function nlBirthdayUpsertPost(digest, bucket) {
             credentials: 'include',
             body: JSON.stringify(body)
         });
+        if (!mergeRes.ok) console.warn('[Birthday] Update failed:', (await mergeRes.text()).slice(0, 200));
         return existing.ID;
     }
     var createRes = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items", {
@@ -1101,8 +1229,28 @@ async function nlBirthdayUpsertPost(digest, bucket) {
         body: JSON.stringify(body)
     });
     if (!createRes.ok) {
-        console.warn('[Newsletter] Birthday post failed:', (await createRes.text()).slice(0, 200));
-        return null;
+        var failTxt = (await createRes.text()).slice(0, 300);
+        console.warn('[Birthday] Post failed (Birthdays/Source). Retrying minimal fields:', failTxt);
+        var minimal = {
+            __metadata: body.__metadata,
+            Title: copy.title,
+            Content: copy.content,
+            IsActive: true
+        };
+        createRes = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items", {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json;odata=verbose',
+                'Content-Type': 'application/json;odata=verbose',
+                'X-RequestDigest': digest
+            },
+            credentials: 'include',
+            body: JSON.stringify(minimal)
+        });
+        if (!createRes.ok) {
+            console.warn('[Birthday] Post failed:', (await createRes.text()).slice(0, 300));
+            return null;
+        }
     }
     var created = await createRes.json();
     var newId = created.d && created.d.ID;
@@ -1265,13 +1413,15 @@ function nlBirthdayBuildWishMailto(peopleToday) {
     return 'mailto:' + email + '?subject=' + subj + '&body=' + body;
 }
 
-/** True only when month/day of DOB matches today (UAE). Used for dashboard popup — not schedule/upcoming. */
+/** True when DOB month/day matches today (UAE), also accepting UTC calendar day for SharePoint date-only off-by-one. */
 function nlBirthdayPeopleWithDobToday(people, todayYmd) {
     var t = nlParseYmd(todayYmd);
     var list = [];
     (people || []).forEach(function (p) {
         if (!p.dob) return;
-        if (p.dob.m === t.m && p.dob.d === t.d) {
+        var hit = (p.dob.m === t.m && p.dob.d === t.d) ||
+            (p.dob.mUtc && p.dob.mUtc === t.m && p.dob.dUtc === t.d);
+        if (hit) {
             list.push({ name: p.name, email: p.email || '', team: p.team || '' });
         }
     });
@@ -1458,4 +1608,15 @@ window.nlCheckOnDashboard = async function () {
 
 window.nlCheckOnLoad = async function () {
     await window.nlBirthdayCheckAndMaybePopup();
+};
+
+window.nlBirthdayDebug = async function () {
+    try {
+        localStorage.removeItem('sm_nl_bday_popup_' + nlUaeYmd(new Date()));
+    } catch (e) {}
+    var people = await nlBirthdayFetchMappingPeople();
+    var todayYmd = nlUaeYmd(new Date());
+    var today = nlBirthdayPeopleWithDobToday(people, todayYmd);
+    console.log('[Birthday] DEBUG today UAE', todayYmd, 'hits', today);
+    return { people: people.length, todayYmd: todayYmd, today: today };
 };
