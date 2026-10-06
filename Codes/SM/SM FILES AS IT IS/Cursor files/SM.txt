@@ -7203,6 +7203,9 @@ if (role === 'Line Manager') {
             if (segFilter) {
                 allFiltered = allFiltered.filter(function (a) { return a.segment === segFilter; });
             }
+            if (typeof window.tsmSeApplyViewFilters === 'function') {
+                allFiltered = window.tsmSeApplyViewFilters(allFiltered);
+            }
 
             if (agGridApi) {
                 try { agGridApi.destroy(); } catch (e) {}
