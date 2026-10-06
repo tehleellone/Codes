@@ -712,6 +712,13 @@
             box-shadow: var(--cs);
         }
 
+        #editRequestView .edit-rnps-highlight {
+            border: 2px solid #ef4444;
+            border-radius: 10px;
+            padding: 12px 14px;
+            background: rgba(239, 68, 68, 0.04);
+        }
+
         #editRequestView .edit-info-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3278,10 +3285,6 @@
                             <div class="filter-group">
                                 <label class="filter-label">Account Director *</label>
                                 <select class="filter-select" id="editAD"></select>
-                            </div>
-                            <div class="filter-group">
-                                <label class="filter-label">Segment</label>
-                                <select class="filter-select" id="editSegment"></select>
                             </div>
                         </div>
 
@@ -6670,7 +6673,6 @@ else if (USER_CONTEXT.role === 'Account Manager' || USER_CONTEXT.role === 'Accou
 
                 if (typeof lucide !== 'undefined') lucide.createIcons();
                 if (typeof analyticsStartSession === 'function') analyticsStartSession();
-                if (typeof nlCheckOnLoad === 'function') nlCheckOnLoad();
             } catch (err) {
                 console.error('PSD shell init error:', err);
             }
@@ -6690,7 +6692,6 @@ else if (USER_CONTEXT.role === 'Account Manager' || USER_CONTEXT.role === 'Accou
 
                 if (typeof lucide !== 'undefined') lucide.createIcons();
                 if (typeof analyticsStartSession === 'function') analyticsStartSession();
-                if (typeof nlCheckOnLoad === 'function') nlCheckOnLoad();
             } catch (err) {
                 console.error('RC shell init error:', err);
             }
@@ -6848,9 +6849,6 @@ if (rnpsNav) rnpsNav.style.display = 'flex';
                     analyticsStartSession();
                 }
 
-                if (typeof nlCheckOnLoad === 'function') {
-                    nlCheckOnLoad();
-                }
 
                 if (smIsAccountSearchOnlyRole()) {
                     var landingOnly = document.getElementById('landingPage');
@@ -8351,6 +8349,28 @@ if (window.TSM_SE_ACTIVE) {
             return html;
         }
 
+        function smBuildEditRnpsPocBlock(account, opts) {
+            opts = opts || {};
+            var wrapId = opts.wrapId || 'editRnpsPocWrap';
+            var inGrid = !!opts.inAccountGrid;
+            var selectedPoc = smNormalizeRnpsPoc(account.rnpsPoc);
+            var radios = '';
+            ['Primary', 'Secondary', 'Technical'].forEach(function (opt) {
+                var selected = selectedPoc === opt;
+                radios += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;font-weight:600;color:var(--t1);">' +
+                    '<input type="radio" name="editRnpsPoc" value="' + opt + '"' + (selected ? ' checked' : '') + '> ' + opt +
+                    '</label>';
+            });
+            if (inGrid) {
+                return '<div id="' + wrapId + '" data-edit-rnps-poc-wrap="1" class="edit-field-card edit-rnps-highlight" style="grid-column:1/-1;display:none;">' +
+                    '<div class="edit-field-label">RNPS POC</div>' +
+                    '<div style="display:flex;gap:1.25rem;flex-wrap:wrap;padding:8px 0;">' + radios + '</div></div>';
+            }
+            return '<div class="filter-group" id="' + wrapId + '" data-edit-rnps-poc-wrap="1" style="margin-bottom: 1rem;display:none;">' +
+                '<label class="filter-label">RNPS POC</label>' +
+                '<div style="display:flex;gap:1.25rem;flex-wrap:wrap;padding:8px 0;">' + radios + '</div></div>';
+        }
+
         function smRefreshEditRnpsEligibilityFields() {
             if (!EDIT_ACCOUNT_DATA) return;
             var wrap = document.getElementById('editRnpsEligibilityWrap');
@@ -8400,16 +8420,17 @@ if (window.TSM_SE_ACTIVE) {
 
         function smSyncEditRnpsFieldsUi() {
             var el = document.getElementById('editRnpsEligibility');
-            var wrap = document.getElementById('editRnpsPocWrap');
+            var pocWraps = document.querySelectorAll('[data-edit-rnps-poc-wrap]');
             var reasonWrap = document.getElementById('editRnpsNotEligibleReasonWrap');
-            if (!wrap || !reasonWrap) return;
 
             var eligibility = el ? el.value : ((EDIT_ACCOUNT_DATA && EDIT_ACCOUNT_DATA.rnpsEligibility) || '');
             var isYes = smIsRnpsEligible(eligibility);
             var isNo = smIsRnpsNotEligible(eligibility);
 
-            wrap.style.display = isNo ? 'none' : '';
-            reasonWrap.style.display = isNo ? '' : 'none';
+            pocWraps.forEach(function (wrap) {
+                wrap.style.display = isYes ? '' : 'none';
+            });
+            if (reasonWrap) reasonWrap.style.display = isNo ? '' : 'none';
 
             document.querySelectorAll('input[name="editRnpsPoc"]').forEach(function (radio) {
                 radio.disabled = isNo;
@@ -8853,6 +8874,7 @@ onclick="sendTransferReminderEmailMain('${esc(a.amEmail)}','${esc(a.adEmail)}','
                 suppressMenuHide: false,
                onGridReady: params => {
                     agGridApi = params.api;
+                    window.agGridApi = params.api;
                     smEnsurePocColumnsVisible(params.api);
                 },
                 isExternalFilterPresent: () => {
@@ -8943,8 +8965,9 @@ onclick="sendTransferReminderEmailMain('${esc(a.amEmail)}','${esc(a.adEmail)}','
         }
 
        function searchAGGrid(searchText) {
-            if (!agGridApi) return;
-            agGridApi.setGridOption('quickFilterText', searchText);
+            var api = agGridApi || window.agGridApi;
+            if (!api) return;
+            api.setGridOption('quickFilterText', searchText);
         }
 
         function applyTransferFilter() {
@@ -9814,8 +9837,11 @@ else if (sectionId === 'rcView') {
         }
     }
 }
-else if (sectionId === 'newsletterView') {
+            else if (sectionId === 'newsletterView') {
     if (typeof nlLoadNewsletter === 'function') nlLoadNewsletter();
+}
+else if (sectionId === 'dashboard-view') {
+    if (typeof nlCheckOnDashboard === 'function') nlCheckOnDashboard();
 }
 else if (sectionId === 'portalAnalyticsView') {
     if (typeof smEmbedPortalAnalytics === 'function') smEmbedPortalAnalytics();
@@ -9969,13 +9995,13 @@ else if (sectionId === 'portalAnalyticsView') {
             window._smNewsletterBadgeFixInstalled = true;
 
             function patchNlCheck() {
-                if (typeof window.nlCheckOnLoad !== 'function' || window.nlCheckOnLoad.__smPatched) return;
-                var orig = window.nlCheckOnLoad;
-                window.nlCheckOnLoad = function() {
+                if (typeof window.nlCheckOnDashboard !== 'function' || window.nlCheckOnDashboard.__smPatched) return;
+                var orig = window.nlCheckOnDashboard;
+                window.nlCheckOnDashboard = function() {
                     orig.apply(this, arguments);
                     if (smNewsletterAlreadyRead()) smHideNewsletterBadge(false);
                 };
-                window.nlCheckOnLoad.__smPatched = true;
+                window.nlCheckOnDashboard.__smPatched = true;
             }
 
             function patchShowNewsletter() {
@@ -11003,28 +11029,61 @@ else if (sectionId === 'portalAnalyticsView') {
         window.smShowItemHistory = smShowItemHistory;
         window.smCloseItemHistory = smCloseItemHistory;
 
-        function smPopulateEditSegmentDropdown(currentVal) {
+        var SM_LIST_CHOICE_CACHE = {};
+
+        async function smFetchListChoiceOptions(fieldName) {
+            if (SM_LIST_CHOICE_CACHE[fieldName]) return SM_LIST_CHOICE_CACHE[fieldName];
+            var listTitle = (typeof SP_LIST !== 'undefined' && SP_LIST) ? SP_LIST : 'Service Manager Request';
+            var url = SP_URL + "/_api/web/lists/getbytitle('" + listTitle.replace(/'/g, "''") + "')/fields/getbyinternalnameorTitle('" + fieldName.replace(/'/g, "''") + "')";
+            try {
+                var res = await fetch(url, { headers: { Accept: 'application/json;odata=verbose' }, credentials: 'include' });
+                if (!res.ok) throw new Error('field');
+                var data = await res.json();
+                var raw = data.d.Choices || (data.d.results && data.d.results.Choices);
+                var choices = raw && raw.results ? raw.results.slice() : (Array.isArray(raw) ? raw.slice() : []);
+                SM_LIST_CHOICE_CACHE[fieldName] = choices;
+                return choices;
+            } catch (e) {
+                SM_LIST_CHOICE_CACHE[fieldName] = [];
+                return [];
+            }
+        }
+
+        async function smPopulateEditSegmentDropdown(currentVal) {
             var sel = document.getElementById('editSegment');
             if (!sel) return;
+            var opts = await smFetchListChoiceOptions('Segment');
             var set = {};
+            opts.forEach(function (s) { set[s] = true; });
             (ALL_DATA || []).forEach(function (a) { if (a.segment) set[a.segment] = true; });
             (window.TSM_SE_DATA || []).forEach(function (a) { if (a.segment) set[a.segment] = true; });
-            var opts = Object.keys(set).sort();
+            var merged = Object.keys(set).sort();
             sel.innerHTML = '<option value="">— Select Segment —</option>';
-            opts.forEach(function (s) {
+            merged.forEach(function (s) {
                 var o = document.createElement('option');
                 o.value = s;
                 o.textContent = s;
                 if (s === currentVal) o.selected = true;
                 sel.appendChild(o);
             });
-            if (currentVal && !set[currentVal]) {
-                var cur = document.createElement('option');
-                cur.value = currentVal;
-                cur.textContent = currentVal;
-                cur.selected = true;
-                sel.appendChild(cur);
-            }
+        }
+
+        async function smPopulateEditAccountTypeDropdown(currentVal) {
+            var sel = document.getElementById('editAccountType');
+            if (!sel) return;
+            var opts = await smFetchListChoiceOptions('AccountType');
+            var set = {};
+            opts.forEach(function (s) { set[s] = true; });
+            (ALL_DATA || []).forEach(function (a) { if (a.accountType) set[a.accountType] = true; });
+            var merged = Object.keys(set).sort();
+            sel.innerHTML = '<option value="">— Select Account Type —</option>';
+            merged.forEach(function (s) {
+                var o = document.createElement('option');
+                o.value = s;
+                o.textContent = s;
+                if (s === currentVal) o.selected = true;
+                sel.appendChild(o);
+            });
         }
 
         async function openEditRequest(accountCode) {
@@ -11107,8 +11166,7 @@ else if (sectionId === 'portalAnalyticsView') {
                     ['Line Manager', account.lm],
                     ['Service Manager', account.sm],
                     ['Account Manager', account.am],
-                    ['Account Director', account.ad],
-                    ['Segment', account.segment || '—']
+                    ['Account Director', account.ad]
                 ];
 
                 fields.forEach(function (pair) {
@@ -11121,10 +11179,15 @@ else if (sectionId === 'portalAnalyticsView') {
                 });
 
                 html += '<div class="edit-field-card">' +
+                    '<div class="edit-field-label">Segment</div>' +
+                    '<select class="filter-select" id="editSegment" style="font-size: 14px; padding: 10px; width: 100%;"></select></div>';
+
+                html += '<div class="edit-field-card">' +
                     '<div class="edit-field-label">Account Type</div>' +
-                    '<div class="edit-field-value">' + (account.accountType || '—') + '</div></div>';
+                    '<select class="filter-select" id="editAccountType" style="font-size: 14px; padding: 10px; width: 100%;"></select></div>';
 
                 html += smBuildEditRnpsEligibilityHtml(account);
+                html += smBuildEditRnpsPocBlock(account, { wrapId: 'editRnpsPocWrapAccount', inAccountGrid: true });
 
                 html += '</div></div>';
 
@@ -11180,16 +11243,7 @@ else if (sectionId === 'portalAnalyticsView') {
 
                 html += '<div class="edit-section-block">';
                 html += '<h3 class="table-title"><i data-lucide="users" style="width: 18px; height: 18px; display: inline-block; vertical-align: middle; margin-right: 6px;"></i>POC Details</h3>';
-                html += '<div class="filter-group" id="editRnpsPocWrap" style="margin-bottom: 1rem;">' +
-                    '<label class="filter-label">RNPS POC</label>' +
-                    '<div style="display:flex;gap:1.25rem;flex-wrap:wrap;padding:8px 0;">';
-                ['Primary', 'Secondary', 'Technical'].forEach(function (opt) {
-                    const selected = smNormalizeRnpsPoc(account.rnpsPoc) === opt;
-                    html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;font-weight:600;color:var(--t1);">' +
-                        '<input type="radio" name="editRnpsPoc" value="' + opt + '"' + (selected ? ' checked' : '') + '> ' + opt +
-                        '</label>';
-                });
-                html += '</div></div>';
+                html += smBuildEditRnpsPocBlock(account, { wrapId: 'editRnpsPocWrap', inAccountGrid: false });
                 html += '<div class="filter-group" style="margin-bottom: 1rem; max-width: 360px;">' +
                     '<label class="filter-label">POC Category</label>' +
                     '<select class="filter-select" id="editPocCategory" onchange="onEditPocCategoryChange()" style="font-size: 14px; padding: 10px;">' +
@@ -11239,7 +11293,8 @@ else if (sectionId === 'portalAnalyticsView') {
                     adSelect.appendChild(opt);
                 });
 
-                smPopulateEditSegmentDropdown(account.segment || '');
+                await smPopulateEditSegmentDropdown(account.segment || '');
+                await smPopulateEditAccountTypeDropdown(account.accountType || '');
 
                 // Initialize Lucide icons
                 if (typeof lucide !== 'undefined') {
@@ -11459,6 +11514,7 @@ else if (sectionId === 'portalAnalyticsView') {
             const newAM = document.getElementById('editAM').value;
             const newAD = document.getElementById('editAD').value;
             const newSegment = (document.getElementById('editSegment') || {}).value || '';
+            const newAccountType = (document.getElementById('editAccountType') || {}).value || '';
             const newSecondarySm = smNormalizePersonName((document.getElementById('editSecondarySM') || {}).value);
             const oldSecondarySm = smNormalizePersonName(EDIT_ACCOUNT_DATA.secondarySm);
 
@@ -11503,6 +11559,7 @@ else if (sectionId === 'portalAnalyticsView') {
             const amChanged = newAM !== EDIT_ACCOUNT_DATA.am;
             const adChanged = newAD !== EDIT_ACCOUNT_DATA.ad;
             const segmentChanged = newSegment !== (EDIT_ACCOUNT_DATA.segment || '');
+            const accountTypeChanged = newAccountType !== (EDIT_ACCOUNT_DATA.accountType || '');
             const secondarySmChanged = newSecondarySm !== oldSecondarySm;
             const revenueChanged = newRevenue !== null && newRevenue !== (EDIT_ACCOUNT_DATA.allMonths[revenueField] || 0);
             let newRnpsEligibility = EDIT_ACCOUNT_DATA.rnpsEligibility || '';
@@ -11557,13 +11614,14 @@ else if (sectionId === 'portalAnalyticsView') {
                 ? newRnpsPoc !== oldRnpsPocDisplay
                 : (EDIT_ACCOUNT_DATA.rnpsPoc && !smIsRnpsNotEligible(EDIT_ACCOUNT_DATA.rnpsEligibility));
 
-            if (!amChanged && !adChanged && !segmentChanged && !secondarySmChanged && !revenueChanged && !rnpsChanged && !rnpsReasonChanged && !pocChanged && !rnpsPocChanged && window.EDIT_ALL_MONTHS.length === 0) {
+            if (!amChanged && !adChanged && !segmentChanged && !accountTypeChanged && !secondarySmChanged && !revenueChanged && !rnpsChanged && !rnpsReasonChanged && !pocChanged && !rnpsPocChanged && window.EDIT_ALL_MONTHS.length === 0) {
                 alert('No changes detected');
                 return;
             }
 
             window.EDIT_SECONDARY_SM = newSecondarySm;
             window.EDIT_SEGMENT = newSegment;
+            window.EDIT_ACCOUNT_TYPE = newAccountType;
 
             let html = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">';
             const changes = [
@@ -11576,7 +11634,7 @@ else if (sectionId === 'portalAnalyticsView') {
                 ['Account Manager', EDIT_ACCOUNT_DATA.am, newAM],
                 ['Account Director', EDIT_ACCOUNT_DATA.ad, newAD],
                 ['Segment', EDIT_ACCOUNT_DATA.segment || '—', newSegment || '—'],
-                ['Account Type', EDIT_ACCOUNT_DATA.accountType || '—', EDIT_ACCOUNT_DATA.accountType || '—'],
+                ['Account Type', EDIT_ACCOUNT_DATA.accountType || '—', newAccountType || '—'],
                 ['RNPS Eligibility', EDIT_ACCOUNT_DATA.rnpsEligibility || '—', newRnpsEligibility || '—'],
                 ['Reason for RNPS not Eligible', EDIT_ACCOUNT_DATA.rnpsNotEligibleReason || '—', newRnpsNotEligibleReason || '—'],
                 ['RNPS POC', oldRnpsPocDisplay || '—', isRnpsYes ? newRnpsPoc : '—']
@@ -11692,6 +11750,12 @@ else if (sectionId === 'portalAnalyticsView') {
                 };
                 if (newSegment !== (EDIT_ACCOUNT_DATA.segment || '')) {
                     updateData.Segment = newSegment || null;
+                }
+                const newAccountType = window.EDIT_ACCOUNT_TYPE != null
+                    ? window.EDIT_ACCOUNT_TYPE
+                    : ((document.getElementById('editAccountType') || {}).value || '');
+                if (newAccountType !== (EDIT_ACCOUNT_DATA.accountType || '')) {
+                    updateData.AccountType = newAccountType || null;
                 }
                 if (secondarySmChanged) {
                     const replacingExisting = !!oldSecondarySm && !!newSecondarySm;
@@ -12510,7 +12574,7 @@ else if (sectionId === 'portalAnalyticsView') {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/events-tt-activity.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/projectManagement.js"></script>
-    <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/newsletter.js?v=nl-bday1"></script>
+    <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/newsletter.js?v=nl-bday2"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/contactus.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/suggestions.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/processdocs.js"></script>
