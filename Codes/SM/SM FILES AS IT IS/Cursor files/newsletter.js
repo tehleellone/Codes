@@ -8,6 +8,8 @@ var NL_BDAY_TZ = 'Asia/Dubai';
 var NL_BDAY_SOURCE_PREFIX = 'BirthdayAuto|';
 var NL_BDAY_IMAGE_TODAY = '/sites/SM/Shared Documents/birthday-happy.jpg';
 var NL_BDAY_IMAGE_COUNTDOWN = '/sites/SM/Shared Documents/birthday-countdown.jpg';
+var NL_BDAY_DISPLAY_SOURCE = 'People & Culture';
+var NL_SP_HOST = 'http://sharedspaces:8086';
 var nlCurrentTab = 'view';
 var nlAllItems = [];
 var nlBirthdayUpcoming = [];
@@ -86,32 +88,33 @@ function nlCheckNewBadge(items) {
 
 function nlShowNewItemPopup(item) {
     if (!item || !item.ID) return;
+    if (item.Category === 'Birthdays' || nlIsBirthdayAutoItem(item)) return;
     if (nlWasOpenedThisSession(item.ID) || nlPopupDismissedThisSession(item.ID)) return;
     if (String(item.ID) === nlGetLastSeenId()) return;
 
     var existing = document.getElementById('nlNewItemPopup');
     if (existing) existing.remove();
 
-    var title = (item.Title || 'Newsletter update').replace(/</g, '&lt;');
-    var snippet = String(item.Content || '').trim().slice(0, 160).replace(/</g, '&lt;').replace(/\n/g, ' ');
-    if (String(item.Content || '').length > 160) snippet += '…';
-
-    var overlay = document.createElement('div');
-    overlay.id = 'nlNewItemPopup';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:1rem;';
-    overlay.innerHTML =
-        '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;max-width:480px;width:100%;padding:1.5rem;box-shadow:var(--ch);position:relative;">' +
-        '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--grad);border-radius:16px 16px 0 0;"></div>' +
-        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">' +
-        '<span style="background:#ef4444;color:#fff;font-size:10px;font-weight:800;padding:4px 10px;border-radius:20px;">NEW</span>' +
-        '<span style="font-size:13px;font-weight:700;color:var(--t1);">Newsletter</span></div>' +
-        '<h3 style="margin:0 0 10px;font-size:1.15rem;font-weight:800;color:var(--t1);">' + title + '</h3>' +
-        (snippet ? '<p style="margin:0 0 1.25rem;font-size:13px;color:var(--t2);line-height:1.55;">' + snippet + '</p>' : '') +
-        '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
-        '<button type="button" id="nlPopupViewBtn" class="export-btn" style="flex:1;min-width:140px;">View newsletter</button>' +
-        '<button type="button" id="nlPopupLaterBtn" class="reset-btn" style="flex:1;min-width:100px;">Later</button>' +
-        '</div></div>';
-    document.body.appendChild(overlay);
+    var snippet = nlDisplayContent(item).slice(0, 220);
+    if (nlDisplayContent(item).length > 220) snippet += '…';
+    var banner = nlGetImageURL(item) ? NL_SP_HOST + nlGetImageURL(item) : '';
+    var actionsHtml =
+        '<div class="nl-modal-actions">' +
+        '<button type="button" id="nlPopupViewBtn" class="export-btn" style="flex:1;">Read newsletter</button>' +
+        '<button type="button" id="nlPopupLaterBtn" class="reset-btn" style="flex:1;">Later</button></div>';
+    var overlay = nlOpenModalShell({
+        id: 'nlNewItemPopup',
+        bannerUrl: banner,
+        fallbackEmoji: '📰',
+        pill: 'New update',
+        badge: 'Newsletter',
+        badgeColor: '#ef4444',
+        dateLabel: nlFormatDate(item.PublishedDate),
+        sourceLabel: nlDisplaySource(item),
+        title: item.Title || 'Newsletter update',
+        body: snippet,
+        actionsHtml: actionsHtml
+    });
 
     document.getElementById('nlPopupViewBtn').addEventListener('click', function () {
         overlay.remove();
@@ -125,7 +128,6 @@ function nlShowNewItemPopup(item) {
         overlay.remove();
         nlCheckNewBadge([item]);
     });
-    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 // ── Load ──────────────────────────────────────────────────────
@@ -228,7 +230,10 @@ function nlCategoryColor(cat) {
 }
 
 function nlIsBirthdayAutoItem(item) {
-    return item && String(item.Source || '').indexOf(NL_BDAY_SOURCE_PREFIX) === 0;
+    if (!item) return false;
+    if (String(item.Source || '').indexOf(NL_BDAY_SOURCE_PREFIX) === 0) return true;
+    if (String(item.Content || '').indexOf(NL_BDAY_SOURCE_PREFIX) >= 0) return true;
+    return item.Category === 'Birthdays';
 }
 
 function nlItemsExcludingBirthdays(items) {
@@ -246,6 +251,78 @@ function nlFormatDate(dateStr) {
 
 function nlGetImageURL(item) {
     return item._imageURL || null;
+}
+
+function nlEscapeHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function nlDisplaySource(item) {
+    if (!item) return 'Admin';
+    if (nlIsBirthdayAutoItem(item)) return NL_BDAY_DISPLAY_SOURCE;
+    var src = String(item.Source || '').trim();
+    if (!src || src.indexOf(NL_BDAY_SOURCE_PREFIX) === 0) return NL_BDAY_DISPLAY_SOURCE;
+    return src || (item.Author ? item.Author.Title : 'Admin');
+}
+
+function nlDisplayContent(item) {
+    var text = String((item && item.Content) || '');
+    return text.replace(/<!--\s*BirthdayAuto[^>]*-->/gi, '').trim();
+}
+
+function nlBirthdayMetaFromItem(item) {
+    if (!item) return null;
+    var fromSource = nlParseBirthdaySource(item.Source);
+    if (fromSource) return fromSource;
+    var m = String(item.Content || '').match(/<!--\s*(BirthdayAuto[^>]+)\s*-->/i);
+    if (m) return nlParseBirthdaySource(m[1]);
+    return null;
+}
+
+function nlBirthdayIsTodayItem(item) {
+    var meta = nlBirthdayMetaFromItem(item);
+    return meta && meta.daysUntil === 0;
+}
+
+function nlBirthdayBannerUrl(item) {
+    var attached = nlGetImageURL(item);
+    if (attached) return NL_SP_HOST + attached;
+    if (nlBirthdayIsTodayItem(item)) {
+        return NL_SP_HOST + NL_BDAY_IMAGE_TODAY.replace(/ /g, '%20');
+    }
+    return NL_SP_HOST + NL_BDAY_IMAGE_COUNTDOWN.replace(/ /g, '%20');
+}
+
+function nlInjectNewsletterStyles() {
+    if (document.getElementById('nlStyles')) return;
+    var style = document.createElement('style');
+    style.id = 'nlStyles';
+    style.textContent =
+        '.nl-modal-backdrop{position:fixed;inset:0;z-index:12000;background:rgba(15,23,42,.62);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;}' +
+        '.nl-modal-card{background:var(--bg-card);border:1px solid var(--border);border-radius:20px;width:100%;max-width:560px;max-height:90vh;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.35);position:relative;display:flex;flex-direction:column;}' +
+        '.nl-modal-hero{position:relative;width:100%;height:220px;overflow:hidden;background:linear-gradient(135deg,#ec4899 0%,#f97316 50%,#8b5cf6 100%);flex-shrink:0;}' +
+        '.nl-modal-hero img{width:100%;height:100%;object-fit:cover;display:block;}' +
+        '.nl-modal-hero-fallback{display:flex;align-items:center;justify-content:center;height:100%;font-size:4rem;}' +
+        '.nl-modal-close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);color:#fff;cursor:pointer;font-size:18px;line-height:1;z-index:2;}' +
+        '.nl-modal-body{padding:1.75rem 1.75rem 1.5rem;overflow-y:auto;}' +
+        '.nl-modal-meta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;}' +
+        '.nl-modal-badge{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:5px 12px;border-radius:999px;color:#fff;}' +
+        '.nl-modal-date{font-size:12px;color:var(--t3);display:inline-flex;align-items:center;gap:4px;}' +
+        '.nl-modal-title{font-size:1.35rem;font-weight:800;color:var(--t1);margin:0 0 12px;line-height:1.35;}' +
+        '.nl-modal-text{font-size:14px;color:var(--t2);line-height:1.75;margin:0 0 1.25rem;white-space:pre-wrap;}' +
+        '.nl-modal-actions{display:flex;gap:10px;flex-wrap:wrap;}' +
+        '.nl-bday-countdown-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(236,72,153,.12);border:1px solid rgba(236,72,153,.25);color:#db2777;font-size:12px;font-weight:800;padding:6px 12px;border-radius:999px;margin-bottom:12px;}' +
+        '.nl-bday-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem;}' +
+        '.nl-bday-card{border-radius:16px;overflow:hidden;border:1px solid var(--border);background:var(--bg-card);cursor:pointer;transition:transform .2s,box-shadow .2s;}' +
+        '.nl-bday-card:hover{transform:translateY(-3px);box-shadow:var(--ch);}' +
+        '.nl-bday-card-hero{height:140px;background:linear-gradient(135deg,#ec4899,#f97316);position:relative;}' +
+        '.nl-bday-card-hero img{width:100%;height:100%;object-fit:cover;}' +
+        '.nl-bday-card-body{padding:1rem 1.1rem 1.15rem;}';
+    document.head.appendChild(style);
 }
 
 // ── View Tab ──────────────────────────────────────────────────
@@ -298,14 +375,33 @@ function nlBuildHeroCard(item) {
         '<div style="display:flex;align-items:center;gap:12px;margin-bottom:1rem;flex-wrap:wrap;">' +
       '<span style="background:' + color + ';color:#fff;font-size:11px;font-weight:700;padding:4px 14px;border-radius:20px;letter-spacing:1px;text-transform:uppercase;">' + (item.Category || 'General') + ' Announcement</span>' +
         '<span style="font-size:12px;color:var(--t3);display:flex;align-items:center;gap:4px;"><i data-lucide="calendar" style="width:13px;height:13px;"></i>' + nlFormatDate(item.PublishedDate) + '</span>' +
-       '<span style="font-size:12px;color:var(--t3);display:flex;align-items:center;gap:4px;"><i data-lucide="users" style="width:13px;height:13px;"></i>' + (item.Source || (item.Author ? item.Author.Title : 'Admin')) + '</span>' +
+       '<span style="font-size:12px;color:var(--t3);display:flex;align-items:center;gap:4px;"><i data-lucide="users" style="width:13px;height:13px;"></i>' + nlEscapeHtml(nlDisplaySource(item)) + '</span>' +
         '</div>' +
-        '<h2 style="font-size:1.6rem;font-weight:800;color:var(--t1);margin:0 0 1rem!important;">' + item.Title + '</h2>' +
-     '<p style="font-size:14px;color:var(--t2);line-height:1.9;margin:0;white-space:pre-wrap;">' + (item.Content || '').replace(/\n/g, '<br>') + '</p>' +
+        '<h2 style="font-size:1.6rem;font-weight:800;color:var(--t1);margin:0 0 1rem!important;">' + nlEscapeHtml(item.Title) + '</h2>' +
+     '<p style="font-size:14px;color:var(--t2);line-height:1.9;margin:0;white-space:pre-wrap;">' + nlEscapeHtml(nlDisplayContent(item)).replace(/\n/g, '<br>') + '</p>' +
+        '</div></div>';
+}
+
+function nlBuildBirthdayCard(item) {
+    var banner = nlBirthdayBannerUrl(item);
+    var meta = nlBirthdayMetaFromItem(item);
+    var pill = meta && meta.daysUntil === 0 ? 'Today 🎉' : (meta && meta.daysUntil === 1 ? 'Tomorrow' : (meta ? meta.daysUntil + ' days' : 'Birthday'));
+    return '<div class="nl-bday-card" onclick="nlOpenCard(' + item.ID + ')">' +
+        '<div class="nl-bday-card-hero">' +
+        '<img src="' + banner + '" alt="" onerror="this.style.display=\'none\';this.parentElement.innerHTML=\'<div class=nl-modal-hero-fallback>🎂</div>\';">' +
+        '</div>' +
+        '<div class="nl-bday-card-body">' +
+        '<div class="nl-bday-countdown-pill">' + nlEscapeHtml(pill) + '</div>' +
+        '<div style="font-size:.95rem;font-weight:800;color:var(--t1);margin-bottom:.35rem;line-height:1.35;">' + nlEscapeHtml(item.Title || '') + '</div>' +
+        '<div style="font-size:12px;color:var(--t3);line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">' + nlEscapeHtml(nlDisplayContent(item)) + '</div>' +
         '</div></div>';
 }
 
 function nlBuildCard(item) {
+    if (item.Category === 'Birthdays' || nlIsBirthdayAutoItem(item)) {
+        nlInjectNewsletterStyles();
+        return nlBuildBirthdayCard(item);
+    }
     var color = nlCategoryColor(item.Category);
     var imageURL = nlGetImageURL(item);
 
@@ -329,50 +425,60 @@ function nlBuildCard(item) {
         '<i data-lucide="eye" style="width:13px;height:13px;"></i>Read more</div>' +
         '</div></div>';
 }
+function nlOpenModalShell(opts) {
+    nlInjectNewsletterStyles();
+    var overlay = document.createElement('div');
+    overlay.id = opts.id || 'nlOverlay';
+    overlay.className = 'nl-modal-backdrop';
+    var banner = opts.bannerUrl || '';
+    var heroInner = banner
+        ? '<img src="' + banner + '" alt="" onerror="this.style.display=\'none\';this.parentElement.innerHTML=\'<div class=nl-modal-hero-fallback>' + (opts.fallbackEmoji || '🎂') + '</div>\';">'
+        : '<div class="nl-modal-hero-fallback">' + (opts.fallbackEmoji || '📰') + '</div>';
+    overlay.innerHTML =
+        '<div class="nl-modal-card" role="dialog" aria-modal="true">' +
+        '<div class="nl-modal-hero">' + heroInner +
+        '<button type="button" class="nl-modal-close" aria-label="Close">×</button></div>' +
+        '<div class="nl-modal-body">' +
+        (opts.pill ? '<div class="nl-bday-countdown-pill">' + nlEscapeHtml(opts.pill) + '</div>' : '') +
+        '<div class="nl-modal-meta">' +
+        '<span class="nl-modal-badge" style="background:' + (opts.badgeColor || '#8b5cf6') + ';">' + nlEscapeHtml(opts.badge || 'Newsletter') + '</span>' +
+        '<span class="nl-modal-date"><i data-lucide="calendar" style="width:13px;height:13px;"></i> ' + nlEscapeHtml(opts.dateLabel || '') + '</span>' +
+        (opts.sourceLabel ? '<span class="nl-modal-date"><i data-lucide="users" style="width:13px;height:13px;"></i> ' + nlEscapeHtml(opts.sourceLabel) + '</span>' : '') +
+        '</div>' +
+        '<h2 class="nl-modal-title">' + nlEscapeHtml(opts.title || '') + '</h2>' +
+        '<p class="nl-modal-text">' + nlEscapeHtml(opts.body || '').replace(/\n/g, '<br>') + '</p>' +
+        (opts.actionsHtml || '') +
+        '</div></div>';
+    overlay.querySelector('.nl-modal-close').addEventListener('click', function () { overlay.remove(); });
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+    if (typeof smMountPopup === 'function') smMountPopup(overlay);
+    else document.body.appendChild(overlay);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    return overlay;
+}
+
 window.nlOpenCard = function(itemId) {
     var item = nlAllItems.find(function(i) { return i.ID === itemId; });
     if (!item) return;
 
-    var color = nlCategoryColor(item.Category);
-    var imageURL = nlGetImageURL(item);
-
-    var overlay = document.createElement('div');
-    overlay.id = 'nlOverlay';
-    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);';
-
-    overlay.innerHTML =
-        '<div style="background:var(--bg-card);border-radius:20px;max-width:700px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.4);position:relative;">' +
-
-        // Close button
-        '<button type="button" onclick="document.getElementById(\'nlOverlay\').remove()" ' +
-        'style="position:sticky;top:12px;float:right;margin:12px 12px 0 0;width:34px;height:34px;border-radius:50%;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);color:#ef4444;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;z-index:1;">✕</button>' +
-
-        // Image
-        (imageURL ?
-            '<div style="width:100%;max-height:280px;overflow:hidden;border-radius:20px 20px 0 0;">' +
-            '<img src="http://sharedspaces:8086' + imageURL + '" style="width:100%;height:280px;object-fit:cover;display:block;" /></div>' :
-            '<div style="height:120px;background:var(--grad);border-radius:20px 20px 0 0;display:flex;align-items:center;justify-content:center;">' +
-            '<i data-lucide="newspaper" style="width:48px;height:48px;color:rgba(255,255,255,0.5);"></i></div>'
-        ) +
-
-        '<div style="padding:2rem;">' +
-        '<div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap;">' +
-        '<span style="background:' + color + ';color:#fff;font-size:11px;font-weight:700;padding:4px 14px;border-radius:20px;text-transform:uppercase;">' + (item.Category || 'General') + ' Announcement</span>' +
-        '<span style="font-size:12px;color:var(--t3);display:flex;align-items:center;gap:4px;"><i data-lucide="calendar" style="width:13px;height:13px;"></i>' + nlFormatDate(item.PublishedDate) + '</span>' +
-        '<span style="font-size:12px;color:var(--t3);display:flex;align-items:center;gap:4px;"><i data-lucide="users" style="width:13px;height:13px;"></i>' + (item.Source || (item.Author ? item.Author.Title : 'Admin')) + '</span>' +
-        '</div>' +
-        '<h2 style="font-size:1.4rem;font-weight:800;color:var(--t1);margin:0 0 1.25rem!important;">' + item.Title + '</h2>' +
-        '<p style="font-size:14px;color:var(--t2);line-height:1.9;margin:0;white-space:pre-wrap;">' + (item.Content || '').replace(/\n/g, '<br>') + '</p>' +
-        '</div></div>';
-
-    // Close on background click
-    overlay.addEventListener('click', function(e) {
-        if (e.target === overlay) overlay.remove();
+    var isBday = item.Category === 'Birthdays' || nlIsBirthdayAutoItem(item);
+    var meta = nlBirthdayMetaFromItem(item);
+    var pill = '';
+    if (isBday && meta) {
+        pill = meta.daysUntil === 0 ? 'Happy birthday today 🎉' : (meta.daysUntil === 1 ? '1 day to go' : meta.daysUntil + ' days to go');
+    }
+    nlOpenModalShell({
+        id: 'nlOverlay',
+        bannerUrl: isBday ? nlBirthdayBannerUrl(item) : (nlGetImageURL(item) ? NL_SP_HOST + nlGetImageURL(item) : ''),
+        fallbackEmoji: isBday ? '🎉' : '📰',
+        pill: pill,
+        badge: isBday ? 'Birthdays' : ((item.Category || 'General') + ' announcement'),
+        badgeColor: nlCategoryColor(item.Category),
+        dateLabel: nlFormatDate(item.PublishedDate),
+        sourceLabel: nlDisplaySource(item),
+        title: item.Title,
+        body: nlDisplayContent(item)
     });
-
-    if (typeof smMountPopup === 'function') smMountPopup(overlay);
-    else document.body.appendChild(overlay);
-    if (typeof lucide !== 'undefined') lucide.createIcons();
 };
 // ── Manage Tab (Admin) ────────────────────────────────────────
 function nlRenderManage() {
@@ -745,18 +851,21 @@ function nlBirthdayNamesList(names) {
 function nlBirthdayPostCopy(bucket) {
     var names = nlBirthdayNamesList(bucket.names);
     var when = nlFormatBirthdayLabel(bucket.eventYmd);
+    var sourceKey = nlBirthdaySourceKey(bucket.eventYmd, bucket.daysUntil);
     if (bucket.daysUntil === 0) {
         return {
-            title: '🎉 Happy Birthday — ' + names,
-            content: 'Happy Birthday to ' + names + '!\n\nWishing you a wonderful day filled with joy and success. — Service Management Portal',
-            imagePath: NL_BDAY_IMAGE_TODAY
+            title: 'Happy Birthday — ' + names,
+            content: 'Happy Birthday to ' + names + '!\n\nWishing you a wonderful day filled with joy and success.\n\n— ' + NL_BDAY_DISPLAY_SOURCE + '\n\n<!-- ' + sourceKey + ' -->',
+            imagePath: NL_BDAY_IMAGE_TODAY,
+            sourceKey: sourceKey
         };
     }
     var dayWord = bucket.daysUntil === 1 ? '1 day' : bucket.daysUntil + ' days';
     return {
-        title: '🎂 Birthday in ' + dayWord + ' — ' + names + ' (' + when + ')',
-        content: 'Upcoming birthday alert: ' + names + (bucket.names.length > 1 ? ' celebrate' : ' celebrates') + ' on ' + when + ' (' + dayWord + ' to go).\n\nJoin us in wishing them an early happy birthday!',
-        imagePath: NL_BDAY_IMAGE_COUNTDOWN
+        title: 'Birthday in ' + dayWord + ' — ' + names,
+        content: 'Upcoming birthday: ' + names + (bucket.names.length > 1 ? ' celebrate' : ' celebrates') + ' on ' + when + ' (' + dayWord + ' to go).\n\nJoin us in wishing them an early happy birthday!\n\n— ' + NL_BDAY_DISPLAY_SOURCE + '\n\n<!-- ' + sourceKey + ' -->',
+        imagePath: NL_BDAY_IMAGE_COUNTDOWN,
+        sourceKey: sourceKey
     };
 }
 
@@ -783,11 +892,22 @@ async function nlBirthdayAttachImage(itemId, digest, serverRelativePath, fileNam
 async function nlBirthdayFindAutoItem(sourceKey) {
     var safe = sourceKey.replace(/'/g, "''");
     var url = SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items?" +
-        "$select=ID,Title,Source,Category&$filter=Source eq '" + safe + "'&$top=1";
+        "$select=ID,Title,Source,Content,Category&$filter=Category eq 'Birthdays'&$top=200";
     var res = await fetch(url, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
     if (!res.ok) return null;
-    var data = await res.json();
-    return (data.d.results && data.d.results[0]) ? data.d.results[0] : null;
+    var rows = (await res.json()).d.results || [];
+    for (var i = 0; i < rows.length; i++) {
+        if (rows[i].Source === sourceKey) return rows[i];
+        if (String(rows[i].Content || '').indexOf(sourceKey) >= 0) return rows[i];
+    }
+    var legacyUrl = SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items?" +
+        "$select=ID,Title,Source,Content,Category&$filter=Source eq '" + safe + "'&$top=1";
+    var legacyRes = await fetch(legacyUrl, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
+    if (legacyRes.ok) {
+        var leg = (await legacyRes.json()).d.results;
+        if (leg && leg[0]) return leg[0];
+    }
+    return null;
 }
 
 async function nlBirthdayUpsertPost(digest, bucket) {
@@ -799,7 +919,7 @@ async function nlBirthdayUpsertPost(digest, bucket) {
         Title: copy.title,
         Content: copy.content,
         Category: 'Birthdays',
-        Source: sourceKey,
+        Source: NL_BDAY_DISPLAY_SOURCE,
         IsActive: true,
         PublishedDate: new Date().toISOString()
     };
@@ -856,13 +976,13 @@ async function nlBirthdayDeleteItem(itemId, digest) {
 
 async function nlBirthdayCleanupExpired(digest, todayYmd) {
     var url = SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items?" +
-        "$select=ID,Source,Category&$filter=Category eq 'Birthdays'&$top=500";
+        "$select=ID,Source,Content,Category&$filter=Category eq 'Birthdays'&$top=500";
     var res = await fetch(url, { headers: { 'Accept': 'application/json;odata=verbose' }, credentials: 'include' });
     if (!res.ok) return;
     var rows = (await res.json()).d.results || [];
     var today = nlParseYmd(todayYmd);
     for (var i = 0; i < rows.length; i++) {
-        var meta = nlParseBirthdaySource(rows[i].Source);
+        var meta = nlBirthdayMetaFromItem(rows[i]);
         if (!meta) continue;
         var ev = nlParseYmd(meta.eventYmd);
         if (nlDaysBetweenYmd(ev, today) >= 1) {
@@ -883,75 +1003,98 @@ function nlShowBirthdayDailyPopup(payload) {
     if (!payload) return;
     var existing = document.getElementById('nlBirthdayPopup');
     if (existing) existing.remove();
-    var title = payload.title.replace(/</g, '&lt;');
-    var message = payload.message.replace(/</g, '&lt;').replace(/\n/g, '<br>');
-    var overlay = document.createElement('div');
-    overlay.id = 'nlBirthdayPopup';
-    overlay.style.cssText = 'position:fixed;inset:0;z-index:12001;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:1rem;';
-    overlay.innerHTML =
-        '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;max-width:480px;width:100%;padding:1.5rem;box-shadow:var(--ch);position:relative;">' +
-        '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(135deg,#ec4899,#f97316);border-radius:16px 16px 0 0;"></div>' +
-        '<div style="font-size:2rem;text-align:center;margin-bottom:8px;">' + (payload.emoji || '🎂') + '</div>' +
-        '<h3 style="margin:0 0 10px;font-size:1.15rem;font-weight:800;color:var(--t1);text-align:center;">' + title + '</h3>' +
-        '<p style="margin:0 0 1.25rem;font-size:13px;color:var(--t2);line-height:1.55;text-align:center;">' + message + '</p>' +
-        '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
-        '<button type="button" id="nlBdayPopupViewBtn" class="export-btn" style="flex:1;min-width:140px;">Open Birthdays</button>' +
-        '<button type="button" id="nlBdayPopupOkBtn" class="reset-btn" style="flex:1;min-width:100px;">OK</button>' +
-        '</div></div>';
-    document.body.appendChild(overlay);
+    var wishBtn = '';
+    if (payload.isToday && payload.mailto) {
+        wishBtn = '<a id="nlBdayPopupWishBtn" href="' + payload.mailto + '" class="export-btn" style="flex:1;min-width:140px;text-align:center;text-decoration:none;">Send wish</a>';
+    }
+    var actionsHtml =
+        '<div class="nl-modal-actions">' +
+        wishBtn +
+        '<button type="button" id="nlBdayPopupViewBtn" class="export-btn" style="flex:1;min-width:140px;">View in Birthdays</button>' +
+        '<button type="button" id="nlBdayPopupOkBtn" class="reset-btn" style="flex:1;min-width:100px;">Close</button>' +
+        '</div>';
+    var overlay = nlOpenModalShell({
+        id: 'nlBirthdayPopup',
+        bannerUrl: payload.bannerUrl,
+        fallbackEmoji: payload.isToday ? '🎉' : '🎂',
+        pill: payload.pill || '',
+        badge: 'Birthdays',
+        badgeColor: '#ec4899',
+        dateLabel: payload.dateLabel || nlUaeYmd(new Date()),
+        sourceLabel: NL_BDAY_DISPLAY_SOURCE,
+        title: payload.title,
+        body: payload.message,
+        actionsHtml: actionsHtml
+    });
     document.getElementById('nlBdayPopupViewBtn').addEventListener('click', function () {
         overlay.remove();
-        nlSetTab('birthdays');
+        nlCurrentTab = 'birthdays';
         if (typeof switchDashboardSection === 'function') switchDashboardSection('newsletterView');
         else if (typeof showNewsletterView === 'function') showNewsletterView();
+        else nlSetTab('birthdays');
     });
     document.getElementById('nlBdayPopupOkBtn').addEventListener('click', function () { overlay.remove(); });
 }
 
-function nlBirthdayPopupPayloadFromBuckets(buckets, todayYmd) {
-    var list = Object.keys(buckets).map(function (k) { return buckets[k]; });
-    if (!list.length) return null;
-    var todayBuckets = list.filter(function (b) { return b.daysUntil === 0; });
-    if (todayBuckets.length) {
-        var names = [];
-        todayBuckets.forEach(function (b) { names = names.concat(b.names); });
-        return {
-            emoji: '🎉',
-            title: 'Happy Birthday!',
-            message: 'Today we celebrate ' + nlBirthdayNamesList(names) + '!\n\nSee the Birthdays section in Newsletter for the full announcement.'
-        };
-    }
-    list.sort(function (a, b) { return a.daysUntil - b.daysUntil; });
-    var pick = list[0];
-    var namesStr = nlBirthdayNamesList(pick.names);
-    var when = nlFormatBirthdayLabel(pick.eventYmd);
-    var dayWord = pick.daysUntil === 1 ? '1 day' : pick.daysUntil + ' days';
+function nlBirthdayBuildWishMailto(peopleToday) {
+    if (!peopleToday || !peopleToday.length) return '';
+    var p = peopleToday[0];
+    var email = (p.email || '').trim();
+    if (!email || email.indexOf('@') < 1) return '';
+    var imgUrl = NL_SP_HOST + NL_BDAY_IMAGE_TODAY.replace(/ /g, '%20');
+    var subj = encodeURIComponent('Happy Birthday, ' + (p.name || '') + '! 🎉');
+    var body = encodeURIComponent(
+        'Dear ' + (p.name || 'Colleague') + ',\n\n' +
+        'Happy Birthday! 🎂\n\n' +
+        'Wishing you a wonderful day filled with joy and success.\n\n' +
+        'Warm regards,\n' + ((window.USER_CONTEXT && USER_CONTEXT.userName) || 'Your du family') + '\n\n' +
+        '---\n' + imgUrl
+    );
+    return 'mailto:' + email + '?subject=' + subj + '&body=' + body;
+}
+
+function nlBirthdayPopupPayloadForToday(todayPeople, todayYmd) {
+    if (!todayPeople || !todayPeople.length) return null;
+    var names = todayPeople.map(function (p) { return p.name; });
     return {
-        emoji: '🎂',
-        title: 'Birthday coming up',
-        message: namesStr + ' — birthday on ' + when + ' (' + dayWord + ' to go).'
+        isToday: true,
+        bannerUrl: NL_SP_HOST + NL_BDAY_IMAGE_TODAY.replace(/ /g, '%20'),
+        pill: 'Happy birthday today 🎉',
+        dateLabel: nlFormatBirthdayLabel(todayYmd),
+        title: 'Happy Birthday!',
+        message: 'Today we celebrate ' + nlBirthdayNamesList(names) + '!\n\nUse Send wish to open a ready-made birthday email.',
+        mailto: nlBirthdayBuildWishMailto(todayPeople)
     };
 }
 
 async function nlBirthdayRunDaily() {
     var todayYmd = nlUaeYmd(new Date());
     var people = await nlBirthdayFetchMappingPeople();
-    nlBirthdayUpcoming = nlBirthdayBuildSchedule(people, todayYmd).upcoming;
-    var buckets = nlBirthdayBuildSchedule(people, todayYmd).buckets;
-    var bucketList = Object.keys(buckets).map(function (k) { return buckets[k]; });
+    var schedule = nlBirthdayBuildSchedule(people, todayYmd);
+    nlBirthdayUpcoming = schedule.upcoming;
+    var todayPeople = schedule.upcoming.filter(function (u) { return u.daysUntil === 0; }).map(function (u) {
+        var src = people.find(function (p) { return p.name === u.name; });
+        return { name: u.name, email: src ? src.email : '', team: u.team };
+    });
 
     try {
         var digest = await nlGetDigest();
         await nlBirthdayCleanupExpired(digest, todayYmd);
-        for (var i = 0; i < bucketList.length; i++) {
-            await nlBirthdayUpsertPost(digest, bucketList[i]);
+        for (var i = 0; i < todayPeople.length; i++) {
+            var bucket = {
+                eventYmd: todayYmd,
+                daysUntil: 0,
+                names: [todayPeople[i].name],
+                people: [todayPeople[i]]
+            };
+            await nlBirthdayUpsertPost(digest, bucket);
         }
     } catch (e) {
         console.warn('[Newsletter] Birthday sync skipped:', e.message);
     }
 
-    if (!bucketList.length || nlBirthdayPopupShownToday(todayYmd)) return;
-    var popupPayload = nlBirthdayPopupPayloadFromBuckets(buckets, todayYmd);
+    if (!todayPeople.length || nlBirthdayPopupShownToday(todayYmd)) return;
+    var popupPayload = nlBirthdayPopupPayloadForToday(todayPeople, todayYmd);
     if (popupPayload) {
         nlShowBirthdayDailyPopup(popupPayload);
         nlBirthdayMarkPopupShown(todayYmd);
@@ -994,16 +1137,19 @@ async function nlRenderBirthdaysTab() {
     html += '<h3 style="font-size:.95rem;font-weight:800;color:var(--t1);margin:0 0 1rem;display:flex;align-items:center;gap:8px;">' +
         '<i data-lucide="party-popper" style="width:16px;height:16px;"></i>Birthday announcements</h3>';
     if (!posts.length) {
-        html += '<p style="color:var(--t3);font-size:13px;">No active birthday posts yet. Posts are created automatically 3, 2, and 1 day before, and on the birthday.</p>';
+        html += '<p style="color:var(--t3);font-size:13px;">No active birthday posts yet. A post is created on each person\'s birthday (from Account Mapping DOB).</p>';
     } else {
-        posts.forEach(function (item) { html += nlBuildCard(item); });
+        nlInjectNewsletterStyles();
+        html += '<div class="nl-bday-card-grid">';
+        posts.forEach(function (item) { html += nlBuildBirthdayCard(item); });
+        html += '</div>';
     }
     container.innerHTML = html;
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-// ── Check on page load ────────────────────────────────────────
-window.nlCheckOnLoad = async function() {
+// ── Dashboard-only popups (not landing page) ───────────────────
+window.nlCheckOnDashboard = async function () {
     try {
         await nlBirthdayRunDaily();
     } catch (e) {
@@ -1025,4 +1171,8 @@ window.nlCheckOnLoad = async function() {
             if (isNew) nlShowNewItemPopup(general[0]);
         }
     } catch (e) {}
+};
+
+window.nlCheckOnLoad = async function () {
+    /* Popups run when user opens Dashboard — see nlCheckOnDashboard */
 };
