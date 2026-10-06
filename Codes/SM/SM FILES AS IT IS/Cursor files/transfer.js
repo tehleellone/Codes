@@ -1450,31 +1450,109 @@ var TRANSFER_TSM_SE_POOL_EMAIL = 'du.serviceManagement@du.ae';
 var TRANSFER_TSM_SE_LIST = 'TSM_SE_Accounts';
 var TRANSFER_TSM_SE_ENTITY = 'SP.Data.TSM_x005f_SE_x005f_AccountsListItem';
 var TRANSFER_TSM_SE_MONTH_FIELDS = [
-    { row: 'jan26', display: 'Jan26', odata: 'OData__x004a_an26' },
-    { row: 'feb26', display: 'Feb26', odata: 'OData__x0046_eb26' },
-    { row: 'mar26', display: 'Mar26', odata: 'OData__x004d_ar26' },
-    { row: 'apr26', display: 'Apr26', odata: 'OData__x0041_pr26' },
-    { row: 'may26', display: 'May26', odata: 'OData__x004d_ay26' },
-    { row: 'jun26', display: 'Jun26', odata: 'OData__x004a_un26' },
-    { row: 'jul26', display: 'Jul26', odata: 'OData__x004a_ul26' },
-    { row: 'aug26', display: 'Aug26', odata: 'OData__x0041_ug26' },
-    { row: 'sep26', display: 'Sep26', odata: 'OData__x0053_ep26' },
-    { row: 'oct26', display: 'Oct26', odata: 'OData__x004f_ct26' },
-    { row: 'nov26', display: 'Nov26', odata: 'OData__x004e_ov26' },
-    { row: 'dec26', display: 'Dec26', odata: 'OData__x0044_ec26' },
-    { row: 'jan27', display: 'Jan27', odata: 'OData__x004a_an27' },
-    { row: 'feb27', display: 'Feb27', odata: 'OData__x0046_eb27' },
-    { row: 'mar27', display: 'Mar27', odata: 'OData__x004d_ar27' },
-    { row: 'apr27', display: 'Apr27', odata: 'OData__x0041_pr27' },
-    { row: 'may27', display: 'May27', odata: 'OData__x004d_ay27' },
-    { row: 'jun27', display: 'Jun27', odata: 'OData__x004a_un27' },
-    { row: 'jul27', display: 'Jul27', odata: 'OData__x004a_ul27' },
-    { row: 'aug27', display: 'Aug27', odata: 'OData__x0041_ug27' },
-    { row: 'sep27', display: 'Sep27', odata: 'OData__x0053_ep27' },
-    { row: 'oct27', display: 'Oct27', odata: 'OData__x004f_ct27' },
-    { row: 'nov27', display: 'Nov27', odata: 'OData__x004e_ov27' },
-    { row: 'dec27', display: 'Dec27', odata: 'OData__x0044_ec27' }
+    { row: 'jan26', display: 'Jan26', sm: 'Jan_x002d_26', label: 'Jan-26', odata: 'OData__x004a_an26', internal: '_x004a_an26' },
+    { row: 'feb26', display: 'Feb26', sm: 'Feb_x002d_26', label: 'Feb-26', odata: 'OData__x0046_eb26', internal: '_x0046_eb26' },
+    { row: 'mar26', display: 'Mar26', sm: 'Mar_x002d_26', label: 'Mar-26', odata: 'OData__x004d_ar26', internal: '_x004d_ar26' },
+    { row: 'apr26', display: 'Apr26', sm: 'Apr_x002d_26', label: 'Apr-26', odata: 'OData__x0041_pr26', internal: '_x0041_pr26' },
+    { row: 'may26', display: 'May26', sm: 'May_x002d_26', label: 'May-26', odata: 'OData__x004d_ay26', internal: '_x004d_ay26' },
+    { row: 'jun26', display: 'Jun26', sm: 'Jun_x002d_26', label: 'Jun-26', odata: 'OData__x004a_un26', internal: '_x004a_un26' },
+    { row: 'jul26', display: 'Jul26', sm: 'Jul_x002d_26', label: 'Jul-26', odata: 'OData__x004a_ul26', internal: '_x004a_ul26' },
+    { row: 'aug26', display: 'Aug26', sm: 'Aug_x002d_26', label: 'Aug-26', odata: 'OData__x0041_ug26', internal: '_x0041_ug26' },
+    { row: 'sep26', display: 'Sep26', sm: 'Sep_x002d_26', label: 'Sep-26', odata: 'OData__x0053_ep26', internal: '_x0053_ep26' },
+    { row: 'oct26', display: 'Oct26', sm: 'Oct_x002d_26', label: 'Oct-26', odata: 'OData__x004f_ct26', internal: '_x004f_ct26' },
+    { row: 'nov26', display: 'Nov26', sm: 'Nov_x002d_26', label: 'Nov-26', odata: 'OData__x004e_ov26', internal: '_x004e_ov26' },
+    { row: 'dec26', display: 'Dec26', sm: 'Dec_x002d_26', label: 'Dec-26', odata: 'OData__x0044_ec26', internal: '_x0044_ec26' },
+    { row: 'jan27', display: 'Jan27', sm: 'Jan_x002d_27', label: 'Jan-27', odata: 'OData__x004a_an27', internal: '_x004a_an27' },
+    { row: 'feb27', display: 'Feb27', sm: 'Feb_x002d_27', label: 'Feb-27', odata: 'OData__x0046_eb27', internal: '_x0046_eb27' },
+    { row: 'mar27', display: 'Mar27', sm: 'Mar_x002d_27', label: 'Mar-27', odata: 'OData__x004d_ar27', internal: '_x004d_ar27' },
+    { row: 'apr27', display: 'Apr27', sm: 'Apr_x002d_27', label: 'Apr-27', odata: 'OData__x0041_pr27', internal: '_x0041_pr27' },
+    { row: 'may27', display: 'May27', sm: 'May_x002d_27', label: 'May-27', odata: 'OData__x004d_ay27', internal: '_x004d_ay27' },
+    { row: 'jun27', display: 'Jun27', sm: 'Jun_x002d_27', label: 'Jun-27', odata: 'OData__x004a_un27', internal: '_x004a_un27' },
+    { row: 'jul27', display: 'Jul27', sm: 'Jul_x002d_27', label: 'Jul-27', odata: 'OData__x004a_ul27', internal: '_x004a_ul27' },
+    { row: 'aug27', display: 'Aug27', sm: 'Aug_x002d_27', label: 'Aug-27', odata: 'OData__x0041_ug27', internal: '_x0041_ug27' },
+    { row: 'sep27', display: 'Sep27', sm: 'Sep_x002d_27', label: 'Sep-27', odata: 'OData__x0053_ep27', internal: '_x0053_ep27' },
+    { row: 'oct27', display: 'Oct27', sm: 'Oct_x002d_27', label: 'Oct-27', odata: 'OData__x004f_ct27', internal: '_x004f_ct27' },
+    { row: 'nov27', display: 'Nov27', sm: 'Nov_x002d_27', label: 'Nov-27', odata: 'OData__x004e_ov27', internal: '_x004e_ov27' },
+    { row: 'dec27', display: 'Dec27', sm: 'Dec_x002d_27', label: 'Dec-27', odata: 'OData__x0044_ec27', internal: '_x0044_ec27' }
 ];
+
+function transferSmMonthSelectCsv() {
+    return TRANSFER_TSM_SE_MONTH_FIELDS.map(function (m) { return m.sm; }).join(',');
+}
+
+function transferMonthAliases(m) {
+    return [
+        m.sm, m.label, m.display, m.row, m.internal, m.odata,
+        m.label.replace('-', ' '),
+        m.label.replace('-', ''),
+        String(m.display || '').toLowerCase(),
+        String(m.sm || '').replace(/_x002d_/g, '-')
+    ];
+}
+
+function transferHasMonthValue(val) {
+    if (val === 0 || val === '0') return true;
+    if (val == null) return false;
+    if (typeof val === 'number') return !isNaN(val);
+    var s = String(val).replace(/\u00a0/g, ' ').trim();
+    if (!s || s === '-' || s === '—') return false;
+    return true;
+}
+
+function transferParseMonthNumber(val) {
+    if (val === 0 || val === '0') return 0;
+    if (typeof val === 'number') return isNaN(val) ? null : val;
+    var s = String(val == null ? '' : val).replace(/,/g, '').replace(/\u00a0/g, ' ').trim();
+    if (!s || s === '-' || s === '—') return null;
+    var n = parseFloat(s);
+    return isNaN(n) ? null : n;
+}
+
+function transferLookupMonthRaw(bag, m) {
+    if (!bag || !m) return undefined;
+    var keys = transferMonthAliases(m);
+    var i, k;
+    for (i = 0; i < keys.length; i++) {
+        k = keys[i];
+        if (!k || !Object.prototype.hasOwnProperty.call(bag, k)) continue;
+        if (transferHasMonthValue(bag[k])) return bag[k];
+    }
+    var wanted = {};
+    keys.forEach(function (key) {
+        if (key) wanted[String(key).toLowerCase()] = true;
+    });
+    var found;
+    Object.keys(bag).some(function (bk) {
+        if (wanted[String(bk).toLowerCase()] && transferHasMonthValue(bag[bk])) {
+            found = bag[bk];
+            return true;
+        }
+        return false;
+    });
+    return found;
+}
+
+function transferReadSmMonthValue(item, src, asText, m) {
+    var candidates = [
+        transferLookupMonthRaw(asText, m),
+        transferLookupMonthRaw(item, m),
+        src && src.allMonths ? transferLookupMonthRaw(src.allMonths, m) : undefined,
+        transferLookupMonthRaw(src, m)
+    ];
+    var i, raw, num, zero;
+    for (i = 0; i < candidates.length; i++) {
+        raw = candidates[i];
+        if (!transferHasMonthValue(raw)) continue;
+        num = transferParseMonthNumber(raw);
+        if (num == null) continue;
+        if (num === 0) {
+            if (zero === undefined) zero = raw;
+            continue;
+        }
+        return raw;
+    }
+    return zero;
+}
 
 function transferIsDashboardActive(item) {
     if (!item) return true;
@@ -1964,35 +2042,66 @@ async function transferGetTsmSeById(itemId) {
 function transferTsmSeCorePayload(item, src, lmName, smName) {
     return {
         __metadata: { type: TRANSFER_TSM_SE_ENTITY },
-        Title: String(item.Title || '').trim(),
-        ParentCode: src.parent || '',
+        Title: String(item.Title || src.code || '').trim(),
+        ParentCode: item.Parent_x0020_Code || src.parent || '',
         CustomerName: item.Customer_x0020_Name || src.customer || '',
-        AccountManager: (item.Account_x0020_Manager && item.Account_x0020_Manager.Title) || src.am || '',
-        AccountDirector: (item.Account_x0020_Director && item.Account_x0020_Director.Title) || src.ad || '',
+        AccountManager: transferSmPersonText(item.Account_x0020_Manager) || src.am || '',
+        AccountDirector: transferSmPersonText(item.Account_x0020_Director) || src.ad || '',
         ServiceManager: smName || '',
         LineManager: lmName || '',
         Team: 'TSM_SE',
-        Segment: src.segment || ''
+        Segment: transferPrettySpScalar(item.Segment) || src.segment || ''
     };
 }
 
-function transferTsmSeMonthPayload(item, src) {
+function transferMonthWriteKeys(m) {
+    return [m.odata, m.internal, m.display];
+}
+
+function transferTsmSeMonthPayload(item, src, asText) {
     var extra = {};
     TRANSFER_TSM_SE_MONTH_FIELDS.forEach(function (m) {
-        var raw = src[m.row];
-        if (raw === undefined) raw = src[m.display];
-        if ((raw === undefined || raw === null || raw === '') && src.allMonths) {
-            var mainField = transferRowKeyToMainMonthField(m.row);
-            if (mainField && src.allMonths[mainField] !== undefined) raw = src.allMonths[mainField];
-        }
-        if ((raw === undefined || raw === null || raw === '') && item) {
-            var spField = transferRowKeyToMainMonthField(m.row);
-            if (spField && item[spField] !== undefined) raw = item[spField];
-        }
-        if (raw === undefined || raw === null || raw === '') return;
-        extra[m.odata] = typeof raw === 'number' ? raw : (parseFloat(String(raw).replace(/,/g, '')) || 0);
+        var raw = transferReadSmMonthValue(item, src, asText, m);
+        if (!transferHasMonthValue(raw)) return;
+        var num = transferParseMonthNumber(raw);
+        if (num == null) return;
+        extra[m.odata] = num;
     });
     return extra;
+}
+
+function transferTsmSeMonthRowValues(monthPayload) {
+    var row = {};
+    TRANSFER_TSM_SE_MONTH_FIELDS.forEach(function (m) {
+        if (monthPayload[m.odata] == null) return;
+        row[m.row] = monthPayload[m.odata];
+    });
+    return row;
+}
+
+async function transferPatchTsmSeMonths(itemId, monthPayload, digest) {
+    var keys = Object.keys(monthPayload || {});
+    if (!keys.length) return true;
+    if (await transferPatchTsmSeFields(itemId, monthPayload, digest)) return true;
+    var i, k, m, n, writeKeys, w, one, okAny = false;
+    for (i = 0; i < keys.length; i++) {
+        k = keys[i];
+        n = monthPayload[k];
+        m = TRANSFER_TSM_SE_MONTH_FIELDS.find(function (mm) {
+            return mm.odata === k || mm.internal === k || mm.display === k;
+        });
+        writeKeys = m ? transferMonthWriteKeys(m) : [k];
+        var saved = false;
+        for (w = 0; w < writeKeys.length && !saved; w++) {
+            one = {};
+            one[writeKeys[w]] = n;
+            digest = await transferGetDigest();
+            saved = await transferPatchTsmSeFields(itemId, one, digest);
+        }
+        if (saved) okAny = true;
+        else console.warn('[Transfer] TSM_SE month not saved:', m ? m.label + ' → ' + m.display + ' (' + m.internal + ')' : k, n);
+    }
+    return okAny;
 }
 
 async function transferPostTsmSePayload(url, headers, payload) {
@@ -2022,10 +2131,13 @@ function transferRememberTsmSeLocal(item, src, lmName, smName, seId) {
         type: 'Group',
         isApproved: true,
         requestStatus: 'OnBoarded',
-        requestType: 'New Account'
+        requestType: 'New Account',
+        notes: src._snapshotNotes || '',
+        hasSmHistory: !!(src._snapshotNotes)
     };
+    Object.assign(row, transferTsmSeMonthRowValues(src._monthPayload || {}));
     Object.keys(src).forEach(function (k) {
-        if (/^[a-z]{3}\d{2}$/i.test(k) && src[k] != null) row[k] = src[k];
+        if (/^[a-z]{3}\d{2}$/i.test(k) && src[k] != null && row[k] == null) row[k] = src[k];
     });
     if (typeof tsmSeApplyRevFlags !== 'function') {
         row.avg = 0;
@@ -2057,53 +2169,437 @@ async function transferPatchTsmSeFields(itemId, fields, digest) {
     return res.ok;
 }
 
-function transferBuildTsmSeTransferNotes(item, src, lmName, smName) {
-    var lines = [];
-    var stamp = new Date().toISOString();
-    lines.push('=== Transfer snapshot from Service Manager Request ===');
-    lines.push('Captured: ' + stamp);
-    lines.push('');
-    lines.push('Account Information');
-    lines.push('Account Code: ' + (item.Title || src.code || ''));
-    lines.push('Customer Name: ' + (item.Customer_x0020_Name || src.customer || ''));
-    lines.push('Team (previous): ' + (item.Team || src.team || ''));
-    lines.push('Segment: ' + (src.segment || ''));
-    lines.push('Account Type: ' + (src.accountType || ''));
-    lines.push('Line Manager: ' + (src.lm || (item.Line_x0020_Manager && item.Line_x0020_Manager.Title) || ''));
-    lines.push('Service Manager: ' + (src.sm || (item.Service_x0020_Manager && item.Service_x0020_Manager.Title) || ''));
-    lines.push('Account Manager: ' + ((item.Account_x0020_Manager && item.Account_x0020_Manager.Title) || src.am || ''));
-    lines.push('Account Director: ' + ((item.Account_x0020_Director && item.Account_x0020_Director.Title) || src.ad || ''));
-    lines.push('New Line Manager (TSM SE): ' + (lmName || ''));
-    lines.push('New Service Manager (TSM SE): ' + (smName || ''));
-    lines.push('');
-    lines.push('RNPS');
-    lines.push('RNPS Eligibility: ' + (src.rnpsEligibility || ''));
-    lines.push('RNPS POC: ' + (src.rnpsPoc || ''));
-    if (src.rnpsNotEligibleReason) lines.push('RNPS Not Eligible Reason: ' + src.rnpsNotEligibleReason);
-    lines.push('');
-    lines.push('Primary POC Details');
-    lines.push('Primary POC Name: ' + (src.pocName || ''));
-    lines.push('Primary POC email: ' + (src.pocEmail || ''));
-    lines.push('Primary POC Contact: ' + (src.pocPhone || ''));
-    lines.push('');
-    lines.push('Secondary POC Details');
-    lines.push('Secondary POC Name: ' + (src.secondaryPocName || ''));
-    lines.push('Secondary POC email: ' + (src.secondaryPocEmail || ''));
-    lines.push('Secondary POC Contact: ' + (src.secondaryPocPhone || ''));
-    lines.push('');
-    lines.push('Technical POC Details');
-    lines.push('Technical POC Name: ' + (src.technicalPocName || ''));
-    lines.push('Technical POC email: ' + (src.technicalPocEmail || ''));
-    lines.push('Technical POC Contact: ' + (src.technicalPocPhone || ''));
-    lines.push('');
-    lines.push('Transfer');
-    lines.push('Proposed Team: ' + (item.Proposed_x0020_Team || src.proposedTeam || 'TSM_SE'));
-    var reason = item.Transfer_x0020_Reason || '';
-    if (reason) {
-        reason = String(reason).replace(/<[^>]*>/g, '').trim();
-        lines.push('Transfer Reason: ' + reason);
+function transferPadLabel(label, width) {
+    var s = String(label || '');
+    if (s.length >= width) return s;
+    var pad = '';
+    var i;
+    for (i = s.length; i < width; i++) pad += ' ';
+    return s + pad;
+}
+
+function transferPrettySpScalar(val) {
+    if (val == null || val === '') return '';
+    if (typeof val === 'object') {
+        if (Object.prototype.toString.call(val) === '[object Date]') {
+            return isNaN(val.getTime()) ? '' : val.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+        if (val.results && val.results.length) {
+            return val.results.map(function (r) {
+                if (!r) return '';
+                if (typeof r === 'object') return r.Title || r.EMail || r.Name || '';
+                return String(r);
+            }).filter(Boolean).join(', ');
+        }
+        if (val.Title) {
+            var em = val.EMail || val.Email || '';
+            return em ? (val.Title + '  <' + em + '>') : val.Title;
+        }
+        if (val.__deferred) return '';
+        return '';
     }
-    return lines.join('\n');
+    var s = String(val).replace(/\u00a0/g, ' ');
+    s = s.replace(/<[^>]*>/g, '');
+    var spDate = s.match(/\/Date\((-?\d+)(?:[+-]\d{4})?\)\//);
+    if (spDate) {
+        var d = new Date(parseInt(spDate[1], 10));
+        if (!isNaN(d.getTime())) {
+            return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+    }
+    if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+        var dIso = new Date(s);
+        if (!isNaN(dIso.getTime())) {
+            return dIso.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+    }
+    return s.replace(/\r\n/g, '\n').trim();
+}
+
+var TRANSFER_SM_SKIP_FIELDS = {
+    __metadata: 1, Id: 1, ID: 1, GUID: 1, UniqueId: 1, ContentTypeId: 1, ContentType: 1,
+    FileSystemObjectType: 1, ServerRedirectedEmbedUri: 1, ServerRedirectedEmbedUrl: 1,
+    OData__UIVersionString: 1, OData__UIVersion: 1, Attachments: 1, ComplianceAssetId: 1,
+    owshiddenversion: 1, FileLeafRef: 1, FileDirRef: 1, FileRef: 1, MetaInfo: 1, ScopeId: 1,
+    ItemChildCount: 1, FolderChildCount: 1, AppAuthor: 1, AppEditor: 1, PrincipalCount: 1,
+    Restricted: 1, WorkflowVersion: 1, InstanceID: 1, Order: 1, FSObjType: 1,
+    WorkflowInstanceID: 1, SortBehavior: 1, EncodedAbsUrl: 1, BaseName: 1, Level: 1,
+    ProgId: 1, Combine: 1, RepairDocument: 1, ParentFolderId: 1, DocConcurrencyNumber: 1,
+    SMTotalSize: 1, SMLastModifiedDate: 1, SMLastModifiedBy: 1, SMTotalFileStreamSize: 1,
+    SMTotalFileCount: 1, OriginatorId: 1, NoExecute: 1, AccessPolicy: 1,
+    Edit: 1, SelectTitle: 1, SelectFilename: 1, LinkTitleNoMenu: 1, LinkTitle: 1,
+    LinkFilenameNoMenu: 1, LinkFilename: 1, DocIcon: 1, ServerUrl: 1, FileSizeDisplay: 1,
+    PermMask: 1, FieldValuesAsHtml: 1, FieldValuesForEdit: 1, File: 1, Folder: 1,
+    ParentList: 1, RoleAssignments: 1, FirstUniqueAncestorSecurableObject: 1,
+    AuthorId: 1, EditorId: 1, OData__ModerationStatus: 1, OData__ModerationComments: 1,
+    'odata.type': 1, 'odata.id': 1, 'odata.etag': 1, 'odata.editLink': 1
+};
+
+function transferSmFieldLabel(internalName, titles) {
+    var key = String(internalName || '');
+    if (titles && titles[key]) return titles[key];
+    if (typeof SM_HISTORY_FIELDS !== 'undefined' && SM_HISTORY_FIELDS[key]) return SM_HISTORY_FIELDS[key];
+    return key.replace(/_x0020_/g, ' ').replace(/_x002d_/g, '-').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+var _transferSmFieldTitles = null;
+async function transferGetSmFieldTitles() {
+    if (_transferSmFieldTitles) return _transferSmFieldTitles;
+    var map = {};
+    var url = SP_URL + "/_api/web/lists/getbytitle('" + String(SP_LIST).replace(/'/g, "''") + "')/fields?$select=InternalName,Title,Hidden,FromBaseType&$top=500";
+    var res = await fetch(url, { headers: { Accept: 'application/json;odata=verbose' }, credentials: 'include' });
+    if (res.ok) {
+        var rows = ((await res.json()).d.results) || [];
+        rows.forEach(function (f) {
+            if (!f || !f.InternalName) return;
+            map[f.InternalName] = f.Title || f.InternalName;
+        });
+    }
+    _transferSmFieldTitles = map;
+    return map;
+}
+
+async function transferFetchSmRowAsText(itemId) {
+    if (!itemId) return null;
+    var url = SP_URL + "/_api/web/lists/getbytitle('" + String(SP_LIST).replace(/'/g, "''") + "')/items(" + itemId + ")/FieldValuesAsText";
+    var res = await fetch(url, { headers: { Accept: 'application/json;odata=verbose' }, credentials: 'include' });
+    if (!res.ok) return null;
+    var data = await res.json();
+    return data && data.d ? data.d : null;
+}
+
+function transferSmPersonText(person) {
+    if (!person) return '';
+    if (typeof person === 'string') return person;
+    var title = person.Title || '';
+    var em = person.EMail || person.Email || '';
+    if (title && em) return title + '  <' + em + '>';
+    return title || em || '';
+}
+
+function transferPickSnapshotValue(values, keys) {
+    var i, k;
+    for (i = 0; i < keys.length; i++) {
+        k = keys[i];
+        if (!k || !values || !Object.prototype.hasOwnProperty.call(values, k)) continue;
+        if (transferHasMonthValue(values[k]) || values[k] === 0) return values[k];
+        if (values[k] != null && String(values[k]).trim() !== '') return values[k];
+    }
+    return '';
+}
+
+function transferFormatSnapshotValue(val) {
+    var pretty = transferPrettySpScalar(val);
+    if (pretty == null) return '';
+    return String(pretty).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
+function transferAppendAlignedField(lines, label, value, width) {
+    var pretty = transferFormatSnapshotValue(value);
+    var parts = pretty.split('\n');
+    if (!parts.length) parts = [''];
+    lines.push(transferPadLabel(label, width) + '  :  ' + (parts[0] || ''));
+    var p;
+    for (p = 1; p < parts.length; p++) {
+        lines.push(transferPadLabel('', width) + '     ' + parts[p]);
+    }
+}
+
+function transferSrcFallbackMap(item, src) {
+    return {
+        Title: item.Title || src.code || '',
+        Parent_x0020_Code: item.Parent_x0020_Code || src.parent || '',
+        Customer_x0020_Name: item.Customer_x0020_Name || src.customer || '',
+        Team: item.Team || src.team || '',
+        Segment: item.Segment || src.segment || '',
+        AccountType: item.AccountType || src.accountType || '',
+        Line_x0020_Manager: transferSmPersonText(item.Line_x0020_Manager) || src.lm || '',
+        Service_x0020_Manager: transferSmPersonText(item.Service_x0020_Manager) || src.sm || '',
+        Secondary_x0020_Service_x0020_Ma: transferSmPersonText(item.Secondary_x0020_Service_x0020_Ma) || src.secondarySm || '',
+        Account_x0020_Manager: transferSmPersonText(item.Account_x0020_Manager) || src.am || '',
+        Account_x0020_Director: transferSmPersonText(item.Account_x0020_Director) || src.ad || '',
+        Request_x0020_Type: item.Request_x0020_Type || src.requestType || '',
+        Request_x0020_Status: item.Request_x0020_Status || src.requestStatus || '',
+        Proposed_x0020_Team: item.Proposed_x0020_Team || src.proposedTeam || '',
+        Transfer_x0020_Reason: item.Transfer_x0020_Reason || '',
+        RNPS_Eligibility: item.RNPS_Eligibility || src.rnpsEligibility || '',
+        RNPS_POC: item.RNPS_POC || src.rnpsPoc || '',
+        RNPS_Not_Eligible_Reason: item.RNPS_Not_Eligible_Reason || src.rnpsNotEligibleReason || '',
+        Service_Required: item.Service_Required || '',
+        POC_x0020_Name: item.POC_x0020_Name || src.pocName || '',
+        POC_x0020_Email_x0020_ID: item.POC_x0020_Email_x0020_ID || src.pocEmail || '',
+        POC_x0020_Contact_x0020_No: item.POC_x0020_Contact_x0020_No || src.pocPhone || '',
+        Secondary_x0020_POC_x0020_Name: item.Secondary_x0020_POC_x0020_Name || src.secondaryPocName || '',
+        Secondary_x0020_POC_x0020_Email: item.Secondary_x0020_POC_x0020_Email || src.secondaryPocEmail || '',
+        Secondary_x0020_POC_x0020_Contac: item.Secondary_x0020_POC_x0020_Contac || src.secondaryPocPhone || '',
+        Technical_x0020_POC_x0020_Name: item.Technical_x0020_POC_x0020_Name || src.technicalPocName || '',
+        Technical_x0020_POC_x0020_Email: item.Technical_x0020_POC_x0020_Email || src.technicalPocEmail || '',
+        Technical_x0020_POC_x0020_Contac: item.Technical_x0020_POC_x0020_Contac || src.technicalPocPhone || '',
+        Account_Source: item.Account_Source || src.accountSource || '',
+        Dashboard_Active: item.Dashboard_Active,
+        TSM_SE_ITEM_ID: item.TSM_SE_ITEM_ID || src.tsmSeItemId || '',
+        Reject_New_Account_Reason: item.Reject_New_Account_Reason || src.rejectReason || '',
+        Transfer_Request_Date: item.Transfer_Request_Date || src.transferRequestDate || ''
+    };
+}
+
+function transferSmListColumnSpecs() {
+    var months = [
+        { label: 'Oct-25', keys: ['Oct_x002d_25', 'Oct-25'] },
+        { label: 'Nov-25', keys: ['Nov_x002d_25', 'Nov-25'] },
+        { label: 'Dec-25', keys: ['Dec_x002d_25', 'Dec-25'] }
+    ];
+    TRANSFER_TSM_SE_MONTH_FIELDS.forEach(function (m) {
+        months.push({ label: m.label, keys: [m.sm, m.label, m.display, m.row] });
+    });
+    return [
+        { label: 'Account Code', keys: ['Title'] },
+        { label: 'Parent Code', keys: ['Parent_x0020_Code'] },
+        { label: 'Customer Name', keys: ['Customer_x0020_Name'] },
+        { label: 'Team', keys: ['Team'] },
+        { label: 'Line Manager', keys: ['Line_x0020_Manager'] },
+        { label: 'Service Manager', keys: ['Service_x0020_Manager'] },
+        { label: 'Secondary Service Manager', keys: ['Secondary_x0020_Service_x0020_Ma'] },
+        { label: 'Account Manager', keys: ['Account_x0020_Manager'] },
+        { label: 'Account Director', keys: ['Account_x0020_Director'] },
+        { label: 'Service Director', keys: ['Service_x0020_Director'] },
+        { label: 'POC Name', keys: ['POC_x0020_Name'] },
+        { label: 'POC Email ID', keys: ['POC_x0020_Email_x0020_ID'] },
+        { label: 'POC Contact No', keys: ['POC_x0020_Contact_x0020_No'] },
+        { label: 'Secondary POC Name', keys: ['Secondary_x0020_POC_x0020_Name'] },
+        { label: 'Secondary POC Email', keys: ['Secondary_x0020_POC_x0020_Email'] },
+        { label: 'Secondary POC Contact', keys: ['Secondary_x0020_POC_x0020_Contac'] },
+        { label: 'Secondary POC Details', keys: ['Secondary_x0020_POC_x0020_Detail'] },
+        { label: 'Technical POC Name', keys: ['Technical_x0020_POC_x0020_Name'] },
+        { label: 'Technical POC Email', keys: ['Technical_x0020_POC_x0020_Email'] },
+        { label: 'Technical POC Contact', keys: ['Technical_x0020_POC_x0020_Contac'] },
+        { label: 'AccountType', keys: ['AccountType'] },
+        { label: 'RNPS_Eligibility', keys: ['RNPS_Eligibility'] },
+        { label: 'RNPS_Not_Eligible_Reason', keys: ['RNPS_Not_Eligible_Reason'] },
+        { label: 'RNPS_POC', keys: ['RNPS_POC'] },
+        { label: 'Segment', keys: ['Segment'] },
+        { label: 'Service_Required', keys: ['Service_Required'] },
+        { label: 'Request Type', keys: ['Request_x0020_Type'] },
+        { label: 'Request Status', keys: ['Request_x0020_Status'] },
+        { label: 'Proposed Team', keys: ['Proposed_x0020_Team'] },
+        { label: 'Requested By', keys: ['Requested_x0020_By'] },
+        { label: 'Transfer Reason', keys: ['Transfer_x0020_Reason'] },
+        { label: 'Transfer_Request_Date', keys: ['Transfer_Request_Date'] },
+        { label: 'New_Account_Request_Date', keys: ['New_Account_Request_Date'] },
+        { label: 'Assignment_Date', keys: ['Assignment_Date'] },
+        { label: 'Introduction_Done', keys: ['Introduction_Done'] },
+        { label: 'Reject_New_Account_Reason', keys: ['Reject_New_Account_Reason'] },
+        { label: 'Rejection Reason', keys: ['Rejection_x0020_Reason'] },
+        { label: 'Account_Source', keys: ['Account_Source'] },
+        { label: 'Dashboard_Active', keys: ['Dashboard_Active'] },
+        { label: 'TSM_SE_ITEM_ID', keys: ['TSM_SE_ITEM_ID'] }
+    ].concat(months).concat([
+        { label: 'Created', keys: ['Created'] },
+        { label: 'Created By', keys: ['Author'] },
+        { label: 'Modified', keys: ['Modified'] },
+        { label: 'Modified By', keys: ['Editor'] }
+    ]);
+}
+
+function transferSnapshotLinesFromMap(values, titles) {
+    var specs = transferSmListColumnSpecs();
+    var used = { Type: 1 };
+    var rows = [];
+    specs.forEach(function (spec) {
+        spec.keys.forEach(function (k) { used[k] = 1; });
+        used[spec.label] = 1;
+        rows.push({
+            label: spec.label,
+            value: transferPickSnapshotValue(values, spec.keys)
+        });
+    });
+
+    Object.keys(values || {}).forEach(function (k) {
+        if (!k || used[k] || TRANSFER_SM_SKIP_FIELDS[k]) return;
+        if (String(k).indexOf('odata.') === 0) return;
+        var label = transferSmFieldLabel(k, titles);
+        if (used[label]) return;
+        used[k] = 1;
+        used[label] = 1;
+        rows.push({ label: label, value: values[k] });
+    });
+
+    var width = 28;
+    rows.forEach(function (r) { if (r.label.length > width) width = r.label.length; });
+    if (width > 40) width = 40;
+
+    var lines = [];
+    rows.forEach(function (r, idx) {
+        transferAppendAlignedField(lines, r.label, r.value, width);
+        if (idx !== rows.length - 1) lines.push('');
+    });
+    return lines;
+}
+
+async function transferFetchFullSmItem(itemId) {
+    if (!itemId) return null;
+    var list = String(SP_LIST).replace(/'/g, "''");
+    var headers = { Accept: 'application/json;odata=verbose' };
+    var raw = null;
+    var people = null;
+    try {
+        var rawRes = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + list + "')/items(" + itemId + ")", {
+            headers: headers,
+            credentials: 'include'
+        });
+        if (rawRes.ok) raw = (await rawRes.json()).d;
+    } catch (eRaw) {}
+    try {
+        var peopleUrl = SP_URL + "/_api/web/lists/getbytitle('" + list + "')/items(" + itemId + ")?" +
+            "$select=ID,Title,Parent_x0020_Code,Customer_x0020_Name,Team,Segment,AccountType," +
+            "Line_x0020_Manager/Title,Line_x0020_Manager/EMail," +
+            "Service_x0020_Manager/Title,Service_x0020_Manager/EMail," +
+            "Secondary_x0020_Service_x0020_Ma/Title,Secondary_x0020_Service_x0020_Ma/EMail," +
+            "Account_x0020_Manager/Title,Account_x0020_Manager/EMail," +
+            "Account_x0020_Director/Title,Account_x0020_Director/EMail,Service_x0020_Director/Title&" +
+            "$expand=Line_x0020_Manager,Service_x0020_Manager,Secondary_x0020_Service_x0020_Ma,Account_x0020_Manager,Account_x0020_Director,Service_x0020_Director";
+        var pRes = await fetch(peopleUrl, { headers: headers, credentials: 'include' });
+        if (pRes.ok) people = (await pRes.json()).d;
+    } catch (eP) {}
+    if (!raw && !people) return null;
+    return Object.assign({}, raw || {}, people || {});
+}
+
+async function transferBuildFullSmSnapshot(item, src, lmName, smName) {
+    src = src || {};
+    item = item || {};
+    var titles = {};
+    var asText = null;
+    try { titles = await transferGetSmFieldTitles(); } catch (e) {}
+    try { asText = await transferFetchSmRowAsText(item.ID || item.Id); } catch (e2) {}
+
+    var values = {};
+    var fallback = transferSrcFallbackMap(item, src);
+    Object.keys(fallback).forEach(function (k) {
+        if (fallback[k] !== '' && fallback[k] != null) values[k] = fallback[k];
+    });
+    if (src.allMonths) {
+        Object.keys(src.allMonths).forEach(function (field) {
+            values[field] = src.allMonths[field];
+        });
+    }
+    Object.keys(item).forEach(function (k) {
+        if (TRANSFER_SM_SKIP_FIELDS[k]) return;
+        if (values[k] === undefined || values[k] === '') values[k] = item[k];
+    });
+    if (asText) {
+        Object.keys(asText).forEach(function (k) {
+            if (k === '__metadata') return;
+            if (!transferHasMonthValue(asText[k]) && values[k] != null && values[k] !== '') return;
+            values[k] = asText[k];
+        });
+    }
+    TRANSFER_TSM_SE_MONTH_FIELDS.forEach(function (m) {
+        var raw = transferReadSmMonthValue(item, src, asText, m);
+        if (!transferHasMonthValue(raw)) return;
+        values[m.sm] = raw;
+        values[m.label] = raw;
+        values[m.display] = raw;
+        values[m.row] = raw;
+    });
+    var isGroup = String(values.Title || src.code || '').trim() === String(values.Parent_x0020_Code || src.parent || '').trim()
+        || !String(values.Parent_x0020_Code || src.parent || '').trim();
+    values.Type = src.type || (isGroup ? 'Group' : 'Child');
+
+    var when = new Date().toLocaleString('en-GB', {
+        timeZone: 'Asia/Dubai',
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+
+    var lines = [];
+    lines.push('============================================================');
+    lines.push('SERVICE MANAGEMENT LIST  —  FULL ROW COPY');
+    lines.push('============================================================');
+    lines.push('');
+    lines.push('This is the Service Manager Request row as it stood before');
+    lines.push('the account was deleted from the Service Management list');
+    lines.push('and copied to TSM_SE_Accounts.');
+    lines.push('');
+    lines.push(transferPadLabel('Snapshot taken', 32) + '  :  ' + when + ' (Asia/Dubai)');
+    lines.push(transferPadLabel('Copied because', 32) + '  :  Transfer finalized to TSM_SE');
+    lines.push(transferPadLabel('SM list item ID', 32) + '  :  ' + (item.ID || item.Id || src.spItemId || ''));
+    lines.push(transferPadLabel('New Line Manager (TSM SE)', 32) + '  :  ' + (lmName || ''));
+    lines.push(transferPadLabel('New Service Manager (TSM SE)', 32) + '  :  ' + (smName || ''));
+    lines.push('');
+    lines.push('------------------------------------------------------------');
+    lines.push('SERVICE MANAGEMENT LIST COLUMNS');
+    lines.push('------------------------------------------------------------');
+    lines.push('');
+    lines = lines.concat(transferSnapshotLinesFromMap(values, titles));
+    lines.push('');
+    lines.push('============================================================');
+    lines.push('END OF SERVICE MANAGEMENT ROW COPY');
+    lines.push('============================================================');
+    return lines.join('\r\n');
+}
+
+var _transferTsmSeNotesField = null;
+async function transferCreateTsmSeNoteColumn(digest, title) {
+    var list = String(TRANSFER_TSM_SE_LIST).replace(/'/g, "''");
+    var createRes = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + list + "')/fields", {
+        method: 'POST',
+        headers: {
+            Accept: 'application/json;odata=verbose',
+            'Content-Type': 'application/json;odata=verbose',
+            'X-RequestDigest': digest
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+            __metadata: { type: 'SP.FieldMultiLineText' },
+            Title: title,
+            FieldTypeKind: 3,
+            Required: false,
+            NumberOfLines: 20,
+            RichText: false,
+            AppendOnly: false
+        })
+    });
+    if (!createRes.ok) {
+        console.warn('[Transfer] Could not create TSM_SE column', title, ':', (await createRes.text()).slice(0, 220));
+        return null;
+    }
+    var created = await createRes.json();
+    return {
+        name: (created.d && created.d.InternalName) || title,
+        type: 'Note'
+    };
+}
+
+async function transferEnsureTsmSeNotesField(digest) {
+    if (_transferTsmSeNotesField) return _transferTsmSeNotesField;
+    var list = String(TRANSFER_TSM_SE_LIST).replace(/'/g, "''");
+    var fieldsUrl = SP_URL + "/_api/web/lists/getbytitle('" + list + "')/fields?$select=InternalName,Title,TypeAsString,Hidden&$top=500";
+    var res = await fetch(fieldsUrl, { headers: { Accept: 'application/json;odata=verbose' }, credentials: 'include' });
+    var rows = [];
+    if (res.ok) rows = ((await res.json()).d.results) || [];
+    function findField(names) {
+        return rows.find(function (f) {
+            var n = String((f && f.InternalName) || '').toLowerCase();
+            var t = String((f && f.Title) || '').toLowerCase();
+            return names.indexOf(n) !== -1 || names.indexOf(t) !== -1;
+        });
+    }
+    var multiline = findField(['notes', 'sm_history', 'smhistory']);
+    if (multiline && /note/i.test(String(multiline.TypeAsString || ''))) {
+        _transferTsmSeNotesField = { name: multiline.InternalName || 'Notes', type: multiline.TypeAsString };
+        return _transferTsmSeNotesField;
+    }
+    var created = await transferCreateTsmSeNoteColumn(digest, findField(['notes']) ? 'SM_History' : 'Notes');
+    if (created) {
+        _transferTsmSeNotesField = created;
+        return _transferTsmSeNotesField;
+    }
+    var fallback = findField(['notes', 'sm_history', 'smhistory']);
+    _transferTsmSeNotesField = fallback
+        ? { name: fallback.InternalName || 'Notes', type: fallback.TypeAsString || '' }
+        : { name: 'Notes', type: '' };
+    return _transferTsmSeNotesField;
 }
 
 async function transferResolvePersonEmail(displayName) {
@@ -2144,7 +2640,17 @@ async function transferCopyToTsmSeList(item, lmName, smName) {
     var src = (window.ALL_DATA || []).find(function (a) {
         return String(a.code || '').trim() === accountCode;
     }) || {};
+    var fullItem = item;
+    try {
+        var fetched = await transferFetchFullSmItem(item.ID || item.Id || src.spItemId);
+        if (fetched) fullItem = Object.assign({}, item, fetched);
+    } catch (eFull) {}
+    item = fullItem;
+    var asText = null;
+    try { asText = await transferFetchSmRowAsText(item.ID || item.Id || src.spItemId); } catch (eTxt) {}
     var digest = await transferGetDigest();
+    var notesField = { name: 'Notes', type: 'Note' };
+    try { notesField = await transferEnsureTsmSeNotesField(digest); } catch (eField) {}
     var existing = await transferFindTsmSeItem(accountCode);
     var url = existing
         ? SP_URL + "/_api/web/lists/getbytitle('" + TRANSFER_TSM_SE_LIST + "')/items(" + existing.ID + ")"
@@ -2160,11 +2666,13 @@ async function transferCopyToTsmSeList(item, lmName, smName) {
     }
 
     var core = transferTsmSeCorePayload(item, src, lmName, smName);
-    var months = transferTsmSeMonthPayload(item, src);
+    var months = transferTsmSeMonthPayload(item, src, asText);
+    src._monthPayload = months;
+    console.log('[Transfer] Mapped SM revenue months to TSM_SE:', months);
     var withMonths = Object.assign({}, core, months);
     var res = await transferPostTsmSePayload(url, headers, withMonths);
     if (!res.ok) {
-        console.warn('[Transfer] TSM_SE save with months failed, retrying core fields only:', (await res.text()).slice(0, 180));
+        console.warn('[Transfer] TSM_SE save with months failed, saving core then months separately:', (await res.text()).slice(0, 180));
         digest = await transferGetDigest();
         headers['X-RequestDigest'] = digest;
         res = await transferPostTsmSePayload(url, headers, core);
@@ -2174,9 +2682,38 @@ async function transferCopyToTsmSeList(item, lmName, smName) {
     var verified = await transferFindTsmSeItem(accountCode);
     if (!verified) throw new Error('TSM_SE_Accounts save could not be verified. Main account was not deleted.');
 
+    if (Object.keys(months).length) {
+        digest = await transferGetDigest();
+        await transferPatchTsmSeMonths(verified.ID, months, digest);
+    }
+
+    if (existing && existing.ID && existing.Notes == null) {
+        try {
+            var nRes = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + TRANSFER_TSM_SE_LIST + "')/items(" + existing.ID + ")?$select=Notes,SM_History", {
+                headers: { Accept: 'application/json;odata=verbose' },
+                credentials: 'include'
+            });
+            if (nRes.ok) {
+                var nData = await nRes.json();
+                existing.Notes = (nData.d && (nData.d[notesField.name] || nData.d.Notes || nData.d.SM_History)) || '';
+            }
+        } catch (eN) {}
+    }
+
     try {
-        var historyNotes = transferBuildTsmSeTransferNotes(item, src, lmName, smName);
-        await transferPatchTsmSeFields(verified.ID, { Notes: historyNotes }, digest);
+        var historyNotes = await transferBuildFullSmSnapshot(item, src, lmName, smName);
+        if (existing && existing.Notes) {
+            historyNotes = String(existing.Notes).replace(/\s+$/, '') + '\r\n\r\n' + historyNotes;
+        }
+        digest = await transferGetDigest();
+        var notePayload = {};
+        notePayload[notesField.name || 'Notes'] = historyNotes;
+        var notesOk = await transferPatchTsmSeFields(verified.ID, notePayload, digest);
+        if (!notesOk) {
+            console.warn('[Transfer] TSM_SE Notes patch was not accepted for field', notesField.name);
+        }
+        src._snapshotNotes = historyNotes;
+        src.hasSmHistory = true;
     } catch (noteErr) {
         console.warn('[Transfer] TSM_SE Notes snapshot skipped:', noteErr && noteErr.message);
     }
@@ -2441,12 +2978,12 @@ async function updateChildrenTeam(parentCode, newTeam, lmId, smId, deleteFromMai
                 // Update each child — or move TSM_SE children off the main list
                 for (const child of children) {
                     if (deleteFromMain && newTeam === 'TSM_SE') {
-                        await transferCopyToTsmSeList({
-                            Title: child.Title,
-                            Customer_x0020_Name: child.Customer_x0020_Name || '',
-                            Account_x0020_Manager: CURRENT_TRANSFER_ITEM.Account_x0020_Manager,
-                            Account_x0020_Director: CURRENT_TRANSFER_ITEM.Account_x0020_Director
-                        }, document.getElementById('sdTransferLM').value, TRANSFER_TSM_SE_POOL_SM);
+                        var childItem = child;
+                        try {
+                            var childFull = await transferFetchFullSmItem(child.ID);
+                            if (childFull) childItem = childFull;
+                        } catch (eChild) {}
+                        await transferCopyToTsmSeList(childItem, document.getElementById('sdTransferLM').value, TRANSFER_TSM_SE_POOL_SM);
                         await transferDeleteMainAccount(child.ID);
                         console.log('[Transfer] Moved child to TSM_SE_Accounts:', child.Title);
                         continue;
