@@ -10811,39 +10811,44 @@ function rrFixedMrcSeries(data){
     fcUp:series.find(function(s){return s.col==='E';})||series.find(function(s){return rrClassifySeries(s.label)==='forecast-up';})
   };
 }
+function rrTrendSignPrefix(n){
+  n=num(n);
+  if(isNaN(n)||n===0) return '';
+  return n<0?'−':'';
+}
 function rrFmtPoint(v,fmt){
   if(v==null||isNaN(v)) return '';
-  var n=num(v);
-  if(fmt==='lines') return Math.round(n).toLocaleString('en-US');
-  if(Math.abs(n)>=1e9) return (n/1e9).toFixed(2)+'B';
-  if(Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+'M';
-  if(Math.abs(n)>=1e3) return (n/1e3).toFixed(1)+'K';
-  return n.toFixed(0);
+  var n=num(v), sign=rrTrendSignPrefix(n), a=Math.abs(n);
+  if(fmt==='lines') return sign+Math.round(a).toLocaleString('en-US');
+  if(a>=1e9) return sign+(a/1e9).toFixed(2)+'B';
+  if(a>=1e6) return sign+(a/1e6).toFixed(1)+'M';
+  if(a>=1e3) return sign+(a/1e3).toFixed(1)+'K';
+  return sign+a.toFixed(0);
 }
 function rrFmtFull(v,fmt){
   if(v==null||isNaN(v)) return '—';
-  var n=num(v);
+  var n=num(v), sign=rrTrendSignPrefix(n), a=Math.abs(n);
   if(fmt==='lines'){
-    if(Math.abs(n)>=1e6) return (n/1e6).toFixed(2)+'M lines';
-    if(Math.abs(n)>=1e3) return (n/1e3).toFixed(1)+'K lines';
-    return Math.round(n).toLocaleString('en-US')+' lines';
+    if(a>=1e6) return sign+(a/1e6).toFixed(2)+'M lines';
+    if(a>=1e3) return sign+(a/1e3).toFixed(1)+'K lines';
+    return sign+Math.round(a).toLocaleString('en-US')+' lines';
   }
-  if(Math.abs(n)>=1e9) return 'AED '+(n/1e9).toFixed(2)+'B';
-  if(Math.abs(n)>=1e6) return 'AED '+(n/1e6).toFixed(2)+'M';
-  if(Math.abs(n)>=1e3) return 'AED '+(n/1e3).toFixed(1)+'K';
-  return 'AED '+n.toLocaleString('en-US',{maximumFractionDigits:0});
+  if(a>=1e9) return 'AED '+sign+(a/1e9).toFixed(2)+'B';
+  if(a>=1e6) return 'AED '+sign+(a/1e6).toFixed(2)+'M';
+  if(a>=1e3) return 'AED '+sign+(a/1e3).toFixed(1)+'K';
+  return 'AED '+sign+a.toLocaleString('en-US',{maximumFractionDigits:0});
 }
 function rrFmtAxis(v,fmt){
   if(v==null||isNaN(v)) return '';
-  var n=num(v);
+  var n=num(v), sign=rrTrendSignPrefix(n), a=Math.abs(n);
   if(fmt==='lines'){
-    if(Math.abs(n)>=1000) return (n/1000).toFixed(0)+'K';
-    return Math.round(n).toLocaleString('en-US');
+    if(a>=1000) return sign+(a/1000).toFixed(0)+'K';
+    return sign+Math.round(a).toLocaleString('en-US');
   }
-  if(Math.abs(n)>=1e9) return (n/1e9).toFixed(1)+'B';
-  if(Math.abs(n)>=1e6) return (n/1e6).toFixed(0)+'M';
-  if(Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+'K';
-  return n.toFixed(0);
+  if(a>=1e9) return sign+(a/1e9).toFixed(1)+'B';
+  if(a>=1e6) return sign+(a/1e6).toFixed(0)+'M';
+  if(a>=1e3) return sign+(a/1e3).toFixed(0)+'K';
+  return sign+a.toFixed(0);
 }
 function rrSeriesStyle(label,idx){
   var st=RR_SERIES_STYLE[label];
@@ -11019,9 +11024,9 @@ function rrCalcYRange(chartId,seriesList,fmt){
   if(chartId==='fixedMrc'){
     var step=500000;
     var fl=Math.floor((mn-pad)/step)*step;
-    if(fl<0) fl=0;
     var ceil=Math.ceil((mx+pad)/step)*step;
     if(ceil<=fl) ceil=fl+step;
+    if(mn>=0&&fl<0) fl=0;
     return {min:fl,max:ceil,floor:fl>0?fl:null,step:step};
   }
   if(chartId==='netAddLines'){
@@ -11032,17 +11037,17 @@ function rrCalcYRange(chartId,seriesList,fmt){
 }
 function rrFmtPointLabel(v,fmt,chartId){
   if(v==null||isNaN(v)) return '';
-  var n=num(v);
+  var n=num(v), sign=rrTrendSignPrefix(n), a=Math.abs(n);
   if(fmt==='lines'){
-    if(Math.abs(n)>=1e6) return (n/1e6).toFixed(2)+'M';
-    if(Math.abs(n)>=1e3) return (n/1e3).toFixed(1)+'K';
-    return Math.round(n).toString();
+    if(a>=1e6) return sign+(a/1e6).toFixed(2)+'M';
+    if(a>=1e3) return sign+(a/1e3).toFixed(1)+'K';
+    return sign+Math.round(a).toString();
   }
-  if(chartId==='revRecTrend'||chartId==='fixedMrc') return (n/1e6).toFixed(2)+'M';
-  if(Math.abs(n)>=1e9) return (n/1e9).toFixed(2)+'B';
-  if(Math.abs(n)>=1e6) return (n/1e6).toFixed(2)+'M';
-  if(Math.abs(n)>=1e3) return (n/1e3).toFixed(1)+'K';
-  return n.toFixed(0);
+  if(chartId==='revRecTrend'||chartId==='fixedMrc') return sign+(a/1e6).toFixed(2)+'M';
+  if(a>=1e9) return sign+(a/1e9).toFixed(2)+'B';
+  if(a>=1e6) return sign+(a/1e6).toFixed(2)+'M';
+  if(a>=1e3) return sign+(a/1e3).toFixed(1)+'K';
+  return sign+a.toFixed(0);
 }
 function rrShouldLabelPoint(kind,dataIndex,projIdx,lastActIdx,truncateIdx,isCumulative,anchorIdx){
   if(isCumulative&&kind==='prior') return false;
@@ -11119,16 +11124,16 @@ function rrRectsOverlap(a,b){
 }
 function rrFmtAxisTick(v,fmt,chartId){
   if(v==null||isNaN(v)) return '';
-  var n=num(v);
+  var n=num(v), sign=rrTrendSignPrefix(n), a=Math.abs(n);
   if(fmt==='lines'){
-    if(Math.abs(n)>=1000) return (n/1000).toFixed(0)+'K';
-    return Math.round(n).toLocaleString('en-US');
+    if(a>=1000) return sign+(a/1000).toFixed(0)+'K';
+    return sign+Math.round(a).toLocaleString('en-US');
   }
-  if(chartId==='revRecTrend'||chartId==='fixedMrc') return (n/1e6).toFixed(1)+'M';
-  if(Math.abs(n)>=1e9) return (n/1e9).toFixed(1)+'B';
-  if(Math.abs(n)>=1e6) return (n/1e6).toFixed(1)+'M';
-  if(Math.abs(n)>=1e3) return (n/1e3).toFixed(0)+'K';
-  return n.toFixed(0);
+  if(chartId==='revRecTrend'||chartId==='fixedMrc') return sign+(a/1e6).toFixed(1)+'M';
+  if(a>=1e9) return sign+(a/1e9).toFixed(1)+'B';
+  if(a>=1e6) return sign+(a/1e6).toFixed(1)+'M';
+  if(a>=1e3) return sign+(a/1e3).toFixed(0)+'K';
+  return sign+a.toFixed(0);
 }
 function rrGradientFill(chart,colorTop,colorBottom){
   var area=chart.chartArea;
@@ -11484,16 +11489,16 @@ function rrFmtPctChip(pct,label){
 }
 function rrFmtShort(v,fmt){
   if(v==null||isNaN(v)) return '—';
-  var n=num(v);
+  var n=num(v), sign=rrTrendSignPrefix(n), a=Math.abs(n);
   if(fmt==='lines'){
-    if(Math.abs(n)>=1e6) return (n/1e6).toFixed(2)+'M';
-    if(Math.abs(n)>=1e3) return (n/1e3).toFixed(1)+'K';
-    return Math.round(n).toLocaleString('en-US');
+    if(a>=1e6) return sign+(a/1e6).toFixed(2)+'M';
+    if(a>=1e3) return sign+(a/1e3).toFixed(1)+'K';
+    return sign+Math.round(a).toLocaleString('en-US');
   }
-  if(Math.abs(n)>=1e9) return (n/1e9).toFixed(2)+'B';
-  if(Math.abs(n)>=1e6) return (n/1e6).toFixed(2)+'M';
-  if(Math.abs(n)>=1e3) return (n/1e3).toFixed(1)+'K';
-  return n.toLocaleString('en-US',{maximumFractionDigits:0});
+  if(a>=1e9) return sign+(a/1e9).toFixed(2)+'B';
+  if(a>=1e6) return sign+(a/1e6).toFixed(2)+'M';
+  if(a>=1e3) return sign+(a/1e3).toFixed(1)+'K';
+  return sign+a.toLocaleString('en-US',{maximumFractionDigits:0});
 }
 function rrLastActualOnSeries(series){
   if(!series||!series.data) return {idx:-1,val:null};
@@ -11609,10 +11614,11 @@ function rrTrendProjectionParts(chartId){
 function rrKpiCalcRow(label,val,fmt,prefix){
   if(val==null||isNaN(val)) return '';
   var unit=fmt==='lines'?' lines':'';
-  var disp=rrFmtShort(Math.abs(num(val)),fmt)+unit;
-  var p=prefix==='minus'?'− ':prefix==='plus'?'+ ':'';
-  var cls=prefix==='minus'?' rr-kpi-calc-minus':'';
-  return '<div class="rr-kpi-calc-row'+cls+'"><span>'+label+'</span><span>'+p+disp+'</span></div>';
+  var n=num(val);
+  var disp=rrFmtShort(n,fmt)+unit;
+  if(prefix==='plus'&&n>0) disp='+'+disp.replace(/^−/,'');
+  var cls=(prefix==='minus'||n<0)?' rr-kpi-calc-minus':'';
+  return '<div class="rr-kpi-calc-row'+cls+'"><span>'+label+'</span><span>'+disp+'</span></div>';
 }
 function rrKpiFixedExcelProj(title,cls,monthLbl,qLbl,parts,addonKey,qAddonKey,totalKey,fmt,isCumulative){
   var unit=fmt==='lines'?' lines':'';
