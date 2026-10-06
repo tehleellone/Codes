@@ -1049,11 +1049,16 @@
     window.tsmSeRenderSegmentChips = function() {
         var teamFilter = document.getElementById('filterTeam');
         var container  = document.getElementById('tsmSeSegmentChips');
-        if (!container) return;
+        if (!container) { tsmSeSyncHeaderActions(); return; }
 
         var show = (teamFilter && teamFilter.value === 'TSM_SE') ||
                    (window.USER_CONTEXT && window.USER_CONTEXT.role === 'TSM_SE_Viewer');
-        if (!show) { container.style.display = 'none'; window.TSM_SE_SEGMENT_FILTER = ''; return; }
+        if (!show) {
+            container.style.display = 'none';
+            window.TSM_SE_SEGMENT_FILTER = '';
+            tsmSeSyncHeaderActions();
+            return;
+        }
 
         var segments = [];
         var seen = {};
@@ -1061,7 +1066,7 @@
             if (r.segment && !seen[r.segment]) { seen[r.segment] = true; segments.push(r.segment); }
         });
         segments.sort();
-        if (!segments.length) { container.style.display = 'none'; return; }
+        if (!segments.length) { container.style.display = 'none'; tsmSeSyncHeaderActions(); return; }
 
         container.style.display = 'block';
         var insightBadge = '';
@@ -1080,94 +1085,219 @@
             }).join('') +
             '</select></div>' +
             insightBadge +
-            '<button type="button" class="export-btn" title="TSM SE portfolio analysis" onclick="tsmSeShowAccountsSummary()" style="padding:.45rem .65rem;min-width:auto;">' +
-            '<i data-lucide="info" style="width:16px;height:16px;"></i></button></div>';
+            '</div>';
+        tsmSeSyncHeaderActions();
         if (typeof lucide !== 'undefined') lucide.createIcons();
     };
 
     window.TSM_SE_INSIGHT_FILTER = null;
+
+    function tsmSeIsTsmSeView() {
+        var teamFilter = document.getElementById('filterTeam');
+        return !!(window.TSM_SE_ACTIVE || (teamFilter && teamFilter.value === 'TSM_SE') ||
+            (window.USER_CONTEXT && window.USER_CONTEXT.role === 'TSM_SE_Viewer'));
+    }
+
+    function tsmSeEnsureInsightsButton() {
+        var rnps = document.getElementById('loadAnalyticsBtn');
+        if (!rnps) return null;
+        var wrap = document.getElementById('tsmSeHeaderActions');
+        if (!wrap) {
+            wrap = document.createElement('div');
+            wrap.id = 'tsmSeHeaderActions';
+            wrap.style.cssText = 'display:flex;align-items:center;flex-wrap:wrap;gap:8px;';
+            rnps.parentNode.insertBefore(wrap, rnps);
+            wrap.appendChild(rnps);
+        }
+        var btn = document.getElementById('tsmSeInsightsBtn');
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.type = 'button';
+            btn.id = 'tsmSeInsightsBtn';
+            btn.className = 'export-btn';
+            btn.title = 'TSM SE book health';
+            btn.style.cssText = 'padding:.5rem 1.1rem;font-size:.82rem;display:none;';
+            btn.innerHTML = '<i data-lucide="info" style="width:15px;height:15px;display:inline-block;vertical-align:middle;margin-right:6px;"></i>TSM SE Insights';
+            btn.addEventListener('click', function () { tsmSeShowAccountsSummary(); });
+            wrap.insertBefore(btn, rnps);
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+        return btn;
+    }
+
+    function tsmSeSyncHeaderActions() {
+        var btn = tsmSeEnsureInsightsButton();
+        if (btn) btn.style.display = tsmSeIsTsmSeView() ? '' : 'none';
+    }
 
     function tsmSeFmtMoney(v) {
         var n = parseFloat(v) || 0;
         return typeof formatCurrency === 'function' ? formatCurrency(n) : n.toLocaleString();
     }
 
+    function tsmSeLastNMonths(n) {
+        var names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        var today = new Date();
+        var months = [];
+        for (var i = n; i >= 1; i--) {
+            var d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            var mn = names[d.getMonth()];
+            var yr = String(d.getFullYear()).slice(-2);
+            months.push({ label: mn + '-' + yr, key: mn.toLowerCase() + yr });
+        }
+        return months;
+    }
+
     function tsmSeLast3Months() {
-        return typeof getLastThreeCompletedMonths === 'function' ? getLastThreeCompletedMonths() : [];
+        if (typeof getLastThreeCompletedMonths === 'function') return getLastThreeCompletedMonths();
+        return tsmSeLastNMonths(3);
+    }
+
+    function tsmSeMonthVal(a, m) {
+        if (!a || !m) return 0;
+        return parseFloat(a[m.key]) || 0;
     }
 
     function tsmSeSumMonths(a, months) {
         var s = 0;
-        (months || []).forEach(function (m) { s += parseFloat(a[m.key]) || 0; });
+        (months || []).forEach(function (m) { s += tsmSeMonthVal(a, m); });
         return s;
     }
 
-    function tsmSeIsInactiveAccount(a, last3) {
+    function tsmSeIsPendingTransfer(a) {
+        return a && a.requestType === 'Transfer' &&
+            (a.requestStatus === 'Transfer_Pending' || a.requestStatus === 'AM_Approved' || a.requestStatus === 'Not Onboarded');
+    }
+
+    function tsmSeClassifyAccount(a, last3) {
         last3 = last3 || tsmSeLast3Months();
-        if (!last3.length) return false;
-        return last3.every(function (m) { return !(parseFloat(a[m.key]) > 0); });
+        var v = last3.map(function (m) { return tsmSeMonthVal(a, m); });
+        var dead = last3.length > 0 && v.every(function (n) { return n === 0; });
+        var latest = v.length ? v[v.length - 1] : 0;
+        var prior = 0;
+        for (var i = 0; i < v.length - 1; i++) prior += v[i];
+        var silent = !dead && latest === 0 && prior > 0;
+        var avg = typeof a.avg === 'number' ? a.avg : (v.length ? (v[0] + (v[1] || 0) + (v[2] || 0)) / Math.max(v.length, 1) : 0);
+        var high = avg >= 10000;
+        var low = avg < 1000;
+        return {
+            pending: tsmSeIsPendingTransfer(a),
+            dead: dead,
+            silent: silent,
+            lowAlive: low && !dead,
+            high: high,
+            healthy: !low && !high,
+            live: !dead,
+            avg: avg
+        };
+    }
+
+    function tsmSeIsInactiveAccount(a, last3) {
+        return tsmSeClassifyAccount(a, last3).dead;
+    }
+
+    function tsmSeEnsurePerson(map, name) {
+        if (!map[name]) map[name] = { name: name, total: 0, live: 0, dead: 0, silent: 0, high: 0, pending: 0, rev: 0 };
+        return map[name];
     }
 
     function tsmSeBuildPortfolioAnalysis(data) {
         data = data || [];
         var last3 = tsmSeLast3Months();
+        var last4 = tsmSeLastNMonths(4);
         var monthLabels = last3.map(function (m) { return m.label; }).join(', ') || '—';
-        var inactive = [];
-        var active = [];
-        var revDrop = 0;
-        var revUp = 0;
-        var pendingTransfer = 0;
+        var latestLabel = last3.length ? last3[last3.length - 1].label : '';
+        var buckets = { dead: 0, silent: 0, lowAlive: 0, healthy: 0, high: 0, pending: 0, dead4: 0, live: 0 };
+        var monthRev = last3.map(function () { return 0; });
         var totalRev3 = 0;
         var segMap = {};
         var lmMap = {};
         var smMap = {};
+        var unassigned = 0;
 
         data.forEach(function (a) {
-            var dead = tsmSeIsInactiveAccount(a, last3);
-            if (dead) inactive.push(a); else active.push(a);
-            if (a.isRevDrop) revDrop++;
-            if (a.isRevUpgrade) revUp++;
-            if (a.requestType === 'Transfer' &&
-                (a.requestStatus === 'Transfer_Pending' || a.requestStatus === 'AM_Approved' || a.requestStatus === 'Not Onboarded')) {
-                pendingTransfer++;
-            }
-            totalRev3 += tsmSeSumMonths(a, last3);
+            var c = tsmSeClassifyAccount(a, last3);
+            if (c.dead) buckets.dead++; else buckets.live++;
+            if (c.silent) buckets.silent++;
+            if (c.lowAlive) buckets.lowAlive++;
+            if (c.healthy) buckets.healthy++;
+            if (c.high) buckets.high++;
+            if (c.pending) buckets.pending++;
+            if (last4.length === 4 && last4.every(function (m) { return tsmSeMonthVal(a, m) === 0; })) buckets.dead4++;
+            if (!a.lm && !a.sm) unassigned++;
+
+            last3.forEach(function (m, i) { monthRev[i] += tsmSeMonthVal(a, m); });
+            var rev3 = tsmSeSumMonths(a, last3);
+            totalRev3 += rev3;
 
             var seg = a.segment || '(No segment)';
-            if (!segMap[seg]) segMap[seg] = { segment: seg, total: 0, active: 0, inactive: 0, rev: 0 };
+            if (!segMap[seg]) segMap[seg] = { segment: seg, total: 0, live: 0, dead: 0, rev: 0 };
             segMap[seg].total++;
-            if (dead) segMap[seg].inactive++; else segMap[seg].active++;
-            segMap[seg].rev += tsmSeSumMonths(a, last3);
+            if (c.dead) segMap[seg].dead++; else segMap[seg].live++;
+            segMap[seg].rev += rev3;
 
-            var lm = a.lm || '(No LM)';
-            if (!lmMap[lm]) lmMap[lm] = { name: lm, total: 0, active: 0, inactive: 0 };
-            lmMap[lm].total++;
-            if (dead) lmMap[lm].inactive++; else lmMap[lm].active++;
+            var lm = tsmSeEnsurePerson(lmMap, a.lm || '(No LM)');
+            lm.total++;
+            if (c.dead) lm.dead++; else lm.live++;
+            if (c.silent) lm.silent++;
+            if (c.high) lm.high++;
+            if (c.pending) lm.pending++;
+            lm.rev += rev3;
 
-            var sm = a.sm || '(No SM)';
-            if (!smMap[sm]) smMap[sm] = { name: sm, total: 0, active: 0, inactive: 0 };
-            smMap[sm].total++;
-            if (dead) smMap[sm].inactive++; else smMap[sm].active++;
+            var sm = tsmSeEnsurePerson(smMap, a.sm || '(No SM)');
+            sm.total++;
+            if (c.dead) sm.dead++; else sm.live++;
+            if (c.silent) sm.silent++;
+            if (c.high) sm.high++;
+            if (c.pending) sm.pending++;
+            sm.rev += rev3;
         });
 
-        inactive.sort(function (x, y) { return String(x.code).localeCompare(String(y.code)); });
+        function sortOwners(map) {
+            return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) {
+                if (b.dead !== a.dead) return b.dead - a.dead;
+                return b.live - a.live;
+            });
+        }
+
+        var mom = 0;
+        if (monthRev.length >= 2 && monthRev[monthRev.length - 2] > 0) {
+            mom = ((monthRev[monthRev.length - 1] - monthRev[monthRev.length - 2]) / monthRev[monthRev.length - 2]) * 100;
+        }
+
+        var lms = sortOwners(lmMap);
+        var worstLm = lms.filter(function (x) { return x.name !== '(No LM)' && x.dead > 0; })[0];
+        var headline = '';
+        var total = data.length;
+        if (!total) {
+            headline = 'No TSM SE accounts loaded.';
+        } else if (buckets.dead > 0) {
+            var pct = Math.round(buckets.dead / total * 100);
+            headline = pct + '% of the book (' + buckets.dead.toLocaleString() + ' accounts) billed nothing in ' + monthLabels +
+                (worstLm ? '. Heaviest dead book: ' + worstLm.name + ' (' + worstLm.dead.toLocaleString() + ').' : '.');
+        } else if (buckets.silent > 0) {
+            headline = buckets.silent.toLocaleString() + ' accounts went to zero in ' + latestLabel + ' after still billing in the prior months.';
+        } else if (buckets.high > 0) {
+            headline = 'Book is live. ' + buckets.high.toLocaleString() + ' accounts average ≥ 10k — Rev-up transfer candidates.';
+        } else {
+            headline = total.toLocaleString() + ' accounts on the SE book. No 3-month dead accounts in this window.';
+        }
 
         return {
             monthLabels: monthLabels,
+            latestLabel: latestLabel,
             last3: last3,
-            total: data.length,
-            activeCount: active.length,
-            inactiveCount: inactive.length,
-            inactiveList: inactive,
-            activeList: active,
-            revDrop: revDrop,
-            revUp: revUp,
-            pendingTransfer: pendingTransfer,
+            last4: last4,
+            total: total,
+            buckets: buckets,
+            monthRev: monthRev,
+            mom: mom,
             totalRev3: totalRev3,
-            avgRev3: data.length ? totalRev3 / data.length : 0,
+            unassigned: unassigned,
+            headline: headline,
             segments: Object.keys(segMap).map(function (k) { return segMap[k]; }).sort(function (a, b) { return b.total - a.total; }),
-            lms: Object.keys(lmMap).map(function (k) { return lmMap[k]; }).sort(function (a, b) { return b.inactive - a.inactive; }),
-            sms: Object.keys(smMap).map(function (k) { return smMap[k]; }).sort(function (a, b) { return b.inactive - a.inactive; })
+            lms: lms,
+            sms: sortOwners(smMap)
         };
     }
 
@@ -1176,28 +1306,37 @@
         var f = window.TSM_SE_INSIGHT_FILTER;
         if (!f || !f.type) return out;
         var last3 = tsmSeLast3Months();
-        if (f.type === 'inactive') {
-            return out.filter(function (a) { return tsmSeIsInactiveAccount(a, last3); });
+        var last4 = tsmSeLastNMonths(4);
+        function cls(a) { return tsmSeClassifyAccount(a, last3); }
+        if (f.type === 'inactive' || f.type === 'dead') {
+            return out.filter(function (a) { return cls(a).dead; });
         }
-        if (f.type === 'active') {
-            return out.filter(function (a) { return !tsmSeIsInactiveAccount(a, last3); });
+        if (f.type === 'active' || f.type === 'live') {
+            return out.filter(function (a) { return cls(a).live; });
         }
+        if (f.type === 'silent') return out.filter(function (a) { return cls(a).silent; });
+        if (f.type === 'low_alive') return out.filter(function (a) { return cls(a).lowAlive; });
+        if (f.type === 'healthy') return out.filter(function (a) { return cls(a).healthy; });
+        if (f.type === 'high' || f.type === 'rev_up') return out.filter(function (a) { return cls(a).high; });
         if (f.type === 'rev_drop') return out.filter(function (a) { return a.isRevDrop; });
-        if (f.type === 'rev_up') return out.filter(function (a) { return a.isRevUpgrade; });
-        if (f.type === 'transfer_pending') {
+        if (f.type === 'dead4') {
             return out.filter(function (a) {
-                return a.requestType === 'Transfer' &&
-                    (a.requestStatus === 'Transfer_Pending' || a.requestStatus === 'AM_Approved' || a.requestStatus === 'Not Onboarded');
+                return last4.length === 4 && last4.every(function (m) { return tsmSeMonthVal(a, m) === 0; });
             });
         }
+        if (f.type === 'transfer_pending') return out.filter(tsmSeIsPendingTransfer);
         if (f.type === 'lm' && f.value) {
             out = out.filter(function (a) { return a.lm === f.value; });
-            if (f.inactiveOnly) {
-                out = out.filter(function (a) { return tsmSeIsInactiveAccount(a, last3); });
-            }
+            if (f.inactiveOnly || f.deadOnly) out = out.filter(function (a) { return cls(a).dead; });
+            if (f.liveOnly) out = out.filter(function (a) { return cls(a).live; });
             return out;
         }
-        if (f.type === 'sm' && f.value) return out.filter(function (a) { return a.sm === f.value; });
+        if (f.type === 'sm' && f.value) {
+            out = out.filter(function (a) { return a.sm === f.value; });
+            if (f.inactiveOnly || f.deadOnly) out = out.filter(function (a) { return cls(a).dead; });
+            if (f.liveOnly) out = out.filter(function (a) { return cls(a).live; });
+            return out;
+        }
         if (f.type === 'focus') return out;
         if (f.type === 'segment' && f.value) return out.filter(function (a) { return (a.segment || '') === f.value; });
         return out;
@@ -1236,27 +1375,63 @@
         return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
+    function tsmSeEscHtml(s) {
+        return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
     function tsmSeInjectAnalysisStyles() {
         if (document.getElementById('tsmSeAnalysisStyles')) return;
         var st = document.createElement('style');
         st.id = 'tsmSeAnalysisStyles';
         st.textContent =
-            '#tsmSeAnalysisModal .tsm-an-card{background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:.85rem 1rem;}' +
-            '#tsmSeAnalysisModal .tsm-an-kpi{font-size:1.35rem;font-weight:800;color:var(--t1);line-height:1.2;}' +
-            '#tsmSeAnalysisModal .tsm-an-lbl{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--t3);margin-bottom:.25rem;}' +
-            '#tsmSeAnalysisModal .tsm-an-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.65rem;margin:1rem 0;}' +
-            '#tsmSeAnalysisModal .tsm-an-table{width:100%;border-collapse:collapse;font-size:.78rem;margin-top:.5rem;}' +
-            '#tsmSeAnalysisModal .tsm-an-table th{text-align:left;padding:.45rem .5rem;font-size:.65rem;text-transform:uppercase;color:var(--t3);border-bottom:1px solid var(--border);}' +
-            '#tsmSeAnalysisModal .tsm-an-table td{padding:.45rem .5rem;border-bottom:1px solid var(--border);color:var(--t2);}' +
+            '#tsmSeAnalysisModal .tsm-an-hero{background:linear-gradient(135deg,rgba(168,85,247,.14),rgba(14,165,233,.08));border:1px solid var(--border);border-radius:14px;padding:1rem 1.15rem;margin-bottom:1rem;}' +
+            '#tsmSeAnalysisModal .tsm-an-hero p{margin:.35rem 0 0;font-size:.86rem;line-height:1.55;color:var(--t2);}' +
+            '#tsmSeAnalysisModal .tsm-an-kicker{font-size:.68rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--acc);}' +
+            '#tsmSeAnalysisModal .tsm-an-buckets{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:.65rem;margin:0 0 1.1rem;}' +
+            '#tsmSeAnalysisModal .tsm-an-bucket{text-align:left;cursor:pointer;background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:.85rem .9rem;transition:border-color .15s,transform .15s;}' +
+            '#tsmSeAnalysisModal .tsm-an-bucket:hover{border-color:var(--acc);transform:translateY(-1px);}' +
+            '#tsmSeAnalysisModal .tsm-an-kpi{font-size:1.45rem;font-weight:800;line-height:1.15;}' +
+            '#tsmSeAnalysisModal .tsm-an-lbl{font-size:.66rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--t3);margin-bottom:.3rem;}' +
+            '#tsmSeAnalysisModal .tsm-an-sub{font-size:.7rem;color:var(--t3);margin-top:.28rem;line-height:1.35;}' +
+            '#tsmSeAnalysisModal .tsm-an-months{display:grid;grid-template-columns:repeat(3,1fr);gap:.55rem;margin-bottom:1.1rem;}' +
+            '#tsmSeAnalysisModal .tsm-an-card{background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:.75rem .9rem;}' +
+            '#tsmSeAnalysisModal .tsm-an-table{width:100%;border-collapse:collapse;font-size:.78rem;}' +
+            '#tsmSeAnalysisModal .tsm-an-table th{text-align:left;padding:.4rem .45rem;font-size:.62rem;text-transform:uppercase;color:var(--t3);border-bottom:1px solid var(--border);}' +
+            '#tsmSeAnalysisModal .tsm-an-table td{padding:.42rem .45rem;border-bottom:1px solid var(--border);color:var(--t2);}' +
             '#tsmSeAnalysisModal .tsm-an-link{background:none;border:none;padding:0;color:var(--acc);font-weight:700;cursor:pointer;font-size:inherit;text-align:left;}' +
             '#tsmSeAnalysisModal .tsm-an-link:hover{text-decoration:underline;}' +
-            '#tsmSeAnalysisModal .tsm-an-actions{display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0;}' +
-            '#tsmSeAnalysisModal .tsm-an-section{margin-top:1.25rem;}' +
-            '#tsmSeAnalysisModal .tsm-an-section h4{margin:0 0 .5rem;font-size:.88rem;font-weight:800;color:var(--t1);}';
+            '#tsmSeAnalysisModal .tsm-an-section{margin-top:1.15rem;}' +
+            '#tsmSeAnalysisModal .tsm-an-section h4{margin:0 0 .55rem;font-size:.86rem;font-weight:800;color:var(--t1);}' +
+            '#tsmSeAnalysisModal .tsm-an-pills{display:flex;flex-wrap:wrap;gap:.45rem;}' +
+            '#tsmSeAnalysisModal .tsm-an-pill{border:1px solid var(--border);background:var(--bg-secondary);border-radius:999px;padding:.35rem .7rem;font-size:.75rem;cursor:pointer;color:var(--t1);}' +
+            '#tsmSeAnalysisModal .tsm-an-pill:hover{border-color:var(--acc);}' +
+            '#tsmSeAnalysisModal .tsm-an-cols{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}' +
+            '@media (max-width:820px){#tsmSeAnalysisModal .tsm-an-cols{grid-template-columns:1fr;}}';
         document.head.appendChild(st);
     }
 
+    function tsmSeBucketCard(opts) {
+        var pct = opts.total ? Math.round((opts.count / opts.total) * 100) : 0;
+        return '<button type="button" class="tsm-an-bucket" data-insight="' + tsmSeEscAttr(opts.insight) + '">' +
+            '<div class="tsm-an-lbl">' + tsmSeEscHtml(opts.label) + '</div>' +
+            '<div class="tsm-an-kpi" style="color:' + opts.color + ';">' + (opts.count || 0).toLocaleString() + '</div>' +
+            '<div class="tsm-an-sub">' + pct + '% of book · ' + tsmSeEscHtml(opts.hint) + '</div></button>';
+    }
+
+    function tsmSeOwnerRows(list, kind) {
+        return list.slice(0, 12).map(function (r) {
+            var deadPct = r.total ? Math.round(r.dead / r.total * 100) : 0;
+            return '<tr>' +
+                '<td><button type="button" class="tsm-an-link" data-insight="' + kind + '" data-value="' + tsmSeEscAttr(r.name) + '">' + tsmSeEscHtml(r.name) + '</button></td>' +
+                '<td><button type="button" class="tsm-an-link" data-insight="' + kind + '_live" data-value="' + tsmSeEscAttr(r.name) + '">' + r.live.toLocaleString() + '</button></td>' +
+                '<td><button type="button" class="tsm-an-link" style="color:#ef4444;" data-insight="' + kind + '_dead" data-value="' + tsmSeEscAttr(r.name) + '">' + r.dead.toLocaleString() + '</button></td>' +
+                '<td>' + deadPct + '%</td>' +
+                '<td>' + tsmSeFmtMoney(r.rev) + '</td></tr>';
+        }).join('');
+    }
+
     window.tsmSeShowAccountsSummary = function () {
+        tsmSeSyncHeaderActions();
         var data = window.TSM_SE_DATA || [];
         var a = tsmSeBuildPortfolioAnalysis(data);
         tsmSeInjectAnalysisStyles();
@@ -1264,61 +1439,60 @@
         var existing = document.getElementById('tsmSeAnalysisModal');
         if (existing) existing.remove();
 
-        var segRows = a.segments.map(function (s) {
-            return '<tr><td>' + tsmSeEscAttr(s.segment) + '</td><td>' + s.total + '</td><td style="color:#10b981;">' + s.active + '</td>' +
-                '<td style="color:#ef4444;">' + s.inactive + '</td><td>' + tsmSeFmtMoney(s.rev) + '</td>' +
-                '<td><button type="button" class="tsm-an-link" data-insight="segment" data-value="' + tsmSeEscAttr(s.segment === '(No segment)' ? '' : s.segment) + '">View in grid</button></td></tr>';
+        var b = a.buckets;
+        var momColor = a.mom >= 0 ? '#10b981' : '#ef4444';
+        var momLabel = (a.mom >= 0 ? '+' : '') + a.mom.toFixed(1) + '% vs prior month';
+
+        var monthCards = a.last3.map(function (m, i) {
+            return '<div class="tsm-an-card"><div class="tsm-an-lbl">' + tsmSeEscHtml(m.label) + '</div>' +
+                '<div style="font-size:1.05rem;font-weight:800;color:var(--t1);">' + tsmSeFmtMoney(a.monthRev[i] || 0) + '</div></div>';
         }).join('');
 
-        var lmRows = a.lms.slice(0, 15).map(function (r) {
-            return '<tr><td>' + tsmSeEscAttr(r.name) + '</td><td>' + r.total + '</td><td>' + r.active + '</td><td style="color:#ef4444;font-weight:700;">' + r.inactive + '</td>' +
-                '<td><button type="button" class="tsm-an-link" data-insight="lm" data-value="' + tsmSeEscAttr(r.name) + '">LM accounts</button> ' +
-                '<button type="button" class="tsm-an-link" data-insight="lm_inactive" data-value="' + tsmSeEscAttr(r.name) + '">Inactive only</button></td></tr>';
-        }).join('');
-
-        var inactiveSample = a.inactiveList.slice(0, 25).map(function (r) {
-            return '<tr><td><button type="button" class="tsm-an-link" data-insight="focus" data-value="' + tsmSeEscAttr(r.code) + '">' + tsmSeEscAttr(r.code) + '</button></td>' +
-                '<td>' + tsmSeEscAttr((r.customer || '').slice(0, 40)) + '</td><td>' + tsmSeEscAttr(r.lm || '—') + '</td><td>' + tsmSeEscAttr(r.sm || '—') + '</td></tr>';
+        var segPills = a.segments.map(function (s) {
+            var val = s.segment === '(No segment)' ? '' : s.segment;
+            var dp = s.total ? Math.round(s.dead / s.total * 100) : 0;
+            return '<button type="button" class="tsm-an-pill" data-insight="segment" data-value="' + tsmSeEscAttr(val) + '">' +
+                tsmSeEscHtml(s.segment) + ' · ' + s.total.toLocaleString() + ' · ' + dp + '% dead</button>';
         }).join('');
 
         var overlay = document.createElement('div');
         overlay.id = 'tsmSeAnalysisModal';
         overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.62);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:1rem;';
         overlay.innerHTML =
-            '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;width:100%;max-width:920px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.35);">' +
-            '<div style="padding:1.15rem 1.35rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;">' +
-            '<div><h3 style="margin:0;font-size:1.05rem;font-weight:800;color:var(--t1);display:flex;align-items:center;gap:8px;"><i data-lucide="bar-chart-2"></i>TSM SE portfolio analysis</h3>' +
-            '<p style="margin:.35rem 0 0;font-size:.72rem;color:var(--t3);">Revenue window: last 3 closed months (' + tsmSeEscAttr(a.monthLabels) + '). Inactive = zero revenue in all three.</p></div>' +
-            '<button type="button" class="reset-btn" id="tsmSeAnalysisClose">Close</button></div>' +
-            '<div style="padding:1.15rem 1.35rem;overflow-y:auto;flex:1;">' +
-            '<div class="tsm-an-grid">' +
-            '<div class="tsm-an-card"><div class="tsm-an-lbl">Total accounts</div><div class="tsm-an-kpi">' + a.total + '</div></div>' +
-            '<div class="tsm-an-card"><div class="tsm-an-lbl">Active</div><div class="tsm-an-kpi" style="color:#10b981;">' + a.activeCount + '</div></div>' +
-            '<div class="tsm-an-card"><div class="tsm-an-lbl">Inactive / dead</div><div class="tsm-an-kpi" style="color:#ef4444;">' + a.inactiveCount + '</div></div>' +
-            '<div class="tsm-an-card"><div class="tsm-an-lbl">Combined rev (3 mo)</div><div class="tsm-an-kpi" style="font-size:1rem;">' + tsmSeFmtMoney(a.totalRev3) + '</div></div>' +
-            '<div class="tsm-an-card"><div class="tsm-an-lbl">Avg rev / account</div><div class="tsm-an-kpi" style="font-size:1rem;">' + tsmSeFmtMoney(a.avgRev3) + '</div></div>' +
-            '<div class="tsm-an-card"><div class="tsm-an-lbl">Rev down / up</div><div class="tsm-an-kpi" style="font-size:1rem;">' + a.revDrop + ' / ' + a.revUp + '</div></div>' +
+            '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;width:100%;max-width:980px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,.35);">' +
+            '<div style="padding:1.05rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;">' +
+            '<div><h3 style="margin:0;font-size:1.05rem;font-weight:800;color:var(--t1);display:flex;align-items:center;gap:8px;"><i data-lucide="activity"></i>TSM SE book health</h3>' +
+            '<p style="margin:.3rem 0 0;font-size:.72rem;color:var(--t3);">' + a.total.toLocaleString() + ' accounts · last 3 closed months: ' + tsmSeEscHtml(a.monthLabels) + ' · click any number to open that set in the grid</p></div>' +
+            '<div style="display:flex;gap:8px;"><button type="button" class="reset-btn" data-insight="clear">Clear grid filter</button><button type="button" class="reset-btn" id="tsmSeAnalysisClose">Close</button></div></div>' +
+            '<div style="padding:1.1rem 1.25rem;overflow-y:auto;flex:1;">' +
+            '<div class="tsm-an-hero"><div class="tsm-an-kicker">What matters</div><p>' + tsmSeEscHtml(a.headline) + '</p></div>' +
+            '<div class="tsm-an-buckets">' +
+            tsmSeBucketCard({ insight: 'dead', label: 'Dead — 3 months $0', count: b.dead, total: a.total, color: '#ef4444', hint: 'Assigned, producing nothing' }) +
+            tsmSeBucketCard({ insight: 'silent', label: 'Newly silent', count: b.silent, total: a.total, color: '#f59e0b', hint: a.latestLabel + ' went to zero' }) +
+            tsmSeBucketCard({ insight: 'low_alive', label: 'Rev down, still live', count: b.lowAlive, total: a.total, color: '#f97316', hint: 'Avg < 1k, still billing' }) +
+            tsmSeBucketCard({ insight: 'healthy', label: 'Healthy book', count: b.healthy, total: a.total, color: '#10b981', hint: 'Avg 1k–10k · stay on SE' }) +
+            tsmSeBucketCard({ insight: 'high', label: 'Rev up ≥ 10k', count: b.high, total: a.total, color: '#3b82f6', hint: 'Transfer up candidates' }) +
+            tsmSeBucketCard({ insight: 'transfer_pending', label: 'Transfer in flight', count: b.pending, total: a.total, color: '#a855f7', hint: 'Waiting AM / SD' }) +
             '</div>' +
-            '<div class="tsm-an-actions">' +
-            '<button type="button" class="export-btn" data-insight="inactive">Show inactive in grid (' + a.inactiveCount + ')</button>' +
-            '<button type="button" class="export-btn" data-insight="active">Show active (' + a.activeCount + ')</button>' +
-            '<button type="button" class="reset-btn" data-insight="rev_drop">Rev down (' + a.revDrop + ')</button>' +
-            '<button type="button" class="reset-btn" data-insight="rev_up">Rev up (' + a.revUp + ')</button>' +
-            (a.pendingTransfer ? '<button type="button" class="reset-btn" data-insight="transfer_pending">Pending transfer (' + a.pendingTransfer + ')</button>' : '') +
-            '<button type="button" class="reset-btn" data-insight="clear">Clear grid filter</button>' +
-            '</div>' +
-            '<div class="tsm-an-section"><h4>By segment</h4><table class="tsm-an-table"><thead><tr><th>Segment</th><th>Total</th><th>Active</th><th>Inactive</th><th>3-mo rev</th><th></th></tr></thead><tbody>' +
-            (segRows || '<tr><td colspan="6">No data</td></tr>') + '</tbody></table></div>' +
-            '<div class="tsm-an-section"><h4>Line manager load (inactive = low portfolio load)</h4><table class="tsm-an-table"><thead><tr><th>Line manager</th><th>Accounts</th><th>Active</th><th>Inactive</th><th>Actions</th></tr></thead><tbody>' +
-            (lmRows || '<tr><td colspan="5">No data</td></tr>') + '</tbody></table></div>' +
-            '<div class="tsm-an-section"><h4>Inactive accounts (sample — click code to locate in grid)</h4><table class="tsm-an-table"><thead><tr><th>Code</th><th>Customer</th><th>LM</th><th>SM</th></tr></thead><tbody>' +
-            (inactiveSample || '<tr><td colspan="4">No inactive accounts in this window.</td></tr>') +
-            (a.inactiveList.length > 25 ? '<tr><td colspan="4" style="font-size:.72rem;color:var(--t3);">…and ' + (a.inactiveList.length - 25) + ' more — use “Show inactive in grid”.</td></tr>' : '') +
-            '</tbody></table></div>' +
+            '<div class="tsm-an-section"><h4>Billed revenue trajectory</h4>' +
+            '<div class="tsm-an-months">' + monthCards + '</div>' +
+            '<div style="font-size:.75rem;color:var(--t3);margin-top:-.4rem;margin-bottom:.8rem;">Combined 3-month billed: <strong style="color:var(--t1);">' + tsmSeFmtMoney(a.totalRev3) + '</strong> · <span style="color:' + momColor + ';font-weight:700;">' + momLabel + '</span>' +
+            (b.dead4 ? ' · <button type="button" class="tsm-an-link" data-insight="dead4">' + b.dead4.toLocaleString() + ' also $0 across 4 months</button>' : '') +
+            '</div></div>' +
+            '<div class="tsm-an-cols">' +
+            '<div class="tsm-an-section" style="margin-top:0;"><h4>Who is sitting on dead accounts</h4>' +
+            '<table class="tsm-an-table"><thead><tr><th>Line manager</th><th>Live</th><th>Dead</th><th>Dead %</th><th>3-mo billed</th></tr></thead><tbody>' +
+            (tsmSeOwnerRows(a.lms, 'lm') || '<tr><td colspan="5">No data</td></tr>') + '</tbody></table>' +
+            '<p style="margin:.45rem 0 0;font-size:.68rem;color:var(--t3);">Live = real load. Dead = still assigned with no 3-month revenue. Click a name or a number.</p></div>' +
+            '<div class="tsm-an-section" style="margin-top:0;"><h4>Service manager dead book</h4>' +
+            '<table class="tsm-an-table"><thead><tr><th>Service manager</th><th>Live</th><th>Dead</th><th>Dead %</th><th>3-mo billed</th></tr></thead><tbody>' +
+            (tsmSeOwnerRows(a.sms, 'sm') || '<tr><td colspan="5">No data</td></tr>') + '</tbody></table></div></div>' +
+            '<div class="tsm-an-section"><h4>Segment mix</h4><div class="tsm-an-pills">' +
+            (segPills || '<span style="font-size:.78rem;color:var(--t3);">No segment values.</span>') +
+            '</div></div>' +
             '</div></div>';
 
         document.body.appendChild(overlay);
-
         overlay.querySelector('#tsmSeAnalysisClose').addEventListener('click', function () { overlay.remove(); });
         overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
 
@@ -1326,45 +1500,21 @@
             btn.addEventListener('click', function () {
                 var kind = btn.getAttribute('data-insight');
                 var val = btn.getAttribute('data-value') || '';
-                if (kind === 'clear') {
-                    tsmSeClearInsightFilter();
-                    return;
-                }
-                if (kind === 'inactive') {
-                    tsmSeApplyInsightFilter({ type: 'inactive' }, 'Inactive (no 3-mo revenue)');
-                    return;
-                }
-                if (kind === 'active') {
-                    tsmSeApplyInsightFilter({ type: 'active' }, 'Active accounts');
-                    return;
-                }
-                if (kind === 'rev_drop') {
-                    tsmSeApplyInsightFilter({ type: 'rev_drop' }, 'Rev down');
-                    return;
-                }
-                if (kind === 'rev_up') {
-                    tsmSeApplyInsightFilter({ type: 'rev_up' }, 'Rev up');
-                    return;
-                }
-                if (kind === 'transfer_pending') {
-                    tsmSeApplyInsightFilter({ type: 'transfer_pending' }, 'Pending transfer');
-                    return;
-                }
-                if (kind === 'segment') {
-                    tsmSeApplyInsightFilter({ type: 'segment', value: val }, 'Segment: ' + (val || '(blank)'));
-                    return;
-                }
-                if (kind === 'lm') {
-                    tsmSeApplyInsightFilter({ type: 'lm', value: val }, 'LM: ' + val);
-                    return;
-                }
-                if (kind === 'lm_inactive') {
-                    tsmSeApplyInsightFilter({ type: 'lm', value: val, inactiveOnly: true }, 'LM inactive: ' + val);
-                    return;
-                }
-                if (kind === 'focus') {
-                    tsmSeApplyInsightFilter({ type: 'focus', code: val }, 'Account ' + val);
-                }
+                if (kind === 'clear') { tsmSeClearInsightFilter(); return; }
+                if (kind === 'dead') { tsmSeApplyInsightFilter({ type: 'dead' }, 'Dead (3 months $0)'); return; }
+                if (kind === 'silent') { tsmSeApplyInsightFilter({ type: 'silent' }, 'Newly silent'); return; }
+                if (kind === 'low_alive') { tsmSeApplyInsightFilter({ type: 'low_alive' }, 'Rev down, still live'); return; }
+                if (kind === 'healthy') { tsmSeApplyInsightFilter({ type: 'healthy' }, 'Healthy book (1k–10k)'); return; }
+                if (kind === 'high') { tsmSeApplyInsightFilter({ type: 'high' }, 'Rev up ≥ 10k'); return; }
+                if (kind === 'transfer_pending') { tsmSeApplyInsightFilter({ type: 'transfer_pending' }, 'Transfer in flight'); return; }
+                if (kind === 'dead4') { tsmSeApplyInsightFilter({ type: 'dead4' }, 'Dead across 4 months'); return; }
+                if (kind === 'segment') { tsmSeApplyInsightFilter({ type: 'segment', value: val }, 'Segment: ' + (val || '(blank)')); return; }
+                if (kind === 'lm') { tsmSeApplyInsightFilter({ type: 'lm', value: val }, 'LM: ' + val); return; }
+                if (kind === 'lm_dead') { tsmSeApplyInsightFilter({ type: 'lm', value: val, deadOnly: true }, 'LM dead: ' + val); return; }
+                if (kind === 'lm_live') { tsmSeApplyInsightFilter({ type: 'lm', value: val, liveOnly: true }, 'LM live: ' + val); return; }
+                if (kind === 'sm') { tsmSeApplyInsightFilter({ type: 'sm', value: val }, 'SM: ' + val); return; }
+                if (kind === 'sm_dead') { tsmSeApplyInsightFilter({ type: 'sm', value: val, deadOnly: true }, 'SM dead: ' + val); return; }
+                if (kind === 'sm_live') { tsmSeApplyInsightFilter({ type: 'sm', value: val, liveOnly: true }, 'SM live: ' + val); return; }
             });
         });
 
@@ -1563,8 +1713,7 @@
 
     function tsmSeRenderTSMSEView() {
         if (!window.TSM_SE_DATA.length) return;
-        var analyticsBtn = document.getElementById('loadAnalyticsBtn');
-        if (analyticsBtn) analyticsBtn.style.display = 'none';
+        tsmSeSyncHeaderActions();
         tsmSePopulateLmSmDropdowns();
         if (typeof window.smApplyTsmSeFilters === 'function') {
             window.smApplyTsmSeFilters();
@@ -1584,10 +1733,8 @@
             tsmSeRenderSegmentChips();
 
             if (this.value !== 'TSM_SE') {
-                // Switching away from TSM_SE — restore analytics button and ALL_DATA
                 window.TSM_SE_SEGMENT_FILTER = '';
-                var analyticsBtn = document.getElementById('loadAnalyticsBtn');
-                if (analyticsBtn) analyticsBtn.style.display = '';
+                tsmSeSyncHeaderActions();
                 try { if (typeof populateFilters === 'function') populateFilters(); } catch(e) {}
                 try { if (typeof applyFilters    === 'function') applyFilters();    } catch(e) {}
                 return;
@@ -1750,6 +1897,7 @@
 
         injectSegmentContainer();
         hookTeamFilter();
+        tsmSeSyncHeaderActions();
         window.tsmSeInjectUploadBtn();
         window.tsmSePatchApplyFilters();
         window.tsmSeEnhanceAccountSearch();
