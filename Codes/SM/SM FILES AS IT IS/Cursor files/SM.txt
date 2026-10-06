@@ -3406,6 +3406,9 @@
                         <button type="button" id="nlTabView" onclick="nlSetTab('view')" style="padding:10px 24px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;border:none;background:var(--grad);color:#fff;display:inline-flex;align-items:center;gap:6px;">
                             <i data-lucide="newspaper" style="width:14px;height:14px;"></i>Newsletter
                         </button>
+                        <button type="button" id="nlTabBirthdays" onclick="nlSetTab('birthdays')" style="padding:10px 24px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--border);background:var(--bg-input);color:var(--t1);display:inline-flex;align-items:center;gap:6px;">
+                            <i data-lucide="cake" style="width:14px;height:14px;"></i>Birthdays
+                        </button>
                         <button type="button" id="nlTabManage" onclick="nlSetTab('manage')" style="display:none;padding:10px 24px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--border);background:var(--bg-input);color:var(--t1);align-items:center;gap:6px;">
                             <i data-lucide="settings" style="width:14px;height:14px;"></i>Manage
                         </button>
@@ -12507,7 +12510,7 @@ else if (sectionId === 'portalAnalyticsView') {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/events-tt-activity.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/projectManagement.js"></script>
-    <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/newsletter.js"></script>
+    <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/newsletter.js?v=nl-bday1"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/contactus.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/suggestions.js"></script>
     <script src="http://sharedspaces:8086/sites/SM/Shared%20Documents/processdocs.js"></script>
