@@ -52,7 +52,30 @@ function nlMarkAsSeen(latestId) {
         localStorage.setItem('sm_nl_last_seen', String(id));
         sessionStorage.setItem('sm_nl_opened_' + id, '1');
         sessionStorage.removeItem('sm_nl_popup_later_' + id);
+        nlRememberOpenedId(id);
     } catch (e) {}
+}
+
+function nlRememberOpenedId(id) {
+    try {
+        var ids = JSON.parse(localStorage.getItem('sm_nl_read_ids') || '[]');
+        var sid = String(id);
+        if (ids.indexOf(sid) === -1) {
+            ids.push(sid);
+            localStorage.setItem('sm_nl_read_ids', JSON.stringify(ids.slice(-80)));
+        }
+    } catch (e) {}
+}
+
+function nlHasOpenedNewsletter(id) {
+    if (id == null) return false;
+    if (nlWasOpenedThisSession(id)) return true;
+    try {
+        var ids = JSON.parse(localStorage.getItem('sm_nl_read_ids') || '[]');
+        return ids.indexOf(String(id)) !== -1;
+    } catch (e) {
+        return false;
+    }
 }
 
 function nlWasOpenedThisSession(id) {
@@ -75,7 +98,7 @@ function nlRemoveNewBadge() {
 function nlCheckNewBadge(items) {
     if (!items || items.length === 0) return false;
     var latest = items[0];
-    var isNew = String(latest.ID) !== nlGetLastSeenId() && !nlWasOpenedThisSession(latest.ID);
+    var isNew = !nlHasOpenedNewsletter(latest.ID);
     var badge = document.getElementById('nlNewBadge');
     if (badge) badge.style.display = isNew ? 'inline-flex' : 'none';
     var nav = document.getElementById('newsletterNavItem');
@@ -89,24 +112,21 @@ function nlCheckNewBadge(items) {
 function nlShowNewItemPopup(item) {
     if (!item || !item.ID) return;
     if (item.Category === 'Birthdays' || nlIsBirthdayAutoItem(item)) return;
-    if (nlWasOpenedThisSession(item.ID) || nlPopupDismissedThisSession(item.ID)) return;
-    if (String(item.ID) === nlGetLastSeenId()) return;
-
-    var existing = document.getElementById('nlNewItemPopup');
-    if (existing) existing.remove();
+    if (nlHasOpenedNewsletter(item.ID) || nlPopupDismissedThisSession(item.ID)) return;
+    if (document.getElementById('nlNewItemPopup')) return;
 
     var snippet = nlDisplayContent(item).slice(0, 220);
     if (nlDisplayContent(item).length > 220) snippet += '…';
     var banner = nlGetImageURL(item) ? NL_SP_HOST + nlGetImageURL(item) : '';
     var actionsHtml =
         '<div class="nl-modal-actions">' +
-        '<button type="button" id="nlPopupViewBtn" class="export-btn" style="flex:1;">Read newsletter</button>' +
+        '<button type="button" id="nlPopupViewBtn" class="export-btn" style="flex:1;">View newsletter</button>' +
         '<button type="button" id="nlPopupLaterBtn" class="reset-btn" style="flex:1;">Later</button></div>';
     var overlay = nlOpenModalShell({
         id: 'nlNewItemPopup',
         bannerUrl: banner,
         fallbackEmoji: '📰',
-        pill: 'New update',
+        pill: 'NEW',
         badge: 'Newsletter',
         badgeColor: '#ef4444',
         dateLabel: nlFormatDate(item.PublishedDate),
@@ -120,7 +140,11 @@ function nlShowNewItemPopup(item) {
         overlay.remove();
         nlMarkAsSeen(item.ID);
         nlRemoveNewBadge();
-        if (typeof showNewsletterView === 'function') showNewsletterView();
+        if (!(nlAllItems || []).some(function (i) { return i.ID === item.ID; })) {
+            nlAllItems = [item].concat(nlAllItems || []);
+        }
+        if (typeof nlOpenReader === 'function') nlOpenReader(item);
+        else if (typeof showNewsletterView === 'function') showNewsletterView();
         else if (typeof switchDashboardSection === 'function') switchDashboardSection('newsletterView');
     });
     document.getElementById('nlPopupLaterBtn').addEventListener('click', function () {
@@ -128,6 +152,32 @@ function nlShowNewItemPopup(item) {
         overlay.remove();
         nlCheckNewBadge([item]);
     });
+}
+
+async function nlFetchNewsletterItems() {
+    var base = SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items?$select=ID,Title,Content,Category,IsActive,PublishedDate,Source,Author/Title&$expand=Author&$orderby=PublishedDate desc,ID desc&$top=50";
+    var urls = [
+        base.replace('$select=', '$select=').replace('&$orderby=', '&$filter=IsActive eq 1&$orderby='),
+        base
+    ];
+    var i, res, data, items;
+    for (i = 0; i < urls.length; i++) {
+        try {
+            res = await fetch(urls[i], { headers: { Accept: 'application/json;odata=verbose' }, credentials: 'include' });
+            if (!res.ok) continue;
+            data = await res.json();
+            items = data.d.results || [];
+            if (i === 1) {
+                items = items.filter(function (it) {
+                    var v = it.IsActive;
+                    if (v === false || v === 0 || v === '0' || String(v).toLowerCase() === 'no') return false;
+                    return true;
+                });
+            }
+            return items;
+        } catch (e) {}
+    }
+    return [];
 }
 
 // ── Load ──────────────────────────────────────────────────────
@@ -276,15 +326,17 @@ function nlDisplaySource(item) {
 }
 
 function nlStripHtmlToPlain(html) {
-    var s = String(html || '');
+    var s = String(html == null ? '' : html);
+    s = s.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h[1-6]|tr)>/gi, '\n');
     s = s.replace(/<!--[\s\S]*?-->/g, '');
     if (typeof document !== 'undefined') {
         var tmp = document.createElement('div');
         tmp.innerHTML = s;
         s = (tmp.textContent || tmp.innerText || '').trim();
     } else {
-        s = s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        s = s.replace(/<[^>]+>/g, ' ');
     }
+    s = s.replace(/\u00a0/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
     return s;
 }
 
@@ -325,9 +377,19 @@ function nlInjectNewsletterStyles() {
         '.nl-modal-backdrop{position:fixed;inset:0;z-index:12000;background:rgba(15,23,42,.62);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;}' +
         '.nl-modal-card{background:var(--bg-card);border:1px solid var(--border);border-radius:20px;width:100%;max-width:560px;max-height:90vh;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.35);position:relative;display:flex;flex-direction:column;}' +
         '.nl-modal-hero{position:relative;width:100%;height:220px;overflow:hidden;background:linear-gradient(135deg,#ec4899 0%,#f97316 50%,#8b5cf6 100%);flex-shrink:0;}' +
-        '.nl-modal-hero img{width:100%;height:100%;object-fit:cover;display:block;}' +
+        '.nl-modal-hero img{width:100%;height:100%;object-fit:contain;display:block;background:#0b1220;}' +
         '.nl-modal-hero-fallback{display:flex;align-items:center;justify-content:center;height:100%;font-size:4rem;}' +
         '.nl-modal-close{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);color:#fff;cursor:pointer;font-size:18px;line-height:1;z-index:2;}' +
+        '.nl-reader{position:fixed;inset:0;z-index:2147483646;background:var(--bg-card,#0f172a);display:flex;flex-direction:column;}' +
+        '.nl-reader-bar{flex-shrink:0;display:flex;align-items:center;justify-content:flex-end;padding:12px 16px;background:rgba(15,23,42,.92);border-bottom:1px solid var(--border,rgba(255,255,255,.08));}' +
+        '.nl-reader-close{width:48px;height:48px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(239,68,68,.18);color:#fff;cursor:pointer;font-size:28px;line-height:1;font-weight:400;}' +
+        '.nl-reader-close:hover{background:#ef4444;}' +
+        '.nl-reader-scroll{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;}' +
+        '.nl-reader-image-wrap{width:100%;min-height:55vh;background:#0b1220;display:flex;align-items:center;justify-content:center;padding:12px 12px 0;}' +
+        '.nl-reader-image-wrap img{width:100%;max-width:1200px;height:auto;max-height:calc(100vh - 120px);object-fit:contain;display:block;}' +
+        '.nl-reader-copy{max-width:860px;margin:0 auto;padding:28px 24px 64px;}' +
+        '.nl-reader-copy .nl-modal-title{font-size:1.85rem;}' +
+        '.nl-reader-copy .nl-modal-text{font-size:16px;}' +
         '.nl-modal-body{padding:1.75rem 1.75rem 1.5rem;overflow-y:auto;}' +
         '.nl-modal-meta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px;}' +
         '.nl-modal-badge{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:5px 12px;border-radius:999px;color:#fff;}' +
@@ -404,8 +466,8 @@ function nlBuildHeroCard(item) {
     if (excerpt.length > 420) excerpt = excerpt.slice(0, 420) + '…';
 
     return '<article class="nl-feed-hero" data-nl-id="' + item.ID + '" onclick="nlOpenCard(' + item.ID + ')" role="button" tabindex="0">' +
-        (imageURL ?
-            '<img class="nl-feed-hero-img" src="' + NL_SP_HOST + imageURL + '" alt="" onerror="this.classList.add(\'nl-feed-hero-img-sm\');this.src=\'\';" />' :
+            (imageURL ?
+            '<img class="nl-feed-hero-img" src="' + nlAbsoluteImageUrl(imageURL) + '" alt="" />' :
             '<div class="nl-feed-hero-img nl-feed-hero-img-sm" style="background:var(--grad);display:flex;align-items:center;justify-content:center;">' +
             '<i data-lucide="newspaper" style="width:64px;height:64px;color:rgba(255,255,255,0.5);"></i></div>'
         ) +
@@ -444,8 +506,8 @@ function nlBuildCard(item) {
     var imageURL = nlGetImageURL(item);
 
     return '<article class="nl-feed-card" onclick="nlOpenCard(' + item.ID + ')" role="button" tabindex="0">' +
-        (imageURL ?
-            '<img class="nl-feed-card-img" src="' + NL_SP_HOST + imageURL + '" alt="" onerror="this.style.display=\'none\'" />' :
+            (imageURL ?
+            '<img class="nl-feed-card-img" src="' + nlAbsoluteImageUrl(imageURL) + '" alt="" />' :
             '<div class="nl-feed-card-img" style="height:80px;background:var(--grad);display:flex;align-items:center;justify-content:center;">' +
             '<i data-lucide="newspaper" style="width:28px;height:28px;color:rgba(255,255,255,0.6);"></i></div>'
         ) +
@@ -491,40 +553,102 @@ function nlOpenModalShell(opts) {
     return overlay;
 }
 
-window.nlOpenCard = function(itemId) {
-    var item = nlAllItems.find(function(i) { return i.ID === itemId; });
+function nlAbsoluteImageUrl(rel) {
+    if (!rel) return '';
+    var path = String(rel);
+    if (/^https?:\/\//i.test(path)) return path.replace(/ /g, '%20');
+    if (path.charAt(0) !== '/') path = '/' + path;
+    return NL_SP_HOST + path.replace(/ /g, '%20');
+}
+
+async function nlEnsureItemImage(item) {
+    if (!item) return '';
+    if (item._imageURL) return nlAbsoluteImageUrl(item._imageURL);
+    try {
+        var aRes = await fetch(
+            SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items(" + item.ID + ")/AttachmentFiles",
+            { headers: { Accept: 'application/json;odata=verbose' }, credentials: 'include' }
+        );
+        if (aRes.ok) {
+            var files = ((await aRes.json()).d.results) || [];
+            var img = files.find(function (f) { return /\.(jpg|jpeg|png|gif|webp)$/i.test(f.FileName); });
+            if (img) {
+                item._imageURL = img.ServerRelativeUrl;
+                return nlAbsoluteImageUrl(item._imageURL);
+            }
+        }
+    } catch (e) {}
+    return '';
+}
+
+function nlOpenReader(item, opts) {
+    opts = opts || {};
+    if (!item) return;
+    nlInjectNewsletterStyles();
+    var existing = document.getElementById('nlReader');
+    if (existing) existing.remove();
+
+    var isBday = item.Category === 'Birthdays' || nlIsBirthdayAutoItem(item);
+    var overlay = document.createElement('div');
+    overlay.id = 'nlReader';
+    overlay.className = 'nl-reader';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+
+    var banner = opts.bannerUrl || (isBday ? nlBirthdayBannerUrl(item) : nlAbsoluteImageUrl(item._imageURL));
+    var imageHtml = banner
+        ? '<div class="nl-reader-image-wrap"><img src="' + banner + '" alt=""></div>'
+        : '';
+    var badge = isBday ? 'Birthdays' : (item.Category || 'Announcement');
+    overlay.innerHTML =
+        '<div class="nl-reader-bar">' +
+        '<button type="button" class="nl-reader-close" id="nlReaderCloseBtn" aria-label="Close">×</button>' +
+        '</div>' +
+        '<div class="nl-reader-scroll">' +
+        imageHtml +
+        '<div class="nl-reader-copy">' +
+        '<div class="nl-modal-meta">' +
+        '<span class="nl-modal-badge" style="background:' + nlCategoryColor(item.Category) + ';">' + nlEscapeHtml(badge) + '</span>' +
+        '<span class="nl-modal-date">' + nlEscapeHtml(nlFormatDate(item.PublishedDate)) + '</span>' +
+        '<span class="nl-modal-date">' + nlEscapeHtml(nlDisplaySource(item)) + '</span>' +
+        '</div>' +
+        '<h2 class="nl-modal-title">' + nlEscapeHtml(item.Title || '') + '</h2>' +
+        '<p class="nl-modal-text">' + nlEscapeHtml(nlDisplayContent(item)).replace(/\n/g, '<br>') + '</p>' +
+        '</div></div>';
+
+    function closeReader() {
+        overlay.remove();
+        document.removeEventListener('keydown', onEsc);
+    }
+    function onEsc(e) {
+        if (e.key === 'Escape') closeReader();
+    }
+    overlay.querySelector('#nlReaderCloseBtn').addEventListener('click', closeReader);
+    document.addEventListener('keydown', onEsc);
+
+    if (typeof smMountPopup === 'function') smMountPopup(overlay);
+    else document.body.appendChild(overlay);
+
+    if (!banner) {
+        nlEnsureItemImage(item).then(function (url) {
+            if (!url || !document.getElementById('nlReader')) return;
+            var scroll = overlay.querySelector('.nl-reader-scroll');
+            if (!scroll || overlay.querySelector('.nl-reader-image-wrap')) return;
+            var wrap = document.createElement('div');
+            wrap.className = 'nl-reader-image-wrap';
+            wrap.innerHTML = '<img src="' + url + '" alt="">';
+            scroll.insertBefore(wrap, scroll.firstChild);
+        });
+    }
+    return overlay;
+}
+
+window.nlOpenCard = function (itemId) {
+    var item = (nlAllItems || []).find(function (i) { return i.ID === itemId || String(i.ID) === String(itemId); });
     if (!item) return;
     nlMarkAsSeen(item.ID);
     nlRemoveNewBadge();
-
-    var isBday = item.Category === 'Birthdays' || nlIsBirthdayAutoItem(item);
-    var pill = '';
-    if (isBday) {
-        var todayYmd = nlUaeYmd(new Date());
-        var meta = nlBirthdayMetaFromItem(item);
-        var isTodayPost = meta && meta.eventYmd === todayYmd && meta.daysUntil === 0;
-        if (isTodayPost) pill = 'Happy birthday today 🎉';
-    }
-    nlOpenModalShell({
-        id: 'nlOverlay',
-        bannerUrl: isBday ? nlBirthdayBannerUrl(item) : (nlGetImageURL(item) ? NL_SP_HOST + nlGetImageURL(item) : ''),
-        fallbackEmoji: isBday ? '🎉' : '📰',
-        pill: pill,
-        badge: isBday ? 'Birthdays' : ((item.Category || 'General') + ' announcement'),
-        badgeColor: nlCategoryColor(item.Category),
-        dateLabel: nlFormatDate(item.PublishedDate),
-        sourceLabel: nlDisplaySource(item),
-        title: item.Title,
-        body: nlDisplayContent(item),
-        actionsHtml: '<div class="nl-modal-actions"><button type="button" class="reset-btn" id="nlOverlayCloseBtn" style="flex:1;">Close</button></div>'
-    });
-    var closeBtn = document.getElementById('nlOverlayCloseBtn');
-    if (closeBtn) {
-        closeBtn.addEventListener('click', function () {
-            var ov = document.getElementById('nlOverlay');
-            if (ov) ov.remove();
-        });
-    }
+    nlOpenReader(item);
 };
 // ── Manage Tab (Admin) ────────────────────────────────────────
 function nlRenderManage() {
@@ -1031,7 +1155,7 @@ async function nlBirthdayFetchMappingPeople() {
         var data = await res.json();
         (data.d.results || []).forEach(function (row) {
             var status = String(row.Status || '').trim().toLowerCase();
-            if (status === 'inactive' || status === 'disabled') {
+            if (status === 'inactive' || status === 'disabled' || status === 'left') {
                 skippedStatus++;
                 return;
             }
@@ -1343,10 +1467,7 @@ function nlShowBirthdayDailyPopup(payload) {
     var todayYmd = payload.todayYmd || nlUaeYmd(new Date());
     var existing = document.getElementById('nlBirthdayPopup');
     if (existing) existing.remove();
-    var wishBtn = '';
-    if (payload.isToday && payload.mailto) {
-        wishBtn = '<a id="nlBdayPopupWishBtn" href="' + payload.mailto + '" class="export-btn" style="flex:1;min-width:140px;text-align:center;text-decoration:none;">Send wish</a>';
-    }
+    var wishBtn = '<button type="button" id="nlBdayPopupWishBtn" class="export-btn" style="flex:1;min-width:140px;">Send email</button>';
     var actionsHtml =
         '<div class="nl-modal-actions">' +
         wishBtn +
@@ -1382,7 +1503,9 @@ function nlShowBirthdayDailyPopup(payload) {
     var wishEl = document.getElementById('nlBdayPopupWishBtn');
     if (wishEl) {
         wishEl.addEventListener('click', function () {
-            nlBirthdayMarkPopupShown(todayYmd);
+            var href = payload.mailto || nlBirthdayBuildWishMailto(payload.people || []);
+            if (href) window.location.href = href;
+            else alert('No email address on Account Mapping for today\'s birthday.');
         });
     }
     var xBtn = overlay.querySelector('.nl-modal-close');
@@ -1398,19 +1521,23 @@ function nlShowBirthdayDailyPopup(payload) {
 
 function nlBirthdayBuildWishMailto(peopleToday) {
     if (!peopleToday || !peopleToday.length) return '';
-    var p = peopleToday[0];
-    var email = (p.email || '').trim();
-    if (!email || email.indexOf('@') < 1) return '';
-    var imgUrl = NL_SP_HOST + NL_BDAY_IMAGE_TODAY.replace(/ /g, '%20');
-    var subj = encodeURIComponent('Happy Birthday, ' + (p.name || '') + '! 🎉');
+    var emails = [];
+    var names = [];
+    peopleToday.forEach(function (p) {
+        var email = String((p && p.email) || '').trim();
+        if (email && email.indexOf('@') > 0 && emails.indexOf(email) === -1) emails.push(email);
+        if (p && p.name) names.push(p.name);
+    });
+    var who = nlBirthdayNamesList(names) || 'Colleague';
+    var subj = encodeURIComponent('Happy Birthday, ' + who + '! 🎉');
     var body = encodeURIComponent(
-        'Dear ' + (p.name || 'Colleague') + ',\n\n' +
+        'Dear ' + who + ',\n\n' +
         'Happy Birthday! 🎂\n\n' +
         'Wishing you a wonderful day filled with joy and success.\n\n' +
-        'Warm regards,\n' + ((window.USER_CONTEXT && USER_CONTEXT.userName) || 'Your du family') + '\n\n' +
-        '---\n' + imgUrl
+        'Warm regards,\n' + ((window.USER_CONTEXT && USER_CONTEXT.userName) || 'Your du family')
     );
-    return 'mailto:' + email + '?subject=' + subj + '&body=' + body;
+    if (!emails.length) return 'mailto:?subject=' + subj + '&body=' + body;
+    return 'mailto:' + emails.join(';') + '?subject=' + subj + '&body=' + body;
 }
 
 /** True when DOB month/day matches today (UAE), also accepting UTC calendar day for SharePoint date-only off-by-one. */
@@ -1460,8 +1587,9 @@ function nlBirthdayPopupPayloadForToday(todayPeople, todayYmd) {
         pill: 'Happy birthday today 🎉',
         dateLabel: nlFormatBirthdayLabel(todayYmd),
         title: 'Happy Birthday!',
-        message: 'Today we celebrate ' + nlBirthdayNamesList(names) + '!\n\nUse Send wish to email them, or open Birthdays in the newsletter.',
-        mailto: nlBirthdayBuildWishMailto(todayPeople)
+        message: 'Today we celebrate ' + nlBirthdayNamesList(names) + '!\n\nSend them a birthday email, or open Birthdays in the newsletter.',
+        mailto: nlBirthdayBuildWishMailto(todayPeople),
+        people: todayPeople
     };
 }
 
@@ -1575,11 +1703,14 @@ async function nlRenderBirthdaysTab() {
 // ── Birthday on load + dashboard ───────────────────────────────
 window.nlBirthdayCheckAndMaybePopup = async function () {
     try {
-        var result = await nlBirthdayRunDaily();
-        if (result && result.people) {
-            nlBirthdayMaybeShowPopupFromPeople(result.people, result.todayYmd);
-        }
-        return result;
+        var todayYmd = nlUaeYmd(new Date());
+        var people = await nlBirthdayFetchMappingPeople();
+        people = nlBirthdayDedupePeople(people);
+        nlBirthdayMaybeShowPopupFromPeople(people, todayYmd);
+        nlBirthdayRunDaily(people).catch(function (e) {
+            console.warn('[Newsletter] Birthday sync:', e);
+        });
+        return { people: people, todayYmd: todayYmd };
     } catch (e) {
         console.warn('[Newsletter] Birthday daily run:', e);
         return null;
@@ -1587,29 +1718,20 @@ window.nlBirthdayCheckAndMaybePopup = async function () {
 };
 
 window.nlCheckOnDashboard = async function () {
-    await window.nlBirthdayCheckAndMaybePopup();
     try {
-        var url = SP_URL + "/_api/web/lists/getbytitle('" + NL_LIST + "')/items?" +
-            "$select=ID,Title,Content,PublishedDate,Category,Source&$filter=IsActive eq 1&$orderby=PublishedDate desc&$top=20";
-        var res = await fetch(url, {
-            headers: { 'Accept': 'application/json;odata=verbose' },
-            credentials: 'include'
-        });
-        if (!res.ok) return;
-        var data = await res.json();
-        var items = data.d.results || [];
+        var items = await nlFetchNewsletterItems();
         var general = nlItemsExcludingBirthdays(items);
         if (general.length > 0) {
-            var isNew = nlCheckNewBadge(general);
-            if (isNew) nlShowNewItemPopup(general[0]);
+            nlCheckNewBadge(general);
+            nlShowNewItemPopup(general[0]);
         }
-    } catch (e) {}
+    } catch (e) {
+        console.warn('[Newsletter] Dashboard unread popup:', e);
+    }
+    window.nlBirthdayCheckAndMaybePopup();
 };
 
-
-window.nlCheckOnLoad = async function () {
-    await window.nlBirthdayCheckAndMaybePopup();
-};
+window.nlCheckOnLoad = window.nlCheckOnDashboard;
 
 window.nlBirthdayDebug = async function () {
     try {
