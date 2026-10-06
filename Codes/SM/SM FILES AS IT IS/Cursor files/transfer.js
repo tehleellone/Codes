@@ -1938,7 +1938,7 @@ async function transferResolveSmId(smName) {
 async function transferFindTsmSeItem(accountCode) {
     var safeCode = String(accountCode || '').trim().replace(/'/g, "''");
     var url = SP_URL + "/_api/web/lists/getbytitle('" + TRANSFER_TSM_SE_LIST + "')/items?" +
-        "$select=ID,Title,Notes&$filter=Title eq '" + safeCode + "'&$top=1";
+        "$select=ID,Title&$filter=Title eq '" + safeCode + "'&$top=1";
     var res = await fetch(url, {
         headers: { Accept: 'application/json;odata=verbose' },
         credentials: 'include'
@@ -1946,6 +1946,115 @@ async function transferFindTsmSeItem(accountCode) {
     if (!res.ok) throw new Error('Could not verify TSM_SE_Accounts: ' + (await res.text()).slice(0, 180));
     var data = await res.json();
     return data.d.results && data.d.results.length ? data.d.results[0] : null;
+}
+
+async function transferGetTsmSeById(itemId) {
+    var id = parseInt(itemId, 10);
+    if (!id) return null;
+    var res = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + TRANSFER_TSM_SE_LIST + "')/items(" + id + ")?$select=ID,Title", {
+        headers: { Accept: 'application/json;odata=verbose' },
+        credentials: 'include'
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    var data = await res.json();
+    return data && data.d ? data.d : null;
+}
+
+function transferTsmSeCorePayload(item, src, lmName, smName) {
+    return {
+        __metadata: { type: TRANSFER_TSM_SE_ENTITY },
+        Title: String(item.Title || '').trim(),
+        ParentCode: src.parent || '',
+        CustomerName: item.Customer_x0020_Name || src.customer || '',
+        AccountManager: (item.Account_x0020_Manager && item.Account_x0020_Manager.Title) || src.am || '',
+        AccountDirector: (item.Account_x0020_Director && item.Account_x0020_Director.Title) || src.ad || '',
+        ServiceManager: smName || '',
+        LineManager: lmName || '',
+        Team: 'TSM_SE',
+        Segment: src.segment || ''
+    };
+}
+
+function transferTsmSeMonthPayload(item, src) {
+    var extra = {};
+    TRANSFER_TSM_SE_MONTH_FIELDS.forEach(function (m) {
+        var raw = src[m.row];
+        if (raw === undefined) raw = src[m.display];
+        if ((raw === undefined || raw === null || raw === '') && src.allMonths) {
+            var mainField = transferRowKeyToMainMonthField(m.row);
+            if (mainField && src.allMonths[mainField] !== undefined) raw = src.allMonths[mainField];
+        }
+        if ((raw === undefined || raw === null || raw === '') && item) {
+            var spField = transferRowKeyToMainMonthField(m.row);
+            if (spField && item[spField] !== undefined) raw = item[spField];
+        }
+        if (raw === undefined || raw === null || raw === '') return;
+        extra[m.odata] = typeof raw === 'number' ? raw : (parseFloat(String(raw).replace(/,/g, '')) || 0);
+    });
+    return extra;
+}
+
+async function transferPostTsmSePayload(url, headers, payload) {
+    return fetch(url, {
+        method: 'POST',
+        headers: headers,
+        credentials: 'include',
+        body: JSON.stringify(payload)
+    });
+}
+
+function transferRememberTsmSeLocal(item, src, lmName, smName, seId) {
+    window.TSM_SE_DATA = window.TSM_SE_DATA || [];
+    var code = String(item.Title || '').trim();
+    var row = {
+        _source: 'tsm_se',
+        _spId: seId,
+        code: code,
+        parent: src.parent || '',
+        customer: item.Customer_x0020_Name || src.customer || '',
+        am: (item.Account_x0020_Manager && item.Account_x0020_Manager.Title) || src.am || '',
+        ad: (item.Account_x0020_Director && item.Account_x0020_Director.Title) || src.ad || '',
+        sm: smName || '',
+        lm: lmName || '',
+        team: 'TSM_SE',
+        segment: src.segment || '',
+        type: 'Group',
+        isApproved: true,
+        requestStatus: 'OnBoarded',
+        requestType: 'New Account'
+    };
+    Object.keys(src).forEach(function (k) {
+        if (/^[a-z]{3}\d{2}$/i.test(k) && src[k] != null) row[k] = src[k];
+    });
+    if (typeof tsmSeApplyRevFlags !== 'function') {
+        row.avg = 0;
+        row.isRevDrop = true;
+        row.isRevUpgrade = false;
+    }
+    var idx = window.TSM_SE_DATA.findIndex(function (r) { return String(r.code || '').trim() === code; });
+    if (idx >= 0) {
+        window.TSM_SE_DATA[idx] = Object.assign({}, window.TSM_SE_DATA[idx], row);
+    } else {
+        window.TSM_SE_DATA.push(row);
+    }
+}
+
+async function transferPatchTsmSeFields(itemId, fields, digest) {
+    var payload = Object.assign({ __metadata: { type: TRANSFER_TSM_SE_ENTITY } }, fields);
+    var res = await fetch(SP_URL + "/_api/web/lists/getbytitle('" + TRANSFER_TSM_SE_LIST + "')/items(" + itemId + ")", {
+        method: 'POST',
+        headers: {
+            Accept: 'application/json;odata=verbose',
+            'Content-Type': 'application/json;odata=verbose',
+            'X-RequestDigest': digest,
+            'IF-MATCH': '*',
+            'X-HTTP-Method': 'MERGE'
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+    });
+    return res.ok;
 }
 
 function transferBuildTsmSeTransferNotes(item, src, lmName, smName) {
@@ -2036,40 +2145,7 @@ async function transferCopyToTsmSeList(item, lmName, smName) {
         return String(a.code || '').trim() === accountCode;
     }) || {};
     var digest = await transferGetDigest();
-    var historyNotes = transferBuildTsmSeTransferNotes(item, src, lmName, smName);
-    var payload = {
-        __metadata: { type: TRANSFER_TSM_SE_ENTITY },
-        Title: accountCode,
-        ParentCode: src.parent || '',
-        CustomerName: item.Customer_x0020_Name || src.customer || '',
-        AccountManager: (item.Account_x0020_Manager && item.Account_x0020_Manager.Title) || src.am || '',
-        AccountDirector: (item.Account_x0020_Director && item.Account_x0020_Director.Title) || src.ad || '',
-        ServiceManager: smName,
-        LineManager: lmName,
-        Team: 'TSM_SE',
-        Segment: src.segment || '',
-        Notes: historyNotes
-    };
-
-    TRANSFER_TSM_SE_MONTH_FIELDS.forEach(function (m) {
-        var raw = src[m.row];
-        if (raw === undefined) raw = src[m.display];
-        if ((raw === undefined || raw === null || raw === '') && src.allMonths) {
-            var mainField = transferRowKeyToMainMonthField(m.row);
-            if (mainField && src.allMonths[mainField] !== undefined) raw = src.allMonths[mainField];
-        }
-        if ((raw === undefined || raw === null || raw === '') && item) {
-            var spField = transferRowKeyToMainMonthField(m.row);
-            if (spField && item[spField] !== undefined) raw = item[spField];
-        }
-        if (raw === undefined || raw === null || raw === '') return;
-        payload[m.odata] = typeof raw === 'number' ? raw : (parseFloat(String(raw).replace(/,/g, '')) || 0);
-    });
-
     var existing = await transferFindTsmSeItem(accountCode);
-    if (existing && existing.Notes) {
-        payload.Notes = String(existing.Notes).trim() + '\n\n' + historyNotes;
-    }
     var url = existing
         ? SP_URL + "/_api/web/lists/getbytitle('" + TRANSFER_TSM_SE_LIST + "')/items(" + existing.ID + ")"
         : SP_URL + "/_api/web/lists/getbytitle('" + TRANSFER_TSM_SE_LIST + "')/items";
@@ -2082,15 +2158,35 @@ async function transferCopyToTsmSeList(item, lmName, smName) {
         headers['IF-MATCH'] = '*';
         headers['X-HTTP-Method'] = 'MERGE';
     }
-    var res = await fetch(url, {
-        method: 'POST',
-        headers: headers,
-        credentials: 'include',
-        body: JSON.stringify(payload)
-    });
+
+    var core = transferTsmSeCorePayload(item, src, lmName, smName);
+    var months = transferTsmSeMonthPayload(item, src);
+    var withMonths = Object.assign({}, core, months);
+    var res = await transferPostTsmSePayload(url, headers, withMonths);
+    if (!res.ok) {
+        console.warn('[Transfer] TSM_SE save with months failed, retrying core fields only:', (await res.text()).slice(0, 180));
+        digest = await transferGetDigest();
+        headers['X-RequestDigest'] = digest;
+        res = await transferPostTsmSePayload(url, headers, core);
+    }
     if (!res.ok) throw new Error('Could not add account to TSM_SE_Accounts: ' + (await res.text()).slice(0, 180));
+
     var verified = await transferFindTsmSeItem(accountCode);
     if (!verified) throw new Error('TSM_SE_Accounts save could not be verified. Main account was not deleted.');
+
+    try {
+        var historyNotes = transferBuildTsmSeTransferNotes(item, src, lmName, smName);
+        await transferPatchTsmSeFields(verified.ID, { Notes: historyNotes }, digest);
+    } catch (noteErr) {
+        console.warn('[Transfer] TSM_SE Notes snapshot skipped:', noteErr && noteErr.message);
+    }
+
+    transferRememberTsmSeLocal(item, src, lmName, smName, verified.ID);
+    if (window.TSM_SE_INSIGHT_FILTER) {
+        window.TSM_SE_INSIGHT_FILTER = null;
+        window.TSM_SE_INSIGHT_LABEL = '';
+    }
+    console.log('[Transfer] Account copied to TSM_SE_Accounts:', accountCode, 'ID', verified.ID);
     return verified.ID;
 }
 
@@ -2193,10 +2289,30 @@ ${USER_CONTEXT.userName}`);
 
             if (seOrigin) {
                 if (finalTeam === 'TSM_SE') {
-                    return transferDeleteMainAccount(CURRENT_TRANSFER_ITEM.ID).then(function () {
-                        if (typeof csCloseReviewsOnTransfer === 'function') {
-                            return csCloseReviewsOnTransfer(accountCode, fromTeam, finalTeam);
+                    var seId = parseInt(tsmSeItemId, 10);
+                    var seLookup = seId ? transferGetTsmSeById(seId) : transferFindTsmSeItem(accountCode);
+                    return Promise.resolve(seLookup).then(function (existingSe) {
+                        var inFlightCopy = existingSe && !transferIsDashboardActive(CURRENT_TRANSFER_ITEM);
+                        if (inFlightCopy) {
+                            return transferDeleteMainAccount(CURRENT_TRANSFER_ITEM.ID).then(function () {
+                                if (typeof csCloseReviewsOnTransfer === 'function') {
+                                    return csCloseReviewsOnTransfer(accountCode, fromTeam, finalTeam);
+                                }
+                            });
                         }
+                        return transferCopyToTsmSeList(CURRENT_TRANSFER_ITEM, lmName, TRANSFER_TSM_SE_POOL_SM)
+                            .then(function (newSeId) {
+                                completedTsmSeItemId = newSeId;
+                                return transferDeleteMainAccount(CURRENT_TRANSFER_ITEM.ID);
+                            })
+                            .then(function () {
+                                return updateChildrenTeam(CURRENT_TRANSFER_ITEM.Title, finalTeam, lmId, smId, true);
+                            })
+                            .then(function () {
+                                if (typeof csCloseReviewsOnTransfer === 'function') {
+                                    return csCloseReviewsOnTransfer(accountCode, fromTeam, finalTeam);
+                                }
+                            });
                     });
                 }
                 return updateSharePointItem(CURRENT_TRANSFER_ITEM.ID, {
