@@ -1393,6 +1393,35 @@ if (fneIsAdmin()) {
     padding: .45rem .55rem; border-bottom: 1px solid var(--border);
     white-space: nowrap; text-align: left; overflow: hidden;
   }
+  .fne-bulk-th-inner { display: inline-flex; align-items: center; gap: .28rem; max-width: 100%; }
+  .fne-bulk-th-label { overflow: hidden; text-overflow: ellipsis; }
+  .fne-bulk-filter-btn {
+    flex: 0 0 auto; border: 0; background: transparent; color: var(--t3);
+    cursor: pointer; font-size: .85rem; line-height: 1; padding: 0 .1rem;
+  }
+  .fne-bulk-filter-btn.active { color: var(--acc); font-weight: 800; }
+  .fne-bulk-row-hide { display: none !important; }
+  .fne-bulk-edit-filters { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0 0 .65rem; }
+  .fne-bulk-edit-filters .search-box { min-width: 220px; }
+  .fne-bulk-filter-count { font-size: .75rem; font-weight: 700; color: var(--t3); }
+  .fne-bulk-col-filter {
+    position: fixed; z-index: 10080; width: 230px; max-height: 300px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.22); padding: .5rem; display: flex; flex-direction: column; gap: .35rem;
+  }
+  .fne-bulk-col-filter input[type="text"] {
+    width: 100%; box-sizing: border-box; padding: .35rem .5rem; border: 1px solid var(--border);
+    border-radius: 8px; background: var(--bg-input); color: var(--t1); font-size: .75rem;
+  }
+  .fne-bulk-col-filter-list { overflow: auto; max-height: 190px; }
+  .fne-bulk-col-filter-list label {
+    display: flex; align-items: center; gap: .4rem; font-size: .75rem; padding: .16rem 0; cursor: pointer; color: var(--t1);
+  }
+  .fne-bulk-col-filter-actions { display: flex; gap: .35rem; }
+  .fne-bulk-col-filter-actions button {
+    flex: 1; padding: .25rem .4rem; font-size: .68rem; font-weight: 700;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--nab); color: var(--acc); cursor: pointer;
+  }
   .fne-bulk-table td { position: relative; padding: .25rem .3rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
   .fne-bulk-table tr:hover td { background: var(--bg-hover); }
   .fne-bulk-cell {
@@ -2028,7 +2057,12 @@ if (fneIsAdmin()) {
         <button type="button" class="fne-modal-close" onclick="fneBulkEditClose()" title="Close">&times;</button>
       </div>
       <div class="fne-modal-body">
-        <p class="fne-bulk-table-hint">Click a cell, then drag the small square at its corner up or down. Only the rows you drag get that value, like SharePoint list edit. Then click <strong>Update All</strong>.</p>
+        <p class="fne-bulk-table-hint">Use the arrow on a column to filter, the same way as the grid. Drag the square at a cell corner to fill only the rows you can see. <strong>Update shown</strong> saves just those rows.</p>
+        <div class="fne-bulk-edit-filters" id="fneBulkEditFilters">
+          <input type="text" id="fneBulkEditSearch" class="search-box" placeholder="Search these records..." oninput="fneBulkEditSearchInput(this.value)">
+          <button type="button" class="fne-btn fne-btn-secondary" style="padding:.35rem .75rem;font-size:.75rem;" onclick="fneBulkClearEditFilters()">Clear filters</button>
+          <span id="fneBulkEditFilterCount" class="fne-bulk-filter-count"></span>
+        </div>
         <div id="fneBulkEditLoading" class="fne-bulk-loading" style="display:none;">
           <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
           <div id="fneBulkEditLoadingText">Loading records…</div>
@@ -3362,6 +3396,9 @@ if (!fneIsAdmin()) {
   let FNE_BULK_TABLE_READY = false;
   let FNE_BULK_TABLE_CTX = 'new';
   let FNE_BULK_EDIT_JOB = 0;
+  let FNE_BULK_FILTERS = {};
+  let FNE_BULK_FILTER_SEARCH = '';
+  let FNE_BULK_SEARCH_TIMER = null;
 
   const FNE_BULK_TABLE_IDS = {
     new:  { head: 'fneBulkTableHead', body: 'fneBulkTableBody', wrap: 'fneBulkTableWrap', status: 'fneBulkUploadStatus', count: 'fneBulkRowCount' },
@@ -3537,18 +3574,166 @@ if (!fneIsAdmin()) {
     });
   }
 
+  function fneBulkFilterBtn(key) {
+    return '<button type="button" class="fne-bulk-filter-btn" data-key="' + key + '" onclick="fneBulkOpenColFilter(event,this)" title="Filter">&#9662;</button>';
+  }
+
+  function fneBulkHeadLabel(col) {
+    const text = col.readonly
+      ? col.label + '<span class="fne-bulk-auto-tag">Auto-calculated</span>'
+      : col.label;
+    if (!fneBulkIsEdit()) return '<th>' + text + '</th>';
+    return '<th><span class="fne-bulk-th-inner"><span class="fne-bulk-th-label">' + text + '</span>' + fneBulkFilterBtn(col.key) + '</span></th>';
+  }
+
   function fneBulkRenderHead() {
     const head = fneBulkEl('head');
     if (!head) return;
     let html = '<tr><th style="width:36px;">#</th>';
-    if (fneBulkIsEdit()) html += '<th style="width:56px;">ID</th>';
-    html += fneBulkTableCols().map(c =>
-      c.readonly
-        ? '<th>' + c.label + '<span class="fne-bulk-auto-tag">Auto-calculated</span></th>'
-        : '<th>' + c.label + '</th>'
-    ).join('') +
+    if (fneBulkIsEdit()) html += '<th style="width:78px;"><span class="fne-bulk-th-inner"><span class="fne-bulk-th-label">ID</span>' + fneBulkFilterBtn('__id') + '</span></th>';
+    html += fneBulkTableCols().map(fneBulkHeadLabel).join('') +
       '<th style="width:' + (fneBulkIsEdit() ? '48' : '72') + 'px;">Actions</th></tr>';
     head.innerHTML = html;
+  }
+
+  function fneBulkCellValue(tr, key) {
+    if (!tr) return '';
+    if (key === '__id') {
+      const idEl = tr.querySelector('.fne-bulk-id');
+      return idEl ? String(idEl.value || '').trim() : '';
+    }
+    const el = tr.querySelector('[data-key="' + key + '"]');
+    return el ? String(el.value || '').trim() : '';
+  }
+
+  function fneBulkFilterDisplay(val) {
+    return val ? val : '(Blank)';
+  }
+
+  function fneBulkCloseColFilter() {
+    const panel = document.getElementById('fneBulkColFilter');
+    if (panel) panel.style.display = 'none';
+  }
+
+  function fneBulkEnsureColFilterPanel() {
+    let panel = document.getElementById('fneBulkColFilter');
+    if (panel) return panel;
+    panel = document.createElement('div');
+    panel.id = 'fneBulkColFilter';
+    panel.className = 'fne-bulk-col-filter';
+    panel.style.display = 'none';
+    panel.onclick = function(e) { e.stopPropagation(); };
+    document.body.appendChild(panel);
+    return panel;
+  }
+
+  function fneBulkEditSearchInput(val) {
+    FNE_BULK_FILTER_SEARCH = val || '';
+    clearTimeout(FNE_BULK_SEARCH_TIMER);
+    FNE_BULK_SEARCH_TIMER = setTimeout(fneBulkApplyFilters, 140);
+  }
+
+  function fneBulkClearEditFilters() {
+    FNE_BULK_FILTERS = {};
+    FNE_BULK_FILTER_SEARCH = '';
+    const search = document.getElementById('fneBulkEditSearch');
+    if (search) search.value = '';
+    fneBulkCloseColFilter();
+    fneBulkApplyFilters();
+  }
+
+  function fneBulkApplyFilters() {
+    const body = document.getElementById('fneBulkEditTableBody');
+    if (!body) return;
+    const search = String(FNE_BULK_FILTER_SEARCH || '').trim().toLowerCase();
+    const keys = Object.keys(FNE_BULK_FILTERS);
+    let shown = 0;
+    [...body.rows].forEach(function(tr) {
+      let ok = true;
+      if (search) {
+        let blob = fneBulkCellValue(tr, '__id');
+        fneBulkTableCols().forEach(function(col) { blob += ' ' + fneBulkCellValue(tr, col.key); });
+        if (blob.toLowerCase().indexOf(search) < 0) ok = false;
+      }
+      if (ok) {
+        for (let i = 0; i < keys.length; i++) {
+          const display = fneBulkFilterDisplay(fneBulkCellValue(tr, keys[i]));
+          if (!FNE_BULK_FILTERS[keys[i]].has(display)) { ok = false; break; }
+        }
+      }
+      tr.classList.toggle('fne-bulk-row-hide', !ok);
+      if (ok) shown++;
+    });
+    const count = document.getElementById('fneBulkEditFilterCount');
+    if (count) count.textContent = shown + ' of ' + body.rows.length + ' shown';
+    const save = document.getElementById('fneBulkEditSaveBtn');
+    if (save && !save.disabled) save.textContent = shown < body.rows.length ? 'Update shown' : 'Update All';
+    document.querySelectorAll('#fneBulkEditTable .fne-bulk-filter-btn').forEach(function(btn) {
+      const key = btn.getAttribute('data-key');
+      btn.classList.toggle('active', Object.prototype.hasOwnProperty.call(FNE_BULK_FILTERS, key));
+    });
+  }
+
+  function fneBulkOpenColFilter(ev, btn) {
+    if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+    const key = btn.getAttribute('data-key');
+    const body = document.getElementById('fneBulkEditTableBody');
+    const panel = fneBulkEnsureColFilterPanel();
+    if (!key || !body || !panel) return;
+    const values = [];
+    const seen = new Set();
+    [...body.rows].forEach(function(tr) {
+      const display = fneBulkFilterDisplay(fneBulkCellValue(tr, key));
+      if (!seen.has(display)) { seen.add(display); values.push(display); }
+    });
+    values.sort(function(a, b) { return a.localeCompare(b); });
+    let chosen = Object.prototype.hasOwnProperty.call(FNE_BULK_FILTERS, key)
+      ? new Set(FNE_BULK_FILTERS[key])
+      : new Set(values);
+    panel.innerHTML =
+      '<input type="text" placeholder="Search values..." data-filter-search="1">' +
+      '<div class="fne-bulk-col-filter-list"></div>' +
+      '<div class="fne-bulk-col-filter-actions"><button type="button" data-filter-all="1">Select all</button><button type="button" data-filter-clear="1">Clear</button></div>';
+    const list = panel.querySelector('.fne-bulk-col-filter-list');
+    const searchInput = panel.querySelector('[data-filter-search]');
+    function sync() {
+      if (chosen.size === values.length) delete FNE_BULK_FILTERS[key];
+      else FNE_BULK_FILTERS[key] = new Set(chosen);
+      fneBulkApplyFilters();
+    }
+    function paint(term) {
+      const q = String(term || '').toLowerCase();
+      list.innerHTML = values.filter(function(v) { return !q || v.toLowerCase().indexOf(q) >= 0; }).map(function(v) {
+        return '<label><input type="checkbox" data-val="' + fneEscapeHtml(v) + '"' + (chosen.has(v) ? ' checked' : '') + '> ' + fneEscapeHtml(v) + '</label>';
+      }).join('');
+      list.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+        cb.onchange = function() {
+          const v = cb.getAttribute('data-val');
+          if (cb.checked) chosen.add(v);
+          else chosen.delete(v);
+          sync();
+        };
+      });
+    }
+    paint('');
+    searchInput.addEventListener('input', function() { paint(searchInput.value); });
+    panel.querySelector('[data-filter-all]').onclick = function() {
+      chosen = new Set(values);
+      delete FNE_BULK_FILTERS[key];
+      fneBulkApplyFilters();
+      fneBulkCloseColFilter();
+    };
+    panel.querySelector('[data-filter-clear]').onclick = function() {
+      chosen = new Set();
+      FNE_BULK_FILTERS[key] = new Set();
+      fneBulkApplyFilters();
+      paint(searchInput.value);
+    };
+    const rect = btn.getBoundingClientRect();
+    panel.style.display = 'flex';
+    panel.style.top = Math.min(rect.bottom + 4, window.innerHeight - 310) + 'px';
+    panel.style.left = Math.min(rect.left, window.innerWidth - 240) + 'px';
+    searchInput.focus();
   }
 
   function fneBulkAddRow(data, quiet, index) {
@@ -3603,6 +3788,15 @@ if (!fneIsAdmin()) {
     });
 
     document.addEventListener('mousedown', function(e) {
+      const panel = document.getElementById('fneBulkColFilter');
+      if (panel && panel.style.display !== 'none') {
+        const t = e.target;
+        const inside = t && t.closest && (t.closest('#fneBulkColFilter') || t.closest('.fne-bulk-filter-btn'));
+        if (!inside) fneBulkCloseColFilter();
+      }
+    }, true);
+
+    document.addEventListener('mousedown', function(e) {
       const handle = e.target && e.target.closest ? e.target.closest('.fne-bulk-fill-handle') : null;
       if (!handle) return;
       e.preventDefault();
@@ -3619,7 +3813,9 @@ if (!fneIsAdmin()) {
         fneToast(String(col.label || 'Date').replace(' *', '') + ' cannot be in the future', 'error');
         return;
       }
-      const rows = [...table.querySelectorAll('tbody tr')];
+      const rows = [...table.querySelectorAll('tbody tr')].filter(function(row) {
+        return !row.classList.contains('fne-bulk-row-hide');
+      });
       const start = rows.indexOf(tr);
       if (start < 0) return;
       let end = start;
@@ -3658,7 +3854,10 @@ if (!fneIsAdmin()) {
           cell.dispatchEvent(new Event('change', { bubbles: true }));
           n++;
         }
-        if (hi > lo) fneToast('Filled ' + n + ' rows. Click Update All to save.', 'success');
+        if (hi > lo) {
+          const filtered = table.querySelector('tbody tr.fne-bulk-row-hide');
+          fneToast('Filled ' + n + ' rows. Click ' + (filtered ? 'Update shown' : 'Update All') + ' to save.', 'success');
+        }
       }
 
       document.addEventListener('mousemove', move);
@@ -3668,7 +3867,8 @@ if (!fneIsAdmin()) {
 
   function fneBulkCopyRowAbove(btn) {
     const tr = btn.closest('tr');
-    const prev = tr && tr.previousElementSibling;
+    let prev = tr && tr.previousElementSibling;
+    while (prev && prev.classList.contains('fne-bulk-row-hide')) prev = prev.previousElementSibling;
     if (!tr || !prev) return;
     fneBulkApplyRowData(tr, fneBulkReadRowData(prev));
     const vEl = tr.querySelector('[data-key="vertical"]');
@@ -3721,12 +3921,13 @@ if (!fneIsAdmin()) {
     else fneBulkUpdateRowCount();
   }
 
-  function fneBulkReadAllRows() {
+  function fneBulkReadAllRows(onlyVisible) {
     const body = fneBulkEl('body');
     if (!body) return [];
     const isEdit = fneBulkIsEdit();
     const rows = [];
     [...body.rows].forEach((tr, i) => {
+      if (onlyVisible && tr.classList.contains('fne-bulk-row-hide')) return;
       const rec = { _line: i + 1, _errors: [] };
       let hasAny = false;
       if (isEdit) {
@@ -3899,6 +4100,7 @@ if (!fneIsAdmin()) {
       return;
     }
     const job = ++FNE_BULK_EDIT_JOB;
+    fneBulkClearEditFilters();
     fneBulkSetCtx('edit');
     fneBulkInitTable('edit');
     const body = fneBulkEl('body');
@@ -3918,8 +4120,9 @@ if (!fneIsAdmin()) {
     function finish() {
       if (job !== FNE_BULK_EDIT_JOB) return;
       fneBulkUpdateRowCount();
+      fneBulkApplyFilters();
       fneBulkEditSetLoading(false);
-      if (st) st.textContent = rows.length + ' record(s) loaded — edit and click Update All';
+      if (st) st.textContent = rows.length + ' record(s) loaded. Filter a column, then update the rows still showing.';
     }
 
     function step() {
@@ -3941,6 +4144,9 @@ if (!fneIsAdmin()) {
 
   function fneBulkEditClose() {
     FNE_BULK_EDIT_JOB++;
+    fneBulkCloseColFilter();
+    FNE_BULK_FILTERS = {};
+    FNE_BULK_FILTER_SEARCH = '';
     fneBulkEditSetLoading(false);
     const modal = document.getElementById('fneBulkEditModal');
     if (modal) modal.classList.remove('open');
@@ -4210,7 +4416,8 @@ if (!fneIsAdmin()) {
   function fneBulkEditSaveAll() {
     if (!fneIsAdmin()) return;
     fneBulkSetCtx('edit');
-    const rows = fneBulkReadAllRows();
+    const onlyShown = !!document.querySelector('#fneBulkEditTableBody tr.fne-bulk-row-hide');
+    const rows = fneBulkReadAllRows(onlyShown);
     const st = document.getElementById('fneBulkEditStatus');
     if (!rows.length) {
       fneToast('No records to update', 'error');
@@ -4223,7 +4430,7 @@ if (!fneIsAdmin()) {
       fneToast('No valid rows — check required fields', 'error');
       return;
     }
-    if (!confirm('Update ' + valid.length + ' record(s)?' + (invalid ? ' (' + invalid + ' row(s) skipped due to errors)' : ''))) return;
+    if (!confirm('Update ' + valid.length + (onlyShown ? ' shown' : '') + ' record(s)?' + (invalid ? ' (' + invalid + ' row(s) skipped due to errors)' : ''))) return;
 
     let done = 0, failed = 0;
     const updatedIds = [];
@@ -5990,6 +6197,9 @@ if (!fneIsAdmin()) {
   window.fneBulkClearTable   = fneBulkClearTable;
   window.fneBulkUploadAll    = fneBulkUploadAll;
   window.fneBulkEditOpen     = fneBulkEditOpen;
+  window.fneBulkOpenColFilter = fneBulkOpenColFilter;
+  window.fneBulkEditSearchInput = fneBulkEditSearchInput;
+  window.fneBulkClearEditFilters = fneBulkClearEditFilters;
   window.fneSelectAllRows    = fneSelectAllRows;
   window.fneClearGridSelection = fneClearGridSelection;
   window.fneBulkSetValueOpen = fneBulkSetValueOpen;
