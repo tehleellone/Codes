@@ -245,7 +245,7 @@ body[data-theme="dark"] .status-dot,body[data-theme="magenta-dark"] .status-dot{
 .search-box{padding:.45rem .75rem;border-radius:8px;border:1px solid var(--border);background:var(--bg-input);color:var(--t1);font-size:.82rem;min-width:180px;transition:border-color .18s;}
 .search-box:focus{outline:none;border-color:var(--border-s)}
 .search-box::placeholder{color:var(--t3)}
-.status-badge{display:inline-block;padding:.18rem .55rem;border-radius:20px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+.status-badge{display:inline-block;max-width:100%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;padding:.18rem .55rem;border-radius:20px;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
 .badge-success{background:rgba(22,163,74,.12);color:#16a34a;border:1px solid rgba(22,163,74,.28)}
 .badge-warning{background:rgba(245,158,11,.12);color:#b45309;border:1px solid rgba(245,158,11,.28)}
 .badge-danger{background:rgba(220,38,38,.12);color:#dc2626;border:1px solid rgba(220,38,38,.28)}
@@ -257,8 +257,10 @@ body[data-theme="dark"] .badge-warning,body[data-theme="magenta-dark"] .badge-wa
 .ag-theme-alpine .ag-header,.ag-theme-alpine .ag-header-row,.ag-theme-alpine .ag-header-viewport{background:var(--bg-secondary)!important;border-bottom:2px solid var(--border-s)!important}
 .ag-theme-alpine .ag-header-cell{background:var(--bg-secondary)!important;color:var(--t1)!important;font-weight:700!important;font-size:.72rem!important;letter-spacing:0!important;text-transform:none!important;overflow:hidden!important}
 .ag-theme-alpine .ag-header-row{overflow:hidden!important}
-.ag-theme-alpine .ag-header-cell-comp-wrapper,.ag-theme-alpine .ag-header-cell-label{color:var(--t1)!important;font-weight:700!important;overflow:hidden!important;width:100%!important}
-.ag-theme-alpine .ag-header-cell-text{color:var(--t1)!important;font-weight:700!important;overflow:hidden!important;white-space:normal!important;line-height:1.25!important;word-break:break-word!important}
+.ag-theme-alpine .ag-header-cell-comp-wrapper,.ag-theme-alpine .ag-header-cell-label,.ag-theme-alpine .ag-header-cell-text{color:var(--t1)!important;font-weight:700!important;overflow:hidden!important;max-width:100%!important;min-width:0!important}
+.ag-theme-alpine .ag-header-cell-text{display:block!important;white-space:nowrap!important;text-overflow:ellipsis!important;line-height:1.3!important}
+.ag-theme-alpine .ag-cell,.ag-theme-alpine .ag-cell-wrapper,.ag-theme-alpine .ag-cell-value{overflow:hidden!important;min-width:0!important;max-width:100%!important}
+.ag-theme-alpine .ag-cell-value{text-overflow:ellipsis!important;white-space:nowrap!important}
 .theme-toggle.active-fs{border-color:var(--nab2);background:var(--nab);color:var(--acc)}
 #fneLandingFsBtn{position:fixed;top:16px;right:16px;z-index:100002;background:var(--bg-card)}
 html.fne-fullpage,html.fne-fullpage body{overflow:hidden!important;height:100%!important;max-height:100vh!important}
@@ -373,8 +375,8 @@ html.fne-fullpage #loadingOverlay{z-index:2147483600}
 
 <!-- LANDING -->
 <div id="landingPage" class="landing-page" style="display:none;">
-  <div class="theme-toggle active-fs fne-fs-btn" id="fneLandingFsBtn" onclick="fneToggleFullscreen();return false;" title="Minimize">
-    <svg viewBox="0 0 24 24"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+  <div class="theme-toggle fne-fs-btn" id="fneLandingFsBtn" onclick="fneToggleFullscreen();return false;" title="Full screen">
+    <svg viewBox="0 0 24 24"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
   </div>
   <div class="landing-left animate-fade-in">
     <div class="landing-branding">
@@ -440,8 +442,8 @@ html.fne-fullpage #loadingOverlay{z-index:2147483600}
     </div>
     <div class="header-actions">
       <select class="color-scheme-selector" id="colorSchemeSelector" onchange="changeTheme(event)"><option value="blue">&#9670; Blue</option><option value="magenta">&#9670; Magenta</option></select>
-      <div class="theme-toggle active-fs fne-fs-btn" id="fneFullscreenBtn" onclick="fneToggleFullscreen();return false;" title="Minimize">
-        <svg viewBox="0 0 24 24"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+      <div class="theme-toggle fne-fs-btn" id="fneFullscreenBtn" onclick="fneToggleFullscreen();return false;" title="Full screen">
+        <svg viewBox="0 0 24 24"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
       </div>
       <div class="theme-toggle" onclick="toggleTheme()" title="Light/Dark"><svg id="themeIcon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></div>
     </div>
@@ -1050,7 +1052,6 @@ else {
 }
 startDashLivePoll();
 logSessionStart();
-  fneEnterFullscreen();
   });
 }
 
@@ -1394,7 +1395,7 @@ function renderAnaGrid(data){
   el('anaGrid').innerHTML='';
   ANA_GRID = agGrid.createGrid(el('anaGrid'),{
     columnDefs:anaCols,rowData:data,
-    defaultColDef:{sortable:true,filter:true,resizable:true,minWidth:110,wrapHeaderText:true,autoHeaderHeight:true},
+    defaultColDef:{sortable:true,filter:true,resizable:true,minWidth:120,wrapHeaderText:false,autoHeaderHeight:false},
     pagination:true,paginationPageSize:50,paginationPageSizeSelector:[25,50,100],
     rowHeight:42,
     overlayNoRowsTemplate:'<span style="padding:20px;color:var(--t3);font-size:.84rem;">No sessions logged yet. They are recorded automatically on each login.</span>',
@@ -2288,13 +2289,13 @@ function renderGrid(){
     cols.unshift({
       colId:'dash_reminder',
       headerName:'Send Reminder',
-      width:130,
-      minWidth:130,
+      width:168,
+      minWidth:168,
       pinned:'left',
       sortable:false,
       filter:false,
-      wrapHeaderText:true,
-      autoHeaderHeight:true,
+      wrapHeaderText:false,
+      autoHeaderHeight:false,
       cellRenderer:function(p){
         if(!p.data) return '—';
         const filter=dashGetRfsMigrationFilter();
@@ -2318,7 +2319,7 @@ function renderGrid(){
       cellStyle:{display:'flex',alignItems:'center',justifyContent:'center'},
     });
   }
-  const opts={columnDefs:cols,rowData:data,defaultColDef:{sortable:true,filter:true,resizable:true,minWidth:120,wrapHeaderText:true,autoHeaderHeight:true},pagination:true,paginationPageSize:50,paginationPageSizeSelector:[25,50,100,250],rowHeight:44,animateRows:true,enableCellTextSelection:true,onGridReady:p=>{GRID_API=p.api;}};
+  const opts={columnDefs:cols,rowData:data,defaultColDef:{sortable:true,filter:true,resizable:true,minWidth:120,wrapHeaderText:false,autoHeaderHeight:false},pagination:true,paginationPageSize:50,paginationPageSizeSelector:[25,50,100,250],rowHeight:44,headerHeight:48,animateRows:true,enableCellTextSelection:true,onGridReady:p=>{GRID_API=p.api;}};
   if(GRID_API){try{GRID_API.destroy();}catch(e){}GRID_API=null;}
   el('myGrid').innerHTML='';
   agGrid.createGrid(el('myGrid'),opts);
@@ -2381,10 +2382,11 @@ function fneResizeAfterFullscreen(){
   setTimeout(function(){ try{ renderCharts(); }catch(e){} },280);
 }
 function fneSyncFullscreenBtn(){
-  var on=window._fneFullPage!==false||!!fneFullscreenElement();
+  var on=!!fneFullscreenElement();
+  document.documentElement.classList.toggle('fne-fullpage',on);
   document.querySelectorAll('.fne-fs-btn').forEach(function(btn){
     btn.classList.toggle('active-fs',on);
-    btn.title=on?'Minimize':'Full screen';
+    btn.title=on?'Exit full screen':'Full screen';
     var icon=btn.querySelector('svg');
     if(!icon)return;
     icon.innerHTML=on
@@ -2393,7 +2395,6 @@ function fneSyncFullscreenBtn(){
   });
 }
 function fneOnFullscreenChange(){
-  if(!fneFullscreenElement()&&window._fneWantNativeFs)window._fneWantNativeFs=false;
   fneSyncFullscreenBtn();
   fneResizeAfterFullscreen();
 }
@@ -2402,35 +2403,24 @@ function fneExitNativeFullscreen(){
   if(exitFn&&fneFullscreenElement())exitFn.call(document);
 }
 function fneEnterFullscreen(){
-  window._fneFullPage=true;
-  document.documentElement.classList.add('fne-fullpage');
-  fneSyncFullscreenBtn();
   var node=document.documentElement;
   var req=node.requestFullscreen||node.webkitRequestFullscreen;
-  if(!req||fneFullscreenElement())return;
-  window._fneWantNativeFs=true;
-  var p=req.call(node);
-  if(p&&p.catch)p.catch(function(){window._fneWantNativeFs=false;});
+  if(!req)return;
+  if(fneFullscreenElement())return;
+  var p;
+  try{ p=req.call(node,{navigationUI:'hide'}); }
+  catch(e){ p=req.call(node); }
+  if(p&&p.catch)p.catch(function(){});
 }
 function fneMinimizeFullscreen(){
-  window._fneFullPage=false;
-  document.documentElement.classList.remove('fne-fullpage');
   fneExitNativeFullscreen();
+  document.documentElement.classList.remove('fne-fullpage');
   fneSyncFullscreenBtn();
   fneResizeAfterFullscreen();
 }
 function fneToggleFullscreen(){
-  if(window._fneFullPage!==false||fneFullscreenElement())fneMinimizeFullscreen();
+  if(fneFullscreenElement())fneMinimizeFullscreen();
   else fneEnterFullscreen();
-}
-function fneBindFullscreenOnGesture(){
-  function go(e){
-    if(e&&e.target&&e.target.closest&&e.target.closest('.fne-fs-btn'))return;
-    if(window._fneFullPage===false)return;
-    fneEnterFullscreen();
-  }
-  document.addEventListener('pointerdown',go,true);
-  document.addEventListener('keydown',go,true);
 }
 document.addEventListener('fullscreenchange',fneOnFullscreenChange);
 document.addEventListener('webkitfullscreenchange',fneOnFullscreenChange);
@@ -2443,16 +2433,12 @@ window.addEventListener('resize', function(){
 });
 
 window.addEventListener('load',function(){
-  window._fneFullPage=true;
-  document.documentElement.classList.add('fne-fullpage');
   el('landingPage').style.display='flex';
   try{const bt=localStorage.getItem('fne_base_theme')||'blue';const dm=localStorage.getItem('fne_dark_mode')==='true';const sel=el('colorSchemeSelector');if(sel)sel.value=bt;applyTheme(bt,dm);}catch(e){}
   initAccess();
   fneSyncFullscreenBtn();
-  fneEnterFullscreen();
-  fneBindFullscreenOnGesture();
 });
 </script>
- <script src="/sites/FGKA/SiteAssets/fnetracker.js?v=20261007a"></script>
+ <script src="/sites/FGKA/SiteAssets/fnetracker.js?v=20261007c"></script>
 </body>
 </html>
