@@ -1376,6 +1376,14 @@ if (fneIsAdmin()) {
   .fne-bulk-table-wrap {
     overflow: auto; max-height: 520px; border: 1px solid var(--border); border-radius: 10px;
   }
+  .fne-bulk-loading {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: .7rem; min-height: 240px; color: var(--t2); font-weight: 700; font-size: .84rem;
+  }
+  .fne-bulk-loading svg {
+    width: 36px; height: 36px; stroke: var(--acc); fill: none; stroke-width: 2;
+    animation: spin 1s linear infinite;
+  }
   .fne-bulk-table {
     width: max-content; min-width: 100%; border-collapse: collapse; font-size: .75rem;
   }
@@ -2021,6 +2029,10 @@ if (fneIsAdmin()) {
       </div>
       <div class="fne-modal-body">
         <p class="fne-bulk-table-hint">Click a cell, then drag the small square at its corner up or down. Only the rows you drag get that value, like SharePoint list edit. Then click <strong>Update All</strong>.</p>
+        <div id="fneBulkEditLoading" class="fne-bulk-loading" style="display:none;">
+          <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          <div id="fneBulkEditLoadingText">Loading records…</div>
+        </div>
         <div class="fne-bulk-table-wrap" id="fneBulkEditTableWrap" style="max-height:58vh;">
           <table class="fne-bulk-table" id="fneBulkEditTable">
             <thead id="fneBulkEditTableHead"></thead>
@@ -2031,7 +2043,7 @@ if (fneIsAdmin()) {
       </div>
       <div class="fne-modal-footer">
         <button type="button" class="fne-btn fne-btn-cancel" onclick="fneBulkEditClose()">Cancel</button>
-        <button type="button" class="fne-btn fne-btn-primary" onclick="fneBulkEditSaveAll()">Update All</button>
+        <button type="button" class="fne-btn fne-btn-primary" id="fneBulkEditSaveBtn" onclick="fneBulkEditSaveAll()">Update All</button>
       </div>
     </div>
   </div>
@@ -3349,6 +3361,7 @@ if (!fneIsAdmin()) {
 
   let FNE_BULK_TABLE_READY = false;
   let FNE_BULK_TABLE_CTX = 'new';
+  let FNE_BULK_EDIT_JOB = 0;
 
   const FNE_BULK_TABLE_IDS = {
     new:  { head: 'fneBulkTableHead', body: 'fneBulkTableBody', wrap: 'fneBulkTableWrap', status: 'fneBulkUploadStatus', count: 'fneBulkRowCount' },
@@ -3392,7 +3405,7 @@ if (!fneIsAdmin()) {
     if (el) el.value = tcv ? tcv.toFixed(2) : '';
   }
 
-  function fneBulkWireRowCalc(tr) {
+  function fneBulkWireRowCalc(tr, skipRecalc) {
     if (!tr) return;
     ['contractDuration', 'otc', 'mrc'].forEach(key => {
       const el = tr.querySelector('[data-key="' + key + '"]');
@@ -3400,10 +3413,10 @@ if (!fneIsAdmin()) {
       el.dataset.tcvWired = '1';
       el.addEventListener('input', () => fneBulkRecalcRowTcv(tr));
     });
-    fneBulkRecalcRowTcv(tr);
+    if (!skipRecalc) fneBulkRecalcRowTcv(tr);
   }
 
-  function fneBulkWireVerticalDirector(tr) {
+  function fneBulkWireVerticalDirector(tr, skipApply) {
     if (!tr) return;
     const vEl = tr.querySelector('[data-key="vertical"]');
     const dEl = tr.querySelector('[data-key="accountDirector"]');
@@ -3412,7 +3425,7 @@ if (!fneIsAdmin()) {
     vEl.addEventListener('change', function() {
       fneSetDirectorForVertical(vEl.value, dEl);
     });
-    if (vEl.value) fneSetDirectorForVertical(vEl.value, dEl);
+    if (!skipApply && vEl.value && !dEl.value) fneSetDirectorForVertical(vEl.value, dEl);
   }
 
   function fneBulkStripAutoCalc(data) {
@@ -3538,24 +3551,28 @@ if (!fneIsAdmin()) {
     head.innerHTML = html;
   }
 
-  function fneBulkAddRow(data) {
+  function fneBulkAddRow(data, quiet, index) {
     const body = fneBulkEl('body');
-    if (!body) return;
+    if (!body) return null;
+    const n = typeof index === 'number' ? index : body.rows.length;
     const tr = document.createElement('tr');
     if (data && data._id) tr.dataset.recordId = String(data._id);
-    let html = '<td style="color:var(--t3);font-weight:700;text-align:center;">1</td>';
+    let html = '<td style="color:var(--t3);font-weight:700;text-align:center;">' + (n + 1) + '</td>';
     if (fneBulkIsEdit()) {
       const idVal = data && data._id ? String(data._id) : '';
       html += '<td><input type="text" class="fne-bulk-cell fne-bulk-id" readonly tabindex="-1" value="' + idVal + '"></td>';
     }
     html += fneBulkTableCols().map(col => '<td>' + fneBulkCellHtml(col, data ? data[col.key] : '') + '</td>').join('') +
-      fneBulkRowActionsHtml(body.rows.length === 0);
+      fneBulkRowActionsHtml(n === 0);
     tr.innerHTML = html;
-    body.appendChild(tr);
-    fneBulkWireRowCalc(tr);
-    fneBulkWireVerticalDirector(tr);
-    fneBulkRenumberRows();
-    fneBulkUpdateRowCount();
+    if (!quiet) body.appendChild(tr);
+    fneBulkWireRowCalc(tr, !!quiet);
+    fneBulkWireVerticalDirector(tr, !!quiet);
+    if (!quiet) {
+      fneBulkRenumberRows();
+      fneBulkUpdateRowCount();
+    }
+    return tr;
   }
 
   function fneBulkAddRowCopyLast() {
@@ -3860,6 +3877,17 @@ if (!fneIsAdmin()) {
     createNext(0);
   }
 
+  function fneBulkEditSetLoading(on, text) {
+    const box = document.getElementById('fneBulkEditLoading');
+    const wrap = document.getElementById('fneBulkEditTableWrap');
+    const txt = document.getElementById('fneBulkEditLoadingText');
+    const btn = document.getElementById('fneBulkEditSaveBtn');
+    if (box) box.style.display = on ? 'flex' : 'none';
+    if (wrap) wrap.style.display = on ? 'none' : 'block';
+    if (txt && text) txt.textContent = text;
+    if (btn) btn.disabled = !!on;
+  }
+
   function fneBulkEditOpen() {
     if (!fneIsAdmin()) {
       fneToast('You do not have permission to bulk edit records', 'error');
@@ -3870,20 +3898,50 @@ if (!fneIsAdmin()) {
       fneToast('Select at least one row using the checkboxes on the left', 'error');
       return;
     }
+    const job = ++FNE_BULK_EDIT_JOB;
     fneBulkSetCtx('edit');
     fneBulkInitTable('edit');
     const body = fneBulkEl('body');
     if (body) body.innerHTML = '';
-    selected.forEach(row => fneBulkAddRow(fneGridRowToBulkEdit(row)));
-    const st = fneBulkEl('status');
-    if (st) st.textContent = selected.length + ' record(s) loaded — edit and click Update All';
     const title = document.getElementById('fneBulkEditTitle');
     if (title) title.textContent = 'Bulk Edit — ' + selected.length + ' record(s)';
+    const st = fneBulkEl('status');
+    if (st) st.textContent = '';
     const modal = document.getElementById('fneBulkEditModal');
     if (modal) modal.classList.add('open');
+    fneBulkEditSetLoading(true, 'Preparing ' + selected.length + ' records…');
+
+    const rows = selected.map(fneGridRowToBulkEdit);
+    const chunk = 12;
+    let index = 0;
+
+    function finish() {
+      if (job !== FNE_BULK_EDIT_JOB) return;
+      fneBulkUpdateRowCount();
+      fneBulkEditSetLoading(false);
+      if (st) st.textContent = rows.length + ' record(s) loaded — edit and click Update All';
+    }
+
+    function step() {
+      if (job !== FNE_BULK_EDIT_JOB || !body) return;
+      const frag = document.createDocumentFragment();
+      const end = Math.min(index + chunk, rows.length);
+      for (; index < end; index++) {
+        const tr = fneBulkAddRow(rows[index], true, index);
+        if (tr) frag.appendChild(tr);
+      }
+      body.appendChild(frag);
+      fneBulkEditSetLoading(true, 'Loading ' + index + ' of ' + rows.length + '…');
+      if (index < rows.length) requestAnimationFrame(step);
+      else finish();
+    }
+
+    setTimeout(step, 40);
   }
 
   function fneBulkEditClose() {
+    FNE_BULK_EDIT_JOB++;
+    fneBulkEditSetLoading(false);
     const modal = document.getElementById('fneBulkEditModal');
     if (modal) modal.classList.remove('open');
     const editBody = document.getElementById('fneBulkEditTableBody');
