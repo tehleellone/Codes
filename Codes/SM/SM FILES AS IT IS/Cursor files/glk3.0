@@ -680,7 +680,7 @@ html:fullscreen,html:-webkit-full-screen{
 .mq-bridge-scroll::-webkit-scrollbar{height:8px}
 .mq-bridge-scroll::-webkit-scrollbar-thumb{background:var(--border-s);border-radius:4px}
 #mqChartOuter{display:flex;flex-direction:column;min-width:100%}
-#mqChartWrap{position:relative;height:340px;min-width:100%;flex-shrink:0}
+#mqChartWrap{position:relative;height:500px;min-width:100%;flex-shrink:0}
 #mqChartWrap canvas{display:block;width:100%!important;height:100%!important}
 #mqVertOnChart{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:3}
 .mq-v-onbar{position:absolute;transform:translateX(-50%);pointer-events:auto;cursor:pointer;z-index:4}
@@ -1757,6 +1757,7 @@ const MQ_CLR_NET='#6366f1';
 const MQ_CLR_TARGET='#64748b';
 const MQ_CLR_GROWTH='#22c55e';
 const MQ_CLR_GAP='#ef4444';
+const MQ_BRIDGE_CHART_H=500;
 const MQ_CLR_ACTUALS='#059669';
 const MQ_CLR_WON='#7c3aed';
 const MQ_CLR_INFLIGHT=['#3b82f6','#60a5fa','#2563eb','#818cf8','#a5b4fc'];
@@ -9699,7 +9700,7 @@ function mqSyncChartLabels(chart,bars){
         if(letters.length){
           var bot=Math.max(bar.y,bar.base);
           var blockH=letters.length*12+8;
-          var limit=(canvas.clientHeight||340)-blockH-4;
+          var limit=(canvas.clientHeight||MQ_BRIDGE_CHART_H)-blockH-4;
           var vcell=document.createElement('div');
           vcell.className='mq-v-onbar'+(GLK_MQ_DETAIL_IDX===i?' sel':'');
           vcell.style.left=bar.x+'px';
@@ -10214,7 +10215,7 @@ function renderMobileQtdBridge(){
     var chartWrap=el('mqChartWrap');
     var msg='No '+(mqProductFamily==='fixed'?'Fixed Net MRC':'Mobile Net Adds – Lines')+' section in the uploaded GLK report.';
     if(wrap) wrap.innerHTML='<span style="color:#f59e0b;">'+msg+' Re-upload the daily GLK Excel or switch product family.</span>';
-    if(chartWrap) chartWrap.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:340px;color:var(--t3);font-size:.82rem;text-align:center;padding:1rem;">'+msg+'</div>';
+    if(chartWrap) chartWrap.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:'+MQ_BRIDGE_CHART_H+'px;color:var(--t3);font-size:.82rem;text-align:center;padding:1rem;">'+msg+'</div>';
     if(badge) badge.textContent='Target: —';
     mqRenderMobileProductTable(null);
     return;
@@ -10406,23 +10407,16 @@ function renderMobileQtdBridge(){
         barPercentage:.88,categoryPercentage:.92,minBarLength:0,maxBarThickness:52
       }]},
       options:{responsive:true,maintainAspectRatio:false,
-        layout:{padding:{bottom:axisPad,top:28,left:4,right:8}},
+        events:['click'],
+        layout:{padding:{bottom:axisPad,top:36,left:4,right:8}},
         animation:{duration:0},
         onClick:function(evt,elements){
           if(!elements.length){ mqCloseBarDetail(); return; }
           mqToggleBarDetail(elements[0].index,bars,barMeta);
         },
         interaction:{mode:'index',intersect:false},
-        plugins:{legend:{display:false},tooltip:{
-          backgroundColor:'rgba(15,10,30,.92)',padding:12,cornerRadius:10,titleFont:{size:12,weight:'700'},bodyFont:{size:11},
-          callbacks:{
-            title:function(items){var m=barMeta[items[0].dataIndex]; return m?m.label:'';},
-            label:function(ctx){return null;},
-            afterBody:function(items){
-              var b=bars[items[0].dataIndex];
-              return b?mqBarTooltipLines(b):[];
-            }
-          }}},
+        hover:{mode:null},
+        plugins:{legend:{display:false},tooltip:{enabled:false}},
         scales:{
           x:{ticks:{display:false,color:c.text,font:{size:9,weight:'600'}},grid:{display:false},
             border:{display:true,color:c.grid}},
