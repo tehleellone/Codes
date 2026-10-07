@@ -9519,7 +9519,7 @@ function glkMobileQtdCalc(){
   var scope=mqResolveReportScope(report,activeLevels);
   var skipActualsTarget=isForward||isFutureQuarter;
   var actualsRaw=skipActualsTarget?0:num(scope.actualsQtd);
-  var actualsQtd=skipActualsTarget?0:Math.abs(actualsRaw);
+  var actualsQtd=actualsRaw;
   var target=skipActualsTarget?0:scope.target;
   var actualsByVertical=null;
   if(!isForward&&!activeLevels.length&&report&&report.verticals){
@@ -9569,7 +9569,7 @@ function glkMobileQtdCalc(){
   var inflightGross=grossPool.total;
   var inflightChurn=churnPool.total;
   var hasChurn=churnPool.top.length>0||churnPool.others!==0;
-  var forecast=(skipActualsTarget?(g100.total+inflightGross+inflightChurn):(actualsQtd+g100.total+inflightGross+inflightChurn));
+  var forecast=(skipActualsTarget?(g100.total+inflightGross+inflightChurn):(actualsRaw+g100.total+inflightGross+inflightChurn));
   var diff=target-forecast;
   var calc={
     report:report,year:year,quarter:quarter,isBest:isBest,isForward:isForward,isFutureQuarter:isFutureQuarter,
@@ -9887,35 +9887,33 @@ function mqBuildForecastBreakdownHtml(calc){
   var h='<div class="mq-calc-box" style="margin:.2rem 0 .55rem;">';
   h+='<div style="font-weight:800;font-size:.82rem;margin-bottom:.4rem;color:var(--acc);">Net Forecast breakdown</div>';
   var rows=[];
-  rows.push({sign:'+',label:mqActualsBarLabel(),val:calc.actualsQtd});
-  rows.push({sign:'+',label:mqWonBarLabel(calc),val:calc.gross100||0});
+  rows.push({label:mqActualsBarLabel(),val:calc.actualsRaw});
+  rows.push({label:mqWonBarLabel(calc),val:calc.gross100||0});
   var grossN=(calc.grossPool&&calc.grossPool.top||[]).filter(function(p){return p.value;}).length;
   var churnN=(calc.churnPool&&calc.churnPool.top||[]).filter(function(p){return p.value;}).length;
   var grossLbl=mqInflightTop5Label(grossN);
   var churnLbl=mqChurnTopLabel(churnN);
   (calc.grossPool&&calc.grossPool.top||[]).forEach(function(p){
-    if(p.value) rows.push({sign:'+',label:grossLbl+' · '+p.name,val:p.value});
+    if(p.value) rows.push({label:grossLbl+' · '+p.name,val:p.value});
   });
-  if(calc.grossPool&&calc.grossPool.others) rows.push({sign:'+',label:mqInflightOthersLabel(),val:calc.grossPool.others});
+  if(calc.grossPool&&calc.grossPool.others) rows.push({label:mqInflightOthersLabel(),val:calc.grossPool.others});
   (calc.churnPool&&calc.churnPool.top||[]).forEach(function(p){
-    if(p.value) rows.push({sign:'−',label:churnLbl+' · '+p.name,val:Math.abs(p.value)});
+    if(p.value) rows.push({label:churnLbl+' · '+p.name,val:p.value});
   });
-  if(calc.churnPool&&calc.churnPool.others) rows.push({sign:'−',label:'Others Churn',val:Math.abs(calc.churnPool.others)});
+  if(calc.churnPool&&calc.churnPool.others) rows.push({label:'Others Churn',val:calc.churnPool.others});
   var sum=0;
   rows.forEach(function(r){
     var v=num(r.val);
-    if(r.sign==='−') sum-=v; else sum+=v;
+    sum+=v;
+    var sign=v<0?'−':'+';
     h+='<div style="display:flex;justify-content:space-between;gap:.5rem;padding:.18rem 0;font-size:.78rem;">';
-    h+='<span>'+r.sign+' '+mqEscHtml(r.label)+'</span>';
-    h+='<strong>'+fmtLines(v)+'</strong></div>';
+    h+='<span>'+sign+' '+mqEscHtml(r.label)+'</span>';
+    h+='<strong>'+(v<0?'−':'')+fmtLines(Math.abs(v))+'</strong></div>';
   });
   h+='<div style="display:flex;justify-content:space-between;gap:.5rem;margin-top:.35rem;padding-top:.4rem;border-top:2px solid var(--border);font-weight:800;font-size:.84rem;">';
   h+='<span>= Net Forecast</span><span style="color:var(--acc);">'+fmtLines(calc.forecast)+'</span></div>';
   if(Math.abs(sum-num(calc.forecast))>0.5){
     h+='<div style="font-size:.66rem;color:var(--t3);margin-top:.25rem;">Components sum '+fmtLines(sum)+' · rounded display '+fmtLines(calc.forecast)+'</div>';
-  }
-  if(calc.actualsRaw!=null&&calc.actualsRaw<0){
-    h+='<div style="font-size:.66rem;color:#92400e;margin-top:.25rem;">Excel actual for this scope is '+fmtLines(calc.actualsRaw)+' — bridge uses '+fmtLines(calc.actualsQtd)+' magnitude to match the chart bar.</div>';
   }
   if(calc.target>0){
     h+='<div style="margin-top:.35rem;font-size:.74rem;color:var(--t3);">Target: <strong>'+fmtLines(calc.target)+'</strong>';
@@ -10225,14 +10223,20 @@ function renderMobileQtdBridge(){
   if(chartWrapReset&&!chartWrapReset.querySelector('canvas')) chartWrapReset.innerHTML='<canvas id="chartMobileQtd"></canvas><div id="mqVertOnChart"></div>';
   var bars=[],barMeta=[],churnSepIdx=-1;
   var trueCum=0,dispTop=0;
-  var scaleMax=Math.max(calc.target,calc.actualsQtd,calc.forecast,1);
+  var scaleMax=Math.max(calc.target,Math.abs(calc.actualsQtd),Math.abs(calc.forecast),1);
   var minTileH=Math.max(scaleMax*0.025,2);
   function dispH(v,isPlaceholder,exact){
-    var a=Math.abs(num(v));
+    var n=num(v);
+    var a=Math.abs(n);
     if(isPlaceholder) return Math.max(scaleMax*0.014,28);
-    if(!exact&&a>0) return Math.max(a,minTileH);
-    if(!exact&&a===0) return minTileH;
-    return a;
+    if(exact) return n;
+    if(a>0) return Math.max(a,minTileH);
+    return minTileH;
+  }
+  function dispDelta(v,isPlaceholder){
+    var n=num(v);
+    if(n>=0) return dispH(n,isPlaceholder,false);
+    return -dispH(n,isPlaceholder,false);
   }
   function pushBar(b,meta){
     bars.push(b); barMeta.push({label:meta||'',bar:b});
@@ -10240,19 +10244,20 @@ function renderMobileQtdBridge(){
   if(!skipActualsTarget){
     var actualsLbl=mqActualsBarLabel();
     var actualsVert=(!calc.activeReportLevels.length&&calc.actualsByVertical)?calc.actualsByVertical.map(function(v){return {name:v.name,value:v.actualQtd};}):null;
-    trueCum=calc.actualsQtd; dispTop=calc.actualsQtd;
+    var actVal=calc.actualsRaw;
+    trueCum=actVal; dispTop=actVal;
     pushBar({
-      value:calc.actualsQtd,signedValue:calc.actualsRaw,trueCum:trueCum,displayStart:0,displayEnd:dispH(calc.actualsQtd,calc.actualsQtd===0,true),
+      value:actVal,signedValue:actVal,trueCum:trueCum,displayStart:0,displayEnd:dispH(actVal,actVal===0,true),
       color:MQ_CLR_ACTUALS,type:'base',custName:actualsLbl,section:'actuals',bids:[],
       vertBreakdown:actualsVert
-    },actualsLbl+' · '+mqFormatBridgeBarLabel({type:'base',signedValue:calc.actualsRaw,value:calc.actualsQtd})+(calc.reportScopeMissing?' (vertical not in report!)':''));
-    dispTop=dispH(calc.actualsQtd,calc.actualsQtd===0,true);
+    },actualsLbl+' · '+mqFormatBridgeBarLabel({type:'base',signedValue:actVal,value:actVal})+(calc.reportScopeMissing?' (vertical not in report!)':''));
+    dispTop=dispH(actVal,actVal===0,true);
     var wonLbl=mqWonBarLabel(calc);
     var wonVal=calc.gross100||0;
     var wonBids=calc.gross100Bids||[];
     var wonPlaceholder=wonVal===0&&!wonBids.length;
     trueCum+=wonVal;
-    var g0s=dispTop,g0e=dispTop+dispH(wonVal,wonPlaceholder,false); dispTop=g0e;
+    var g0s=dispTop,g0e=dispTop+dispDelta(wonVal,wonPlaceholder); dispTop=g0e;
     pushBar({
       value:wonVal,trueCum:trueCum,displayStart:g0s,displayEnd:g0e,color:MQ_CLR_WON,type:'increase',
       custName:wonLbl,section:wonPlaceholder?'actuals':'won',bids:wonBids,minPx:true,isPlaceholder:wonPlaceholder,
@@ -10264,7 +10269,7 @@ function renderMobileQtdBridge(){
     var wonValF=calc.gross100||0;
     var wonBidsF=calc.gross100Bids||[];
     trueCum+=wonValF;
-    var g0sF=dispTop,g0eF=dispTop+dispH(wonValF,wonValF===0&&!wonBidsF.length,false); dispTop=g0eF;
+    var g0sF=dispTop,g0eF=dispTop+dispDelta(wonValF,wonValF===0&&!wonBidsF.length); dispTop=g0eF;
     pushBar({
       value:wonValF,trueCum:trueCum,displayStart:g0sF,displayEnd:g0eF,color:MQ_CLR_WON,type:'increase',
       custName:wonLblF,section:'won',bids:wonBidsF||[],minPx:true,isPlaceholder:wonValF===0&&!wonBidsF.length,
@@ -10276,7 +10281,7 @@ function renderMobileQtdBridge(){
   calc.grossPool.top.forEach(function(p,i){
     if(!p.value) return;
     trueCum+=p.value;
-    var ds=dispTop,de=dispTop+dispH(p.value); dispTop=de;
+    var ds=dispTop,de=dispTop+dispDelta(p.value); dispTop=de;
     var vHint=mqBridgeShowsVertical(calc)?mqVerticalDisplayHint(p.bids):'';
     pushBar({
       value:p.value,trueCum:trueCum,displayStart:ds,displayEnd:de,
@@ -10289,7 +10294,7 @@ function renderMobileQtdBridge(){
   });
   if(calc.grossPool.others!==0){
     trueCum+=calc.grossPool.others;
-    var gs=dispTop,ge=dispTop+dispH(calc.grossPool.others); dispTop=ge;
+    var gs=dispTop,ge=dispTop+dispDelta(calc.grossPool.others); dispTop=ge;
     var othersLbl=mqInflightOthersLabel();
     pushBar({
       value:calc.grossPool.others,trueCum:trueCum,displayStart:gs,displayEnd:ge,color:MQ_CLR_INFLIGHT_OTHERS,type:'increase',
@@ -10309,7 +10314,7 @@ function renderMobileQtdBridge(){
     calc.churnPool.top.forEach(function(p,i){
       if(!p.value) return;
       trueCum+=p.value;
-      var cs=dispTop,ce=dispTop-dispH(Math.abs(p.value)); dispTop=ce;
+      var cs=dispTop,ce=dispTop+dispDelta(p.value); dispTop=ce;
       var vHintC=mqBridgeShowsVertical(calc)?mqVerticalDisplayHint(p.bids):'';
       pushBar({
         value:p.value,trueCum:trueCum,displayStart:cs,displayEnd:ce,color:mqChurnBarColor(i),type:'decrease',
@@ -10321,7 +10326,7 @@ function renderMobileQtdBridge(){
     });
     if(calc.churnPool.others!==0){
       trueCum+=calc.churnPool.others;
-      var os=dispTop,oe=dispTop-dispH(Math.abs(calc.churnPool.others)); dispTop=oe;
+      var os=dispTop,oe=dispTop+dispDelta(calc.churnPool.others); dispTop=oe;
       pushBar({
         value:calc.churnPool.others,trueCum:trueCum,displayStart:os,displayEnd:oe,color:MQ_CLR_CHURN_OTHERS,type:'decrease',
         custName:'Others Churn',section:'churn',bids:calc.churnPool.othersBids||[],groupLabel:'Others Churn'
@@ -10349,10 +10354,13 @@ function renderMobileQtdBridge(){
       }
     }
   }
-  var yMax=Math.max(calc.forecast,skipActualsTarget?0:calc.target,skipActualsTarget?0:calc.actualsQtd,1);
+  var yMin=0,yMax=Math.max(Math.abs(calc.forecast),skipActualsTarget?0:calc.target,skipActualsTarget?0:Math.abs(calc.actualsQtd),1);
   bars.forEach(function(b){
+    yMin=Math.min(yMin,b.displayStart,b.displayEnd,num(b.trueCum),num(b.value));
     yMax=Math.max(yMax,b.displayStart,b.displayEnd,Math.abs(b.trueCum||0),Math.abs(b.value));
   });
+  if(yMin>0) yMin=0;
+  yMin*=1.08;
   yMax*=1.08;
   var maxNameLen=0;
   bars.forEach(function(b){ maxNameLen=Math.max(maxNameLen,String(b.custName||'').length); });
@@ -10418,7 +10426,7 @@ function renderMobileQtdBridge(){
         scales:{
           x:{ticks:{display:false,color:c.text,font:{size:9,weight:'600'}},grid:{display:false},
             border:{display:true,color:c.grid}},
-          y:{min:0,max:yMax,ticks:{color:c.text,font:{size:12,weight:'600'},callback:function(v){return fmtLines(v);}},grid:{color:c.grid},
+          y:{min:yMin,max:yMax,ticks:{color:c.text,font:{size:12,weight:'600'},callback:function(v){return fmtLines(v);}},grid:{color:c.grid},
             title:{display:true,text:(isForward?('Aggregated Revenue (MRC + OTC)'):mqMetricUnit())+' · '+mqCaseDisplayName(calc.isBest?'best':'worst'),color:c.text,font:{size:11,weight:'700'}}}
         }
       }
