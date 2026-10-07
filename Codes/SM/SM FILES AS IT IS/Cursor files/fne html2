@@ -2418,6 +2418,7 @@ function fneMinimizeFullscreen(){
   fneSyncFullscreenBtn();
   fneResizeAfterFullscreen();
 }
+
 function fneToggleFullscreen(){
   if(fneFullscreenElement())fneMinimizeFullscreen();
   else fneEnterFullscreen();
