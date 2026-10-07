@@ -680,7 +680,7 @@ html:fullscreen,html:-webkit-full-screen{
 .mq-bridge-scroll::-webkit-scrollbar{height:8px}
 .mq-bridge-scroll::-webkit-scrollbar-thumb{background:var(--border-s);border-radius:4px}
 #mqChartOuter{display:flex;flex-direction:column;min-width:100%}
-#mqChartWrap{position:relative;height:500px;min-width:100%;flex-shrink:0}
+#mqChartWrap{position:relative;height:400px;min-width:100%;flex-shrink:0}
 #mqChartWrap canvas{display:block;width:100%!important;height:100%!important}
 #mqVertOnChart{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:3}
 .mq-v-onbar{position:absolute;transform:translateX(-50%);pointer-events:auto;cursor:pointer;z-index:4}
@@ -1757,7 +1757,7 @@ const MQ_CLR_NET='#6366f1';
 const MQ_CLR_TARGET='#64748b';
 const MQ_CLR_GROWTH='#22c55e';
 const MQ_CLR_GAP='#ef4444';
-const MQ_BRIDGE_CHART_H=500;
+const MQ_BRIDGE_CHART_H=400;
 const MQ_CLR_ACTUALS='#059669';
 const MQ_CLR_WON='#7c3aed';
 const MQ_CLR_INFLIGHT=['#3b82f6','#60a5fa','#2563eb','#818cf8','#a5b4fc'];
@@ -9672,10 +9672,14 @@ function mqSyncChartLabels(chart,bars){
   }
   var strip=el('mqXAxisStrip');
   var overlay=el('mqVertOnChart');
+  var plotTop=(chart.chartArea&&chart.chartArea.top)||0;
+  var plotBottom=(chart.chartArea&&chart.chartArea.bottom)||(canvas.clientHeight||MQ_BRIDGE_CHART_H);
   if(overlay){
     overlay.style.display='block';
+    overlay.style.left='0';
     overlay.style.width=cw+'px';
-    overlay.style.height=(canvas.clientHeight||0)+'px';
+    overlay.style.top=plotTop+'px';
+    overlay.style.height=Math.max(0,plotBottom-plotTop)+'px';
     overlay.innerHTML='';
   }
   if(strip){
@@ -9698,13 +9702,22 @@ function mqSyncChartLabels(chart,bars){
       if(b.verticalHint){
         var letters=mqVerticalLetters(b.verticalHint);
         if(letters.length){
-          var bot=Math.max(bar.y,bar.base);
+          var barTop=Math.min(bar.y,bar.base);
+          var barBot=Math.max(bar.y,bar.base);
+          var barH=barBot-barTop;
           var blockH=letters.length*12+8;
-          var limit=(canvas.clientHeight||MQ_BRIDGE_CHART_H)-blockH-4;
+          var yOnCanvas;
+          if(barH>=blockH+6){
+            yOnCanvas=barTop+(barH-blockH)/2;
+          }else{
+            yOnCanvas=barTop-blockH-5;
+            if(yOnCanvas<plotTop+2) yOnCanvas=Math.min(barBot+5,plotBottom-blockH-2);
+          }
+          yOnCanvas=Math.max(plotTop+2,Math.min(yOnCanvas,plotBottom-blockH-2));
           var vcell=document.createElement('div');
           vcell.className='mq-v-onbar'+(GLK_MQ_DETAIL_IDX===i?' sel':'');
           vcell.style.left=bar.x+'px';
-          vcell.style.top=Math.min(bot+7,limit)+'px';
+          vcell.style.top=(yOnCanvas-plotTop)+'px';
           var hd=mqVertHdGroup((b.bids&&b.bids[0]&&b.bids[0].vertical)||b.verticalHint);
           vcell.innerHTML=mqVerticalStackBlock(b.verticalHint);
           var stack=vcell.querySelector('.mq-v-stack');
@@ -10408,7 +10421,7 @@ function renderMobileQtdBridge(){
       }]},
       options:{responsive:true,maintainAspectRatio:false,
         events:['click'],
-        layout:{padding:{bottom:axisPad,top:36,left:4,right:8}},
+        layout:{padding:{bottom:axisPad,top:28,left:4,right:8}},
         animation:{duration:0},
         onClick:function(evt,elements){
           if(!elements.length){ mqCloseBarDetail(); return; }
